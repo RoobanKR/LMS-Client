@@ -14,7 +14,7 @@ import { setSharedScreenStream, getSharedScreenStream, markScreenCaptureStarting
 
 import {
     Play, RotateCcw, CheckCircle2, Maximize2, Minimize2,  // Add this
-    X, Code, FileText, AlertCircle, Terminal, Menu, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info, Send, ListChecks,
+    X, Code, FileText, AlertCircle, Terminal, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info, Send, ListChecks,
     Award,
     BarChart3,
     FileCode,
@@ -963,6 +963,17 @@ export default function CodeEditor({
       enabled: !embedded && !!((exercise as any)?._id) && !!courseId,
     });
     const [showSidebar, setShowSidebar] = useState(false)
+    // Problems list — the toolbar's Hide / Show list toggles it. Wide screens
+    // open with it showing; crossing below 1280px folds it (and crossing back
+    // restores it) so the editor keeps a usable width.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const wide = window.matchMedia('(min-width: 1280px)');
+        if (wide.matches) setShowSidebar(true);
+        const onWide = (e: MediaQueryListEvent) => setShowSidebar(e.matches);
+        wide.addEventListener('change', onWide);
+        return () => wide.removeEventListener('change', onWide);
+    }, []);
     const [leftPanelWidth, setLeftPanelWidth] = useState(32)
     const [searchQuery, setSearchQuery] = useState("")
     const editorRef = useRef<HTMLDivElement>(null)
@@ -4166,7 +4177,9 @@ else:
     const selectProblem = (index: number) => {
         if (index >= 0 && index < problems.length) {
             setCurrentProblemIndex(index)
-            setShowSidebar(false)
+            // The list stays docked on desktop; below lg it is an overlay, so
+            // picking a problem closes it.
+            if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) setShowSidebar(false)
         }
     }
 
@@ -4330,6 +4343,97 @@ else:
         );
     }
 
+    // ─── Workspace layout (reference design) ───────────────────────────────
+    // Top toolbar → Problems list | Description | editor over Output →
+    // bottom bar. Warm off-white page, white panels, thin warm-gray borders,
+    // navy headings, soft teal selection; dark theme keeps its own tones.
+    const WS = theme === 'dark' ? {
+        page: '#0B1220', panel: '#111827', border: '#374151', hairline: '#1F2937', navy: '#F9FAFB',
+        text: '#D1D5DB', muted: '#9CA3AF', teal: '#009F9A', tealDark: '#5EEAD4', tealBorder: '#0F9D94',
+        mint: 'rgba(15,157,148,0.18)', soft: '#1F2937',
+    } : {
+        page: '#FBFAF7', panel: '#FFFFFF', border: '#E7E5DF', hairline: '#EFEDE8', navy: '#101B3B',
+        text: '#344054', muted: '#667085', teal: '#009F9A', tealDark: '#0F766E', tealBorder: '#7FD0C4',
+        mint: '#E8F6F3', soft: '#F7F6F3',
+    };
+    // Difficulty badges — soft green / yellow / red.
+    const WS_DIFF: Record<string, { bg: string; fg: string; label: string }> = theme === 'dark' ? {
+        easy: { bg: 'rgba(22,163,74,0.18)', fg: '#86EFAC', label: 'Easy' },
+        medium: { bg: 'rgba(217,119,6,0.18)', fg: '#FCD34D', label: 'Medium' },
+        hard: { bg: 'rgba(220,38,38,0.18)', fg: '#FCA5A5', label: 'Hard' },
+    } : {
+        easy: { bg: '#E7F7EE', fg: '#157F3C', label: 'Easy' },
+        medium: { bg: '#FFF4D6', fg: '#8A6100', label: 'Medium' },
+        hard: { bg: '#FDECEC', fg: '#B42318', label: 'Hard' },
+    };
+    const wsToolBtn: React.CSSProperties = {
+        display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px',
+        borderRadius: 6, border: `1px solid ${WS.border}`, background: WS.panel, color: WS.navy,
+        fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+    };
+    const wsToolIconBtn = (active: boolean): React.CSSProperties => ({
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32,
+        borderRadius: 6, border: `1px solid ${active ? WS.tealBorder : WS.border}`,
+        background: active ? WS.mint : WS.panel, color: active ? WS.tealDark : WS.text,
+        cursor: 'pointer', flexShrink: 0,
+    });
+    const wsSoftBtn: React.CSSProperties = {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 32,
+        borderRadius: 6, border: `1px solid ${WS.border}`, background: WS.soft, color: WS.text,
+        fontSize: 12.5, fontWeight: 500, fontFamily: FONT, cursor: 'pointer', flexShrink: 0,
+    };
+    const wsPagerBtn = (disabled: boolean): React.CSSProperties => ({
+        display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 6,
+        border: `1px solid ${disabled ? WS.hairline : WS.border}`,
+        background: disabled ? (theme === 'dark' ? '#1F2937' : '#F4F3EF') : WS.panel,
+        color: disabled ? (theme === 'dark' ? '#6B7280' : '#A3A9B5') : WS.navy,
+        fontSize: 13.5, fontWeight: 600, fontFamily: FONT, cursor: disabled ? 'not-allowed' : 'pointer',
+        flexShrink: 0, whiteSpace: 'nowrap',
+    });
+    const wsSectionTitle: React.CSSProperties = { fontSize: 14.5, fontWeight: 700, color: WS.navy, margin: '0 0 8px' };
+    const wsCell: React.CSSProperties = { padding: '9px 12px', verticalAlign: 'top' };
+    const wsMonoPre: React.CSSProperties = { margin: 0, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5, color: WS.navy, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' };
+    const wsLiveQ: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion;
+    const wsIsLinkQ = !!(wsLiveQ?.isLinkQuestion && wsLiveQ?.questionLink);
+    const wsListed = getFilteredAndSortedProblems();
+
+    // Finish → the attempt-limit and all-questions gates, then the
+    // review-and-finish confirmation.
+    const openFinishConfirm = () => {
+        // ── Attempt limit check ──
+        if (exercise?.questionBehavior?.attemptLimitEnabled) {
+            const max = exercise.questionBehavior.maxAttempts || 1;
+            if (userAttempts >= max) {
+                showToast({
+                    type: 'error',
+                    title: 'Limit Reached',
+                    message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
+                    duration: 4000
+                });
+                return;
+            }
+        }
+
+        // ── allQuestionsRequired gate ──
+        if (exercise?.questionBehavior?.allQuestionsRequired === true) {
+            const missing: number[] = [];
+            for (let i = 0; i < problems.length; i++) {
+                if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
+            }
+            if (missing.length > 0) {
+                showToast({
+                    type: 'error',
+                    title: 'Incomplete Submission',
+                    message: `You must attempt all questions before submitting. Questions ${missing.join(', ')} remaining.`,
+                    duration: 5000
+                });
+                return;
+            }
+        }
+
+        setShowSubmitConfirm(true);
+    };
+
     const submitAnswerAction = (<>
                         <button
                             onClick={() => { void handleSubmitCode(); }}
@@ -4342,26 +4446,25 @@ else:
                                 : 'Submit your answer to this question'
                             }
                             aria-label="Submit answer"
+                            className="max-sm:min-w-0! max-sm:w-full! max-sm:px-2!"
                             style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                height: 32, padding: '0 14px', borderRadius: 8,
-                                border: 'none',
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                height: 36, minWidth: 168, padding: '0 18px', borderRadius: 6,
+                                border: '1px solid transparent',
                                 background: (isEvaluating || codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
                                     ? '#94A3B8'
-                                    : '#0F766E',
-                                color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                                    : '#009F9A',
+                                color: '#fff', fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
                                 cursor: (isEvaluating || codeIsEmpty || unchangedSinceSubmit || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)))
                                     ? 'not-allowed'
                                     : 'pointer',
                                 whiteSpace: 'nowrap',
                             }}
                         >
-                            {isRunning
-                                ? <Loader2 size={12} className="animate-spin" />
-                                : <CheckCircle size={12} />}
+                            {isRunning && <Loader2 size={13} className="animate-spin" />}
                             {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
                                 ? 'Limit Reached'
-                                : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit answer'}
+                                : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Answer'}
                         </button>
     </>);
     const workspaceActions = (<>
@@ -4395,7 +4498,7 @@ else:
                             {isRunning
                                 ? <Loader2 size={12} className="animate-spin" />
                                 : <Play size={12} fill="currentColor" />}
-                            Run
+                            Run Code
                         </button>
                         )}
 
@@ -4433,7 +4536,8 @@ else:
                         value={selectedLanguage}
                         onChange={(e) => setSelectedLanguage(e.target.value)}
                         aria-label="Programming language"
-                        className={`h-8 text-xs border rounded-[6px] px-1.5 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-[#172033] border-[#E0E5EF]'}`}
+                        className={`h-8 text-xs font-semibold border rounded-[6px] px-2 ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-[#101B3B] border-[#E7E5DF]'}`}
+                        style={{ fontFamily: FONT }}
                         disabled={isAssessmentMode && hasStarted}
                     >
                         {availableLanguages.map((lang) => (
@@ -4658,31 +4762,23 @@ else:
             )}
 
 
-            {/* GLOBAL HEADER — one compact toolbar, matched to the multi-file
-                workspace: left = product glyph + sidebar toggle + Previous /
-                N of M / Next paginator; right = the primary actions. The old
-                Exercise-info / Score strip that sat above this row is gone —
-                those two chips live on the left nav rail now, so the editor
-                starts a full row higher with no dead space on top. */}
+            {/* TOP TOOLBAR — left: the assessment, Hide list, Hide description,
+                where you are, Notes / Score / Info and the proctoring status;
+                right: the actions on the code (Run Code or Run tests, language,
+                Terminal, messages, full screen). Previous / Next, Submit and
+                Finish live on the bottom bar. */}
             <div
-                className="max-lg:flex-wrap max-lg:gap-y-2 max-sm:px-3!"
+                className="flex items-center gap-x-3 gap-y-2 flex-wrap max-sm:px-3!"
                 style={{
-                    flexShrink: 0,
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    // Compact: the row's 36px controls plus 10px above and below.
-                    padding: '10px 16px',
-                    minHeight: 56,
-                    background: theme === 'dark' ? '#111827' : '#FFFFFF',
-                    borderBottom: `1px solid ${theme === 'dark' ? '#374151' : '#E4E7EC'}`,
+                    flexShrink: 0, padding: '8px 16px', minHeight: 56,
+                    background: WS.panel, borderBottom: `1px solid ${WS.border}`,
                 }}
             >
-                <div className="flex items-center max-sm:flex-wrap max-sm:gap-y-2" style={{ gap: 10, minWidth: 0 }}>
+                {/* Below lg the left group takes the first row and the code
+                    actions wrap onto their own row underneath. */}
+                <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1 max-lg:basis-full">
                     <span aria-hidden="true" className="max-sm:hidden!" style={{
-                        width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                        width: 34, height: 34, borderRadius: 8, flexShrink: 0,
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         background: '#0F9D94', color: '#fff',
                     }}>
@@ -4693,197 +4789,77 @@ else:
                         <strong
                             title={exercise.exerciseInformation.exerciseName}
                             style={{
-                                fontSize: 20, color: theme === 'dark' ? '#F9FAFB' : '#101828', marginRight: 12,
-                                maxWidth: 360, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                fontSize: 18, color: WS.navy, marginRight: 6,
+                                maxWidth: 260, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             }}
                         >
                             {exercise.exerciseInformation.exerciseName}
                         </strong>
                     )}
-
-                    <button
-                        onClick={() => setShowSidebar(!showSidebar)}
-                        aria-label="Toggle problems sidebar"
-                        aria-pressed={showSidebar}
-                        title={showSidebar ? 'Hide problems' : 'Show problems'}
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                            border: `1px solid ${theme === 'dark' ? '#374151' : '#D9E1EA'}`,
-                            background: theme === 'dark' ? '#1f2937' : '#fff',
-                            color: theme === 'dark' ? '#d1d5db' : '#172033',
-                            cursor: 'pointer',
-                        }}
+                    {problems.length > 1 && (
+                        <button
+                            type="button"
+                            onClick={() => setShowSidebar(v => !v)}
+                            aria-pressed={showSidebar}
+                            title={showSidebar ? 'Hide the problems list' : 'Show the problems list'}
+                            style={wsToolBtn}
+                        >
+                            {showSidebar ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+                            {showSidebar ? 'Hide list' : 'Show list'}
+                        </button>
+                    )}
+                    {!wsIsLinkQ && (
+                        <button
+                            type="button"
+                            onClick={() => setShowQuestionPanel(v => !v)}
+                            aria-pressed={showQuestionPanel}
+                            title={showQuestionPanel ? 'Hide the problem description' : 'Show the problem description'}
+                            style={wsToolBtn}
+                        >
+                            <FileText size={14} />
+                            {showQuestionPanel ? 'Hide description' : 'Show description'}
+                        </button>
+                    )}
+                    <span
+                        className="max-md:hidden"
+                        title={problem?.title || undefined}
+                        style={{ fontSize: 12.5, color: WS.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, maxWidth: 340, marginLeft: 4 }}
                     >
-                        <Menu style={{ width: 18, height: 18 }} />
+                        Problem {Math.min(currentProblemIndex + 1, problems.length || 1)} of {problems.length || 1}
+                        {problem?.title ? <> · <span style={{ color: WS.navy, fontWeight: 600 }}>{problem.title}</span></> : null}
+                    </span>
+                    {/* Notes / Score / Info — what the old left rail carried. */}
+                    <span aria-hidden="true" className="max-lg:hidden" style={{ width: 1, height: 20, background: WS.border, margin: '0 2px', flexShrink: 0 }} />
+                    <button
+                        type="button"
+                        onClick={() => setShowNotesPanel(v => !v)}
+                        aria-pressed={showNotesPanel}
+                        aria-label="Notes"
+                        title="Notes — private scratchpad for this question"
+                        style={wsToolIconBtn(showNotesPanel)}
+                    >
+                        <NotebookPen size={15} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowOverviewModal(true)}
+                        aria-label={(exData as any)?.isGraded !== false ? 'Score' : 'Overview'}
+                        title={(exData as any)?.isGraded !== false ? 'Score Overview' : 'Question Overview'}
+                        style={wsToolIconBtn(showOverviewModal)}
+                    >
+                        <Award size={15} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowDetailsModal(true)}
+                        aria-label="Assessment info"
+                        title="Assessment info"
+                        style={wsToolIconBtn(showDetailsModal)}
+                    >
+                        <Info size={15} />
                     </button>
 
-                    {problems.length > 1 && (() => {
-                        const prevDisabled = currentProblemIndex === 0 && !onCrossPrev;
-                        const nextDisabled = (currentProblemIndex === problems.length - 1 && !onCrossNext) || (!isFreeFlow && !isQuestionSolved(currentProblemIndex));
-                        const nextLabel = currentProblemIndex === problems.length - 1 && onCrossNext ? (crossNextLabel || 'Next Section') : 'Next';
-                        return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
-                                <button
-                                    onClick={prevProblem}
-                                    disabled={prevDisabled}
-                                    aria-label="Previous question"
-                                    title="Previous Problem"
-                                    className="max-sm:min-w-0! max-sm:px-2.5!"
-                                    style={{
-                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                                        minWidth: 100, height: 32, padding: '0 16px', borderRadius: 8,
-                                        border: `1px solid ${theme === 'dark' ? '#374151' : '#D9E1EA'}`,
-                                        background: theme === 'dark' ? '#1f2937' : '#fff',
-                                        color: prevDisabled ? '#C6D0DA' : (theme === 'dark' ? '#d1d5db' : '#172033'),
-                                        fontSize: 12, fontWeight: 600, fontFamily: FONT,
-                                        cursor: prevDisabled ? 'not-allowed' : 'pointer',
-                                    }}
-                                >
-                                    <ChevronLeft style={{ width: 13, height: 13 }} />
-                                    Previous
-                                </button>
-
-                                <span
-                                    aria-label={`Problem ${currentProblemIndex + 1} of ${problems.length}`}
-                                    style={{
-                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                        minWidth: 44, height: 32, padding: '0 8px',
-                                        fontFamily: FONT, fontSize: 13, fontWeight: 700,
-                                        color: theme === 'dark' ? '#f9fafb' : '#101828',
-                                        fontVariantNumeric: 'tabular-nums',
-                                    }}
-                                >
-                                    Problem {currentProblemIndex + 1} of {problems.length}
-                                </span>
-
-                                <button
-                                    onClick={nextProblem}
-                                    disabled={nextDisabled}
-                                    aria-label="Next question"
-                                    title={nextLabel === 'Next' ? 'Next Problem' : nextLabel}
-                                    className="max-sm:min-w-0! max-sm:px-2.5!"
-                                    style={{
-                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                                        minWidth: 100, height: 32, padding: '0 16px', borderRadius: 8,
-                                        border: `1px solid ${theme === 'dark' ? '#374151' : '#D9E1EA'}`,
-                                        background: theme === 'dark' ? '#1f2937' : '#fff',
-                                        color: nextDisabled ? '#C6D0DA' : (theme === 'dark' ? '#d1d5db' : '#172033'),
-                                        fontSize: 12, fontWeight: 600, fontFamily: FONT,
-                                        cursor: nextDisabled ? 'not-allowed' : 'pointer',
-                                        whiteSpace: 'nowrap',
-                                    }}
-                                >
-                                    {nextLabel}
-                                    <ChevronRight style={{ width: 13, height: 13 }} />
-                                </button>
-
-                                {exercise?.questionBehavior?.allowSkip && (
-                                    <button
-                                        onClick={skipCurrentQuestion}
-                                        disabled={currentProblemIndex === problems.length - 1}
-                                        title="Skip Question"
-                                        aria-label="Skip current question"
-                                        style={{
-                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                                            border: `1px solid ${theme === 'dark' ? '#374151' : '#D9E1EA'}`,
-                                            background: theme === 'dark' ? '#1f2937' : '#fff',
-                                            color: theme === 'dark' ? '#d1d5db' : '#172033',
-                                            cursor: currentProblemIndex === problems.length - 1 ? 'not-allowed' : 'pointer',
-                                            opacity: currentProblemIndex === problems.length - 1 ? 0.5 : 1,
-                                        }}
-                                    >
-                                        <SkipForward style={{ width: 15, height: 15 }} />
-                                    </button>
-                                )}
-                            </div>
-                        );
-                    })()}
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {availableDifficulties.length > 0 && (
-                            <>
-                                <span style={{
-                                    fontSize: 11,
-                                    color: theme === 'dark' ? '#9ca3af' : '#6b7280',
-                                    fontFamily: FONT,
-                                    fontWeight: 400,
-                                }}>
-                                    Difficulty
-                                </span>
-
-                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                    <select
-                                        value={selectedDifficulty}
-                                        onChange={(e) => {
-                                            setSelectedDifficulty(e.target.value);
-                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
-                                        }}
-                                        style={{
-                                            appearance: 'none',
-                                            WebkitAppearance: 'none',
-                                            height: 28,
-                                            padding: '0 28px 0 10px',
-                                            borderRadius: 99,
-                                            border: `1px solid ${selectedDifficulty === 'easy' ? '#16a34a' :
-                                                selectedDifficulty === 'medium' ? '#d97706' :
-                                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                                        (theme === 'dark' ? '#374151' : '#d1d5db')
-                                                }`,
-                                            background: theme === 'dark' ? '#1f2937' : '#ffffff',
-                                            color: selectedDifficulty === 'easy' ? '#16a34a' :
-                                                selectedDifficulty === 'medium' ? '#d97706' :
-                                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                                            fontFamily: FONT,
-                                            fontSize: 12,
-                                            fontWeight: 500,
-                                            cursor: 'pointer',
-                                            outline: 'none',
-                                            transition: 'border-color 0.15s, color 0.15s',
-                                        }}
-                                    >
-                                        <option value="all" style={{ color: theme === 'dark' ? '#e5e7eb' : '#374151', fontWeight: 600 }}>All difficulties</option>
-                                        {availableDifficulties.map((diff) => {
-                                            const label = diff.charAt(0).toUpperCase() + diff.slice(1);
-                                            const count = difficultyMap[diff].count;
-                                            const optColor = diff === 'easy' ? '#16a34a' : diff === 'medium' ? '#d97706' : diff === 'hard' ? '#dc2626' : (theme === 'dark' ? '#e5e7eb' : '#374151');
-                                            return (
-                                                <option key={diff} value={diff} style={{ color: optColor, fontWeight: 600, background: theme === 'dark' ? '#1f2937' : '#ffffff' }}>
-                                                    {label} ({count})
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
-
-                                    {/* Custom chevron */}
-                                    <svg
-                                        viewBox="0 0 12 12"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="1.5"
-                                        style={{
-                                            position: 'absolute',
-                                            right: 9,
-                                            pointerEvents: 'none',
-                                            width: 12,
-                                            height: 12,
-                                            color: selectedDifficulty === 'easy' ? '#16a34a' :
-                                                selectedDifficulty === 'medium' ? '#d97706' :
-                                                    selectedDifficulty === 'hard' ? '#dc2626' :
-                                                        (theme === 'dark' ? '#9ca3af' : '#6b7280'),
-                                        }}
-                                    >
-                                        <path d="M2 4l4 4 4-4" />
-                                    </svg>
-                                </div>
-
-                            </>
-                        )}
-                    </div>
-
-                    {/* In the main render, around line ~1430 */}
+                    {/* Proctoring status — recording, timer, microphone. */}
                     {isAssessmentMode && hasStarted && securitySettings.screenRecordingEnabled && (
                         <div className="flex items-center gap-2">
                             {/* Camera preview - only show if camera is enabled AND we have a stream */}
@@ -4933,9 +4909,7 @@ else:
                     )}
                 </div>
 
-                {/* Time Left — absolutely centred on the toolbar so it stays
-                    dead-centre no matter how wide the left paginator or the
-                    right action cluster grow. */}
+                {/* Time Left — the exercise's own countdown. */}
                 {exercise && exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (() => {
                     const totalSecs = (exData?.exerciseInformation?.totalDuration || 0) * 60;
                     const pct = totalSecs > 0 ? Math.max(0, (exerciseTimeLeft / totalSecs) * 100) : 0;
@@ -4943,10 +4917,7 @@ else:
                     const isWarning = exerciseTimeLeft < 300 && !isDanger;
                     const tcol = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#F27757';
                     return (
-                        <div className="max-lg:static! max-lg:transform-none! max-lg:order-last" style={{
-                            position: 'absolute', left: '50%', transform: 'translateX(-50%)',
-                            minWidth: 132, pointerEvents: 'none',
-                        }}>
+                        <div style={{ minWidth: 132, flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 3 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <Clock style={{ width: 12, height: 12, color: tcol }} />
@@ -4963,253 +4934,58 @@ else:
                     );
                 })()}
 
-                <div className="flex items-center gap-2 max-lg:flex-wrap max-lg:ml-auto" style={{ justifyContent: 'flex-end' }}>
-
-                    {/* {isAssessmentMode && hasStarted && tabSwitchCount > 0 && (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-yellow-900/50 rounded text-xs">
-                            <AlertTriangle className="w-3 h-3" />
-                            Tab Switches: {tabSwitchCount}/3
-                        </div>
-                    )} */}
-
-
-
-                    {/* Language Selector */}
-                    {/* Language Selector */}
-
-
-
-                    {/* ── Prev / Submit / Next ── */}
-                    {/* {problems.length > 1 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderLeft: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`, paddingLeft: 8 }}>
-                            {currentProblemIndex > 0 ? (
-                                <button onClick={prevProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
-                                    <ChevronLeft style={{ width: 13, height: 13 }} />Prev
-                                </button>
-                            ) : (
-                                <div style={{ width: 64 }} /> 
-                            )}
-
-                            <button
-                                onClick={submitCode}
-                                disabled={isRunning || (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))}
-                                style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 14px', fontSize: 12, fontFamily: FONT, fontWeight: 600, borderRadius: 6, border: 'none', background: (exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? '#9ca3af' : '#22c55e', color: '#fff', cursor: isRunning ? 'not-allowed' : 'pointer', opacity: isRunning ? 0.7 : 1 }}
-                            >
-                                {isRunning ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <CheckCircle style={{ width: 12, height: 12 }} />}
-                                {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1)) ? 'Limit' : 'Submit'}
-                            </button>
-
-                            {currentProblemIndex < problems.length - 1 && (isFreeFlow || solvedQuestions.has(currentProblemIndex)) ? (
-                                <button onClick={nextProblem} style={{ display: 'flex', alignItems: 'center', gap: 3, height: 28, padding: '0 10px', fontSize: 12, fontFamily: FONT, fontWeight: 500, borderRadius: 6, border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`, background: theme === 'dark' ? '#1f2937' : '#fff', color: theme === 'dark' ? '#d1d5db' : '#374151', cursor: 'pointer' }}>
-                                    Next<ChevronRight style={{ width: 13, height: 13 }} />
-                                </button>
-                            ) : (
-                                <div style={{ width: 64 }} /> 
-                        </div>
-                    )} */}
-
-                    {workspaceActions}
+                <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink">
+                    {!wsIsLinkQ && workspaceActions}
+                    {!wsIsLinkQ && languageSelector}
+                    {!wsIsLinkQ && (
+                        <button
+                            type="button"
+                            onClick={() => { setShowTerminal(true); setOutputMaximized(false) }}
+                            aria-label={isManualEval ? 'Open terminal' : 'Open test results'}
+                            title={isManualEval ? 'Open terminal' : 'Open test results'}
+                            style={{ ...wsSoftBtn, padding: '0 12px' }}
+                        >
+                            <Terminal size={14} /> {isManualEval ? 'Terminal' : 'Test results'}
+                        </button>
+                    )}
                     {/* Proctor message notification (ephemeral, test-only) — standalone only; section header owns it in section mode */}
                     {!embedded && (
                         <TestMessageBell assessmentId={exercise?._id ? String(exercise._id) : ""} />
                     )}
-                    {/* Whole-test submit — previously nested inside the timer
-                        block on the old top strip, so it only rendered for timed
-                        exercises. */}
-                    {exercise && !embedded && currentProblemIndex === problems.length - 1 && (
-                        <button
-                            onClick={() => {
-                                // ── Attempt limit check ──
-                                if (exercise?.questionBehavior?.attemptLimitEnabled) {
-                                    const max = exercise.questionBehavior.maxAttempts || 1;
-                                    if (userAttempts >= max) {
-                                        showToast({
-                                            type: 'error',
-                                            title: 'Limit Reached',
-                                            message: `Maximum attempts reached (${userAttempts}/${max}). You cannot submit again.`,
-                                            duration: 4000
-                                        });
-                                        return;
-                                    }
-                                }
-
-                                // ── allQuestionsRequired gate ──
-                                if (exercise?.questionBehavior?.allQuestionsRequired === true) {
-                                    const missing: number[] = [];
-                                    for (let i = 0; i < problems.length; i++) {
-                                        if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
-                                    }
-                                    if (missing.length > 0) {
-                                        showToast({
-                                            type: 'error',
-                                            title: 'Incomplete Submission',
-                                            message: `You must attempt all questions before submitting. Questions ${missing.join(', ')} remaining.`,
-                                            duration: 5000
-                                        });
-                                        return;
-                                    }
-                                }
-
-                                setShowSubmitConfirm(true);
-                            }}
-                            disabled={isEvaluating}
-                            title="Finish and submit the whole test"
-                            style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 6,
-                                height: 32, padding: '0 14px', borderRadius: 6,
-                                border: '1px solid transparent',
-                                background: '#F97316',
-                                color: '#fff',
-                                fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                                cursor: isEvaluating ? 'not-allowed' : 'pointer',
-                                opacity: isEvaluating ? 0.7 : 1,
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            <CheckCircle style={{ width: 12, height: 12 }} />
-                            Finish assessment
-                        </button>
-                    )}
-                    {exercise && onSubmitTest && currentProblemIndex === problems.length - 1 && (
-                        <button
-                            onClick={onSubmitTest}
-                            style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 6,
-                                height: 32, padding: '0 14px', borderRadius: 6,
-                                border: '1px solid transparent', background: '#F97316', color: '#fff',
-                                fontSize: 12, fontWeight: 700, fontFamily: FONT,
-                                cursor: 'pointer', whiteSpace: 'nowrap',
-                            }}
-                        >
-                            <CheckCircle style={{ width: 12, height: 12 }} />
-                            Finish assessment
-                        </button>
-                    )}
-
-                    <div style={{ width: 1, height: 18, background: theme === 'dark' ? '#374151' : '#e5e7eb' }} />
-
-                    {/* <button
-                        onClick={runCode}
-                        disabled={isRunning}
-                        className="h-7 px-2 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1"
-                        style={{ fontFamily: FONT }}
-                    >
-                        {isRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                        Run
-                    </button> */}
-
                     <button
+                        type="button"
                         onClick={toggleFullscreen}
-                        className={`w-7 h-7 max-sm:w-8 max-sm:h-8 flex items-center justify-center border rounded-[6px] ${theme === 'dark' ? 'border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300' : 'border-[#E0E5EF] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155]'}`}
+                        aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+                        title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+                        style={{ ...wsSoftBtn, width: 32 }}
                     >
-                        {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                        {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                     </button>
                 </div>
             </div>
 
-            <div className="flex flex-1 overflow-hidden relative max-md:flex-col">
-                {/* LEFT NAV RAIL — thin column carrying the two utility chips
-                    that used to occupy the top strip (Score overview + Exercise
-                    info), exactly as the multi-file workspace does it. */}
-                {exercise && (
-                    <div className={`max-md:w-full! max-md:flex-row! max-md:py-0! max-md:border-r-0! max-md:border-b ${theme === 'dark' ? 'max-md:border-[#374151]' : 'max-md:border-[#E4E7EC]'} max-md:justify-around`} style={{
-                        width: 72, flexShrink: 0,
-                        background: theme === 'dark' ? '#0f172a' : '#F7F9FB',
-                        borderRight: `1px solid ${theme === 'dark' ? '#374151' : '#E4E7EC'}`,
-                        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
-                        padding: '12px 0', gap: 4,
-                    }}>
-                        {/* Problem shows / hides the question panel. With Notes or
-                            the problems list open it first brings the question back. */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (showNotesPanel || showSidebar) { setShowNotesPanel(false); setShowSidebar(false); setShowQuestionPanel(true); return; }
-                                setShowQuestionPanel(v => !v);
-                            }}
-                            aria-label="Problem"
-                            aria-pressed={showQuestionPanel && !showNotesPanel}
-                            title={showQuestionPanel && !showNotesPanel ? 'Hide the question' : 'Show the question'}
-                            className={`flex flex-col items-center gap-1.5 py-3 text-xs font-semibold border-l-2 ${(showQuestionPanel && !showNotesPanel) ? 'border-teal-600 text-teal-700 bg-teal-50' : `border-transparent ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}`}
-                        ><Code size={18} />Problem</button>
-                        <button
-                            type="button"
-                            onClick={() => setShowNotesPanel(v => !v)}
-                            aria-label="Notes"
-                            aria-pressed={showNotesPanel}
-                            title="Notes — private scratchpad for this question"
-                            className="max-md:flex-1 max-md:py-1.5!"
-                            style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                                padding: '10px 4px', border: 'none', background: 'transparent', cursor: 'pointer',
-                                color: showNotesPanel ? '#0F5B5D' : (theme === 'dark' ? '#9ca3af' : '#667085'),
-                                borderLeft: showNotesPanel ? '2px solid #0F5B5D' : '2px solid transparent',
-                            }}
-                        >
-                            <NotebookPen style={{ width: 18, height: 18 }} />
-                            <span style={{ fontSize: 11, fontWeight: 600, fontFamily: FONT }}>Notes</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setShowOverviewModal(true)}
-                            aria-label={(exData as any)?.isGraded !== false ? 'Score' : 'Questions'}
-                            title={(exData as any)?.isGraded !== false ? 'Score Overview' : 'Question Overview'}
-                            className="max-md:flex-1 max-md:py-1.5!"
-                            style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                                padding: '10px 4px', border: 'none', background: 'transparent', cursor: 'pointer',
-                                color: showOverviewModal ? '#6957E5' : (theme === 'dark' ? '#9ca3af' : '#667085'),
-                                borderLeft: showOverviewModal ? '2px solid #6957E5' : '2px solid transparent',
-                            }}
-                        >
-                            <Award style={{ width: 18, height: 18 }} />
-                            <span style={{ fontSize: 11, fontWeight: 600, fontFamily: FONT }}>
-                                {(exData as any)?.isGraded !== false ? 'Score' : 'Overview'}
-                            </span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setShowDetailsModal(true)}
-                            aria-label="Exercise info"
-                            title="Exercise info"
-                            className="max-md:flex-1 max-md:py-1.5!"
-                            style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                                padding: '10px 4px', border: 'none', background: 'transparent', cursor: 'pointer',
-                                color: showDetailsModal ? '#0F9D94' : (theme === 'dark' ? '#9ca3af' : '#667085'),
-                                borderLeft: showDetailsModal ? '2px solid #0F9D94' : '2px solid transparent',
-                            }}
-                        >
-                            <AlertCircle style={{ width: 18, height: 18 }} />
-                            <span style={{ fontSize: 10.5, fontWeight: 600, fontFamily: FONT, lineHeight: 1.2, textAlign: 'center' }}>
-                                Exercise<br />info
-                            </span>
-                        </button>
-                    </div>
-                )}
-
-                {/* Notes panel — private per-question scratchpad. Slides in beside
-                    the rail and autosaves on every keystroke, so a reload never
-                    loses the student's own notes. Kept intentionally simple so it
-                    never competes with the code editor for attention. */}
+            <div className="flex flex-1 overflow-hidden relative max-md:flex-col" style={{ background: WS.page }}>
+                {/* Notes panel — private per-question scratchpad, opened from the
+                    toolbar's Notes button. Autosaves on every keystroke, so a
+                    reload never loses the student's own notes. */}
                 {showNotesPanel && (
                     <div
-                        className="flex-shrink-0 flex flex-col border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-[72px] max-lg:z-30 max-lg:shadow-2xl max-lg:w-[min(20rem,85vw)]! max-md:left-0 max-md:w-full!"
+                        className="flex-shrink-0 flex flex-col border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:shadow-2xl max-lg:w-[min(20rem,85vw)]! max-md:w-full!"
                         style={{
-                            width: 320,
+                            width: 300,
                             background: theme === 'dark' ? '#1c1917' : '#FFFDF7',
-                            borderColor: theme === 'dark' ? '#374151' : '#E4E7EC',
+                            borderColor: WS.border,
                         }}
                     >
                         <div style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             padding: '10px 14px',
-                            borderBottom: `1px solid ${theme === 'dark' ? '#374151' : '#E4E7EC'}`,
+                            borderBottom: `1px solid ${WS.border}`,
                             background: theme === 'dark' ? '#292524' : '#FFFBF0',
                         }}>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                                 <NotebookPen size={14} style={{ color: '#0F5B5D' }} />
-                                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: theme === 'dark' ? '#f9fafb' : '#101828' }}>
+                                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: WS.navy }}>
                                     Notes
                                 </span>
                             </div>
@@ -5222,13 +4998,13 @@ else:
                                 style={{
                                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                     width: 24, height: 24, borderRadius: 6, border: 'none',
-                                    background: 'transparent', color: '#667085', cursor: 'pointer',
+                                    background: 'transparent', color: WS.muted, cursor: 'pointer',
                                 }}
                             >
                                 <X size={13} />
                             </button>
                         </div>
-                        <div style={{ padding: '6px 14px 4px', fontFamily: FONT, fontSize: 11.5, color: '#667085' }}>
+                        <div style={{ padding: '6px 14px 4px', fontFamily: FONT, fontSize: 11.5, color: WS.muted }}>
                             Private scratchpad for this question. Autosaved.
                         </div>
                         <textarea
@@ -5240,157 +5016,150 @@ else:
                                 flex: 1, resize: 'none',
                                 margin: '6px 14px 14px', padding: '10px 12px',
                                 borderRadius: 8,
-                                border: `1px solid ${theme === 'dark' ? '#374151' : '#E4E7EC'}`,
+                                border: `1px solid ${WS.border}`,
                                 background: theme === 'dark' ? '#0f172a' : '#fff',
                                 fontFamily: FONT, fontSize: 13,
-                                color: theme === 'dark' ? '#f1f5f9' : '#101828',
+                                color: WS.navy,
                                 lineHeight: 1.55, outline: 'none',
                             }}
                             onFocus={(e) => { e.currentTarget.style.borderColor = '#0F5B5D'; }}
-                            onBlur={(e) => { e.currentTarget.style.borderColor = theme === 'dark' ? '#374151' : '#E4E7EC'; }}
+                            onBlur={(e) => { e.currentTarget.style.borderColor = WS.border; }}
                         />
                     </div>
                 )}
 
-                {showSidebar && (
-                    <div className={`w-80 border-r overflow-hidden flex flex-col max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(20rem,85vw)] max-lg:shadow-2xl ${theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-300 bg-white'}`}>
-                        <div className={`p-3 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}`}>
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                    Problems ({getFilteredAndSortedProblems().length}/{problems.length})
-                                </h3>
-                                <div className="flex items-center gap-1.5">
-                                    <button
-                                        onClick={() => setShowSearch(!showSearch)}
-                                        className={`p-1 ml-1 rounded transition-colors ${showSearch ? (theme === 'dark' ? 'bg-orange-700' : 'bg-orange-500') : (theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600')}`}
-                                    >
-                                        {showSearch ? <XIcon className="w-3.5 h-3.5 text-white" /> : <Search className="w-3.5 h-3.5" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {showSearch && (
-                                <div className="relative mb-3">
-                                    <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
-                                    <input
-                                        type="text"
-                                        placeholder="Search problems..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className={`w-full pl-8 pr-6 py-1.5 text-xs border rounded focus:ring-1 focus:ring-orange-500 focus:outline-none ${theme === 'dark' ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' : 'border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-500'}`}
-                                        autoFocus
-                                    />
-                                    {searchQuery && (
-                                        <button onClick={() => setSearchQuery("")} className="absolute right-1 top-1/2 transform -translate-y-1/2">
-                                            <XIcon className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
-                                        </button>
+                {/* PROBLEMS LIST — numbered, difficulty badges, the current problem
+                    on a mint card. Search / difficulty filter / sort fold into
+                    the search button in its header. */}
+                {showSidebar && problems.length > 1 && (
+                    <div
+                        className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(18rem,85vw)]! max-lg:shadow-2xl"
+                        style={{ width: 270, background: WS.panel, borderColor: WS.border }}
+                    >
+                        <div style={{ padding: '14px 14px 8px', flexShrink: 0 }}>
+                            <div className="flex items-center justify-between gap-2">
+                                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: WS.navy, fontFamily: FONT }}>
+                                    Problems ({problems.length})
+                                    {wsListed.length !== problems.length && (
+                                        <span style={{ fontSize: 12, fontWeight: 500, color: WS.muted }}> · {wsListed.length} shown</span>
                                     )}
-                                </div>
-                            )}
-
-                            {/* Filter and Sort Controls */}
-                            <div className="flex items-center justify-between gap-3">
-                                {/* Difficulty Filter Dropdown */}
-                                <div className="flex-1">
-                                    <select
-                                        value={filterDifficulty}
-                                        onChange={(e) => setFilterDifficulty(e.target.value as any)}
-                                        className={`w-full text-xs border rounded px-2 py-1.5 ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-gray-300' : 'bg-white border-gray-300 text-gray-900'}`}
-                                    >
-                                        <option value="all">All Difficulties</option>
-                                        <option value="Easy">Easy</option>
-                                        <option value="Medium">Medium</option>
-                                        <option value="Hard">Hard</option>
-                                    </select>
-                                </div>
-
-                                {/* Sort Icon Button */}
+                                </h3>
                                 <button
-                                    onClick={cycleSortOption}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded transition-colors ${theme === 'dark' ? 'border-gray-600 hover:bg-gray-800' : 'border-gray-300 hover:bg-gray-100'}`}
-                                    title={`Sort by: ${sortBy === 'default' ? 'Default Order' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}. Click to change.`}
+                                    type="button"
+                                    onClick={() => setShowSearch(!showSearch)}
+                                    aria-pressed={showSearch}
+                                    aria-label="Search, filter and sort problems"
+                                    title="Search, filter and sort"
+                                    style={{ ...wsToolIconBtn(showSearch || filterDifficulty !== 'all' || sortBy !== 'default' || !!searchQuery.trim()), width: 30, height: 30 }}
                                 >
-                                    <ArrowUpDown className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
-                                    <span className={`font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                        {sortBy === 'default' ? 'Default' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}
-                                    </span>
+                                    <Search size={14} />
                                 </button>
                             </div>
-
-                            {/* Sort Indicator */}
-                            <div className={`mt-2 text-2xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'} flex items-center justify-between`}>
-                                <span>
-                                    {filterDifficulty !== 'all' && `Filtered: ${filterDifficulty}`}
-                                    {filterDifficulty === 'all' && 'Showing all difficulties'}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <span>Sort:</span>
-                                    <span className={`px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                                        {getSortIcon()}
-                                    </span>
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto">
-                            {getFilteredAndSortedProblems().length === 0 ? (
-                                <div className="p-4 text-center">
-                                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        No problems found
-                                        {filterDifficulty !== 'all' && ` for "${filterDifficulty}" difficulty`}
-                                        {searchQuery && ` matching "${searchQuery}"`}
+                            {showSearch && (
+                                <div className="flex flex-col gap-2" style={{ marginTop: 10 }}>
+                                    <div className="relative">
+                                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search problems…"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            aria-label="Search problems"
+                                            className="w-full pl-7 pr-7 py-1.5 text-xs rounded-md outline-none"
+                                            style={{ border: `1px solid ${WS.border}`, background: WS.soft, color: WS.navy }}
+                                            autoFocus
+                                        />
+                                        {searchQuery && (
+                                            <button onClick={() => setSearchQuery("")} aria-label="Clear search" className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                                                <XIcon className="w-3.5 h-3.5 text-gray-400" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={filterDifficulty}
+                                            onChange={(e) => setFilterDifficulty(e.target.value as any)}
+                                            aria-label="Filter by difficulty"
+                                            className="flex-1 text-xs rounded-md px-2 py-1.5"
+                                            style={{ border: `1px solid ${WS.border}`, background: WS.panel, color: WS.navy }}
+                                        >
+                                            <option value="all">All difficulties</option>
+                                            <option value="Easy">Easy</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="Hard">Hard</option>
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={cycleSortOption}
+                                            aria-label={`Sort: ${sortBy === 'default' ? 'default order' : sortBy}`}
+                                            title={`Sort by: ${sortBy === 'default' ? 'Default Order' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}. Click to change.`}
+                                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md"
+                                            style={{ border: `1px solid ${WS.border}`, background: WS.panel, color: WS.text }}
+                                        >
+                                            <ArrowUpDown className="w-3.5 h-3.5" /><span className="font-medium">{getSortIcon()}</span>
+                                        </button>
                                     </div>
                                 </div>
-                            ) : (
-                                getFilteredAndSortedProblems().map((p, index) => {
-                                    const originalIndex = problems.findIndex(prob => prob.id === p.id);
-                                    return (
-                                        <button
-                                            key={p.id}
-                                            onClick={() => selectProblem(originalIndex)}
-                                            className={`w-full p-3 text-left transition-colors border-b ${theme === 'dark' ? 'border-gray-800' : 'border-gray-100'} ${currentProblemIndex === originalIndex
-                                                ? (theme === 'dark' ? 'bg-orange-900/20 border-l-2 border-l-orange-500' : 'bg-orange-50 border-l-2 border-l-orange-500')
-                                                : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50')}`}
-                                        >
-                                            <div className="flex items-center justify-between gap-2">
-                                                {/* Left: number + title */}
-                                                <div className={`text-sm font-medium truncate flex-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                                                    {originalIndex + 1}. {p.title}
-                                                </div>
-                                                {/* Right: badges */}
-                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    {/* Difficulty */}
-                                                    <span className={`text-2xs px-1.5 py-0.5 rounded ${p.difficulty === 'Easy' ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : p.difficulty === 'Medium' ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                                        {p.difficulty}
-                                                    </span>
-                                                    {/* Marks badge — hidden for non-graded */}
-                                                    {exercise?.isGraded !== false && (() => {
-                                                        const qMarks = exercise?.questions?.[originalIndex]?.score ?? exercise?.questions?.[originalIndex]?.points ?? null;
-                                                        if (qMarks == null) return null;
-                                                        return (
-                                                            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                                {qMarks} {qMarks === 1 ? 'mark' : 'marks'}
-                                                            </span>
-                                                        );
-                                                    })()}
-                                                    {/* Submitted badge — only after submission */}
-                                                    {solvedQuestions.has(originalIndex) && (
-                                                        <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: theme === 'dark' ? '#14532d' : '#dcfce7', color: theme === 'dark' ? '#4ade80' : '#166534', fontWeight: 600, border: `1px solid ${theme === 'dark' ? '#166534' : '#86efac'}`, whiteSpace: 'nowrap' }}>
-                                                            Submitted
-                                                        </span>
-                                                    )}
-                                                    {/* Skipped badge */}
-                                                    {skippedQuestions.has(originalIndex) && (
-                                                        <span className={`text-2xs px-1.5 py-0.5 rounded ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>
-                                                            Skipped
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </button>
-                                    );
-                                })
                             )}
+                        </div>
+                        <div className="flex-1 overflow-y-auto" style={{ padding: '0 8px 10px' }}>
+                            {wsListed.length === 0 ? (
+                                <div style={{ padding: '20px 8px', textAlign: 'center', fontSize: 12, color: WS.muted }}>
+                                    No problems found
+                                    {filterDifficulty !== 'all' && ` for "${filterDifficulty}" difficulty`}
+                                    {searchQuery && ` matching "${searchQuery}"`}
+                                </div>
+                            ) : wsListed.map((p) => {
+                                const originalIndex = problems.findIndex(prob => prob.id === p.id);
+                                const isActive = currentProblemIndex === originalIndex;
+                                const badge = WS_DIFF[String(p.difficulty || '').toLowerCase()];
+                                const solved = solvedQuestions.has(originalIndex);
+                                return (
+                                    <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => selectProblem(originalIndex)}
+                                        aria-current={isActive ? 'true' : undefined}
+                                        className={isActive ? '' : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-[#F7F6F3]')}
+                                        style={{
+                                            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                            padding: '9px 10px', textAlign: 'left', cursor: 'pointer', fontFamily: FONT,
+                                            borderRadius: isActive ? 8 : 0,
+                                            // Per-side colours (no shorthand mixing): a hairline
+                                            // under each row, a full teal border on the current one.
+                                            borderWidth: 1, borderStyle: 'solid',
+                                            borderTopColor: isActive ? WS.tealBorder : 'transparent',
+                                            borderRightColor: isActive ? WS.tealBorder : 'transparent',
+                                            borderLeftColor: isActive ? WS.tealBorder : 'transparent',
+                                            borderBottomColor: isActive ? WS.tealBorder : WS.hairline,
+                                            background: isActive ? WS.mint : undefined,
+                                        }}
+                                    >
+                                        <span style={{
+                                            width: 24, height: 24, borderRadius: 999, flexShrink: 0,
+                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: 11.5, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                                            border: `1px solid ${isActive ? WS.tealBorder : solved ? '#A6E9C3' : WS.border}`,
+                                            background: isActive ? WS.panel : solved ? (theme === 'dark' ? 'rgba(22,163,74,0.18)' : '#ECFDF3') : WS.soft,
+                                            color: isActive ? WS.tealDark : solved ? (theme === 'dark' ? '#86EFAC' : '#067647') : WS.text,
+                                        }}>
+                                            {originalIndex + 1}
+                                        </span>
+                                        <span className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: WS.navy }}>
+                                            {p.title}
+                                        </span>
+                                        {solved && <CheckCircle size={14} aria-label="Submitted" style={{ color: '#12A765', flexShrink: 0 }} />}
+                                        {skippedQuestions.has(originalIndex) && (
+                                            <span style={{ fontSize: 10.5, fontWeight: 600, color: WS.muted, flexShrink: 0 }}>Skipped</span>
+                                        )}
+                                        {badge && (
+                                            <span style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: badge.bg, color: badge.fg, flexShrink: 0 }}>
+                                                {badge.label}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -5485,22 +5254,25 @@ else:
                         </div>
                     );
                 })()}
-                {(() => { const lq: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion; return !(lq?.isLinkQuestion && lq?.questionLink); })() && (
-                // Phones/tablets: one scroll column (question → editor → bottom panel);
+                {!wsIsLinkQ && (
+                // Phones/tablets: one scroll column (description → editor → output);
                 // lg+: `contents` removes this wrapper so the desktop split is untouched.
                 <div className="max-lg:flex max-lg:flex-col max-lg:flex-1 max-lg:min-h-0 max-lg:min-w-0 max-lg:overflow-y-auto lg:contents">
-                <div style={{ width: `${leftPanelWidth}%`, display: showQuestionPanel ? undefined : 'none' }} className="h-full flex flex-col border-r border-gray-300 dark:border-gray-700 overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
+                {/* DESCRIPTION — toggled from the toolbar; scrolls on its own. */}
+                <div style={{ width: `${leftPanelWidth}%`, display: showQuestionPanel ? undefined : 'none', background: WS.panel, borderColor: WS.border }} className="h-full flex flex-col border-r overflow-hidden max-lg:w-full! max-lg:h-auto max-lg:max-h-[45dvh] max-lg:flex-none max-lg:border-r-0 max-lg:border-b">
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        <div className={`p-5 max-sm:p-4 space-y-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                        <div className="flex flex-col gap-5 max-sm:p-4!" style={{ padding: '16px 20px 20px', fontFamily: FONT, color: WS.text }}>
+                            {/* Heading, title + badges */}
                             <div>
-                                <h1 style={{ fontFamily: FONT }} className={`text-lg sm:text-xl font-semibold mb-1.5 break-words ${theme === 'dark' ? 'text-white' : 'text-gray-700'}`}>
-                                    {currentProblemIndex + 1}. {problem?.title || "Problem"}
+                                <div style={{ fontSize: 15, fontWeight: 700, color: WS.navy, marginBottom: 6 }}>Description</div>
+                                <h1 style={{ fontFamily: FONT, fontSize: 21, fontWeight: 700, color: WS.navy, margin: '0 0 10px', lineHeight: 1.3, overflowWrap: 'anywhere' }}>
+                                    {problem?.title || "Problem"}
                                 </h1>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {/* Difficulty badge */}
-                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${problem?.difficulty === "Easy" ? (theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800') : problem?.difficulty === "Medium" ? (theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800') : (theme === 'dark' ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800')}`}>
-                                        {problem?.difficulty || "Easy"}
-                                    </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    {(() => {
+                                        const b = WS_DIFF[String(problem?.difficulty || 'Easy').toLowerCase()];
+                                        return b ? <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: b.bg, color: b.fg }}>{b.label}</span> : null;
+                                    })()}
                                     {/* Marks badge — hidden for non-graded */}
                                     {exercise?.isGraded !== false && (() => {
                                         const currentQ = currentQuestion ?? exercise?.questions?.[currentProblemIndex];
@@ -5516,24 +5288,24 @@ else:
                                         }
                                         if (m == null) return null;
                                         return (
-                                            <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', whiteSpace: 'nowrap' }}>
+                                            <span style={{ fontSize: 12, fontFamily: FONT, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: WS_DIFF.easy.bg, color: WS_DIFF.easy.fg, whiteSpace: 'nowrap' }}>
                                                 {m} {m === 1 ? 'mark' : 'marks'}
                                             </span>
                                         );
                                     })()}
-                                    {/* Last submission's score — stays after the auto-advance and on revisit */}
+                                    {/* Last submission's score — stays on revisit */}
                                     {exercise?.isGraded !== false && (() => {
                                         const last = currentQuestion?._id ? testResultByQRef.current[currentQuestion._id] : undefined;
                                         if (typeof last?.score !== 'number' || typeof last?.maxMarks !== 'number') return null;
                                         return (
-                                            <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: theme === 'dark' ? '#1a3a2a' : '#dcfce7', color: theme === 'dark' ? '#86efac' : '#15803d', whiteSpace: 'nowrap' }}>
+                                            <span style={{ fontSize: 12, fontFamily: FONT, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: WS_DIFF.easy.bg, color: WS_DIFF.easy.fg, whiteSpace: 'nowrap' }}>
                                                 Scored {last.score}/{last.maxMarks}
                                             </span>
                                         );
                                     })()}
                                     {/* Attempts badge */}
                                     {exercise?.questionBehavior?.attemptLimitEnabled && (
-                                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1 ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1) ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200') : (theme === 'dark' ? 'bg-orange-900/30 text-orange-300 border-orange-800' : 'bg-orange-100 text-orange-800 border-orange-200')}`}>
+                                        <span className={`px-2.5 py-0.5 rounded-md text-xs font-medium border flex items-center gap-1 ${userAttempts >= (exercise.questionBehavior.maxAttempts || 1) ? (theme === 'dark' ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-100 text-red-800 border-red-200') : (theme === 'dark' ? 'bg-orange-900/30 text-orange-300 border-orange-800' : 'bg-orange-100 text-orange-800 border-orange-200')}`}>
                                             {userAttempts >= (exercise.questionBehavior.maxAttempts || 1) && <AlertTriangle className="w-3 h-3" />}
                                             Attempts: {userAttempts} / {exercise.questionBehavior.maxAttempts}
                                         </span>
@@ -5541,50 +5313,53 @@ else:
                                 </div>
                             </div>
 
-                            <div>
-                                <div className="flex items-center gap-1.5 mb-2">
-                                    <FileText className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
-                                    <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Description</h3>
-                                </div>
-                                <div
-                                    className={`text-xs leading-relaxed ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-                                    style={{ lineHeight: '1.8' }}
-                                    dangerouslySetInnerHTML={{ __html: renderDescriptionWithClickableImages(problem?.description || '') }}
-                                />
-                            </div>
+                            {/* Problem statement */}
+                            <div
+                                style={{ fontSize: 14, lineHeight: 1.6, color: WS.text }}
+                                dangerouslySetInnerHTML={{ __html: renderDescriptionWithClickableImages(problem?.description || '') }}
+                            />
 
                             {/* Sample Input & Output — the author's info-only sample (never run) */}
                             {(currentQuestion?.sampleInput || currentQuestion?.sampleOutput) && (
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
-                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Sample Input & Output</h3>
+                                    <h3 style={wsSectionTitle}>Sample input &amp; output</h3>
+                                    <div style={{ border: `1px solid ${WS.border}`, borderRadius: 8, overflow: 'hidden' }}>
+                                        {currentQuestion?.sampleInput && (
+                                            <div style={{ padding: '8px 12px' }}>
+                                                <div style={{ fontSize: 11.5, fontWeight: 600, color: WS.muted, marginBottom: 3 }}>Sample input</div>
+                                                <pre style={wsMonoPre}>{currentQuestion.sampleInput}</pre>
+                                            </div>
+                                        )}
+                                        {currentQuestion?.sampleOutput && (
+                                            <div style={{ padding: '8px 12px', borderTop: currentQuestion?.sampleInput ? `1px solid ${WS.border}` : undefined }}>
+                                                <div style={{ fontSize: 11.5, fontWeight: 600, color: WS.muted, marginBottom: 3 }}>Sample output</div>
+                                                <pre style={wsMonoPre}>{currentQuestion.sampleOutput}</pre>
+                                            </div>
+                                        )}
                                     </div>
-                                    {currentQuestion?.sampleInput && (
-                                        <div className="mt-1 mb-2">
-                                            <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Sample Input:</div>
-                                            <div className={`p-2 rounded font-mono text-xs whitespace-pre-wrap ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{currentQuestion.sampleInput}</div>
-                                        </div>
-                                    )}
-                                    {currentQuestion?.sampleOutput && (
-                                        <div className="mb-2">
-                                            <div className={`text-xs font-medium mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>Sample Output:</div>
-                                            <div className={`p-2 rounded font-mono text-xs whitespace-pre-wrap ${theme === 'dark' ? 'bg-gray-800 text-gray-300 border border-gray-700' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}>{currentQuestion.sampleOutput}</div>
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
+                            {/* Examples — the visible test cases */}
                             {problem?.examples && problem.examples.length > 0 && (
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <Terminal className={`w-4 h-4 ${theme === 'dark' ? 'text-green-400' : 'text-green-500'}`} />
-                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Examples</h3>
-                                    </div>
-                                    <div className="overflow-x-auto rounded-lg border border-gray-200">
-                                        <table className="w-full text-left text-xs" aria-label="Problem examples">
-                                            <thead className={theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}><tr><th scope="col" className="p-3">Input</th><th scope="col" className="p-3">Expected output</th></tr></thead>
-                                            <tbody>{problem.examples.map((example, index) => <tr key={index} className="border-t border-gray-200"><td className="p-3 align-top"><pre className="whitespace-pre-wrap break-words">{example.input || '(empty)'}</pre></td><td className="p-3 align-top"><pre className="whitespace-pre-wrap break-words">{example.output || '(empty)'}</pre></td></tr>)}</tbody>
+                                    <h3 style={wsSectionTitle}>Examples</h3>
+                                    <div style={{ border: `1px solid ${WS.border}`, borderRadius: 8, overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }} aria-label="Problem examples">
+                                            <thead style={{ background: WS.soft }}>
+                                                <tr>
+                                                    <th scope="col" style={{ ...wsCell, fontSize: 12.5, fontWeight: 600, color: WS.navy }}>Input</th>
+                                                    <th scope="col" style={{ ...wsCell, fontSize: 12.5, fontWeight: 600, color: WS.navy, borderLeft: `1px solid ${WS.border}` }}>Expected output</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {problem.examples.map((example, index) => (
+                                                    <tr key={index} style={{ borderTop: `1px solid ${WS.border}` }}>
+                                                        <td style={wsCell}><pre style={wsMonoPre}>{example.input || '(empty)'}</pre></td>
+                                                        <td style={{ ...wsCell, borderLeft: `1px solid ${WS.border}` }}><pre style={wsMonoPre}>{example.output || '(empty)'}</pre></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
                                         </table>
                                     </div>
                                 </div>
@@ -5592,27 +5367,19 @@ else:
 
                             {currentQuestion?.constraints && currentQuestion.constraints.length > 0 && (
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <AlertCircle className={`w-4 h-4 ${theme === 'dark' ? 'text-yellow-400' : 'text-yellow-500'}`} />
-                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Constraints</h3>
-                                    </div>
-                                    <ul className={`space-y-1 text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                        {currentQuestion.constraints.map((c, i) => (
-                                            <li key={i} className={`px-2 py-1 rounded font-mono ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}`}>
-                                                {c}
-                                            </li>
-                                        ))}
+                                    <h3 style={{ ...wsSectionTitle, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <AlertCircle size={16} style={{ color: '#D97706', flexShrink: 0 }} /> Constraints
+                                    </h3>
+                                    <ul style={{ margin: 0, paddingLeft: 20, listStyle: 'disc', fontSize: 12.5, lineHeight: 1.7, color: WS.text }}>
+                                        {currentQuestion.constraints.map((c, i) => <li key={i}>{c}</li>)}
                                     </ul>
                                 </div>
                             )}
                             {currentQuestion?.hints && currentQuestion.hints.filter(h => h.isPublic).length > 0 && (
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-2">
-                                        <AlertCircle className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
-                                        <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Hints</h3>
-                                    </div>
+                                    <h3 style={wsSectionTitle}>Hints</h3>
                                     {currentQuestion.hints.filter(h => h.isPublic).map((hint, i) => (
-                                        <div key={i} className={`text-xs px-3 py-2 rounded mb-1 ${theme === 'dark' ? 'bg-orange-900/20 text-orange-300 border border-orange-800' : 'bg-orange-50 text-orange-800 border border-orange-100'}`}>
+                                        <div key={i} className={`text-xs px-3 py-2 rounded-md mb-1.5 ${theme === 'dark' ? 'bg-orange-900/20 text-orange-300 border border-orange-800' : 'bg-orange-50 text-orange-800 border border-orange-100'}`}>
                                             💡 {hint.hintText}
                                         </div>
                                     ))}
@@ -5623,25 +5390,19 @@ else:
 
                 </div>
 
-                {/* The vertical "resize handle" that used to sit here has been
-                    removed. It never resized anything — `setLeftPanelWidth` was
-                    never called — and because it was absolutely positioned at
-                    `leftPanelWidth%` of a row that also holds the 72px nav rail,
-                    it landed ~72px INSIDE the description panel and painted a grey
-                    bar over the question text. The panel's own `border-r` already
-                    provides the divider at the correct edge. */}
-
-                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: showQuestionPanel ? `${100 - leftPanelWidth}%` : '100%' }}>
+                {/* EDITOR over OUTPUT */}
+                <div className="flex flex-col flex-1 min-w-0 h-full max-lg:w-full! max-lg:h-auto max-lg:flex-none" style={{ width: showQuestionPanel ? `${100 - leftPanelWidth}%` : '100%', background: WS.panel }}>
 
                     {/* ── Editor (top, resizable) ── */}
                     <div className={`${outputMaximized && showTerminal ? "hidden" : "flex flex-col"} max-lg:h-[60dvh]! max-lg:min-h-[320px]! max-lg:flex-none`} style={{ height: showTerminal ? `${rightPanelSplit}%` : "100%", minHeight: 0 }}>
-                        <div className={`flex items-center justify-between max-md:gap-2 p-2 border-b ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-[#F5FAFF]'}`}>
-                            <div className="flex items-center gap-1.5">
-                                <Code className={`w-4 h-4 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-500'}`} />
-                                <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>{({ python: 'main.py', javascript: 'main.js', java: 'Main.java', cpp: 'main.cpp', c: 'main.c', csharp: 'Main.cs', typescript: 'main.ts', go: 'main.go', rust: 'main.rs' } as Record<string, string>)[selectedLanguage.toLowerCase()] || formatLanguageName(selectedLanguage)}</span>
+                        {/* File tab (single-file workspace) + Reset */}
+                        <div className="flex items-stretch justify-between flex-shrink-0" style={{ minHeight: 38, background: theme === 'dark' ? '#181818' : '#F9FAFB', borderBottom: `1px solid ${WS.border}` }}>
+                            <div className="flex items-center gap-2 px-3" style={{ background: theme === 'dark' ? '#1e1e1e' : '#FFFFFF', borderRight: `1px solid ${WS.border}`, marginBottom: -1, borderBottom: `1px solid ${theme === 'dark' ? '#1e1e1e' : '#FFFFFF'}` }}>
+                                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 99, background: '#3776ab', flexShrink: 0 }} />
+                                <span style={{ fontSize: 12.5, fontWeight: 600, color: WS.navy, fontFamily: FONT }}>{({ python: 'main.py', javascript: 'main.js', java: 'Main.java', cpp: 'main.cpp', c: 'main.c', csharp: 'Main.cs', typescript: 'main.ts', go: 'main.go', rust: 'main.rs' } as Record<string, string>)[selectedLanguage.toLowerCase()] || formatLanguageName(selectedLanguage)}</span>
                                 {solvedQuestions.has(currentProblemIndex) && (
                                     <span
-                                        className="ml-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                                        className="ml-1 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold"
                                         style={{
                                             background: theme === 'dark' ? 'rgba(34,197,94,0.18)' : '#DCFCE7',
                                             color: theme === 'dark' ? '#86EFAC' : '#15803D',
@@ -5652,10 +5413,11 @@ else:
                                     </span>
                                 )}
                             </div>
-                            <div className="flex items-center gap-2">{languageSelector}
-                            <button onClick={resetCode} className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded-[6px] transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-[#E0E5EF] bg-[#F1F5F9] text-[#334155] hover:bg-[#E2E8F0]'}`}>
-                                <RotateCcw className="w-3.5 h-3.5" /> Reset
-                            </button></div>
+                            <div className="flex items-center gap-2 pr-2">
+                                <button onClick={resetCode} title="Reset to the starter code" className={`flex items-center gap-1 px-2 py-0.5 text-xs border rounded-[6px] transition-colors ${theme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600' : 'border-[#E0E5EF] bg-[#F1F5F9] text-[#334155] hover:bg-[#E2E8F0]'}`}>
+                                    <RotateCcw className="w-3.5 h-3.5" /> Reset
+                                </button>
+                            </div>
                         </div>
                         <div className="flex-1 min-h-0">
                             <MonacoEditor
@@ -5670,7 +5432,10 @@ else:
                                     minimap: { enabled: false },
                                     fontSize: 14,
                                     fontFamily: "Consolas, ui-monospace, monospace",
-                                    readOnly: isAssessmentMode && !hasStarted
+                                    readOnly: isAssessmentMode && !hasStarted,
+                                    // Re-measure when Hide list / Hide description /
+                                    // Hide output change the editor's box.
+                                    automaticLayout: true,
                                 }}
                             />
                         </div>
@@ -5678,21 +5443,27 @@ else:
 
                     {/* ── Drag handle ── */}
                     {showTerminal && !outputMaximized && <div
-                        className={`h-2 flex items-center justify-center cursor-row-resize flex-shrink-0 transition-colors max-lg:hidden ${theme === 'dark' ? 'hover:bg-orange-900/40 bg-gray-800' : 'hover:bg-orange-100 bg-gray-100'}`}
+                        role="separator"
+                        aria-orientation="horizontal"
+                        aria-label="Resize the output panel"
+                        title="Drag to resize the output panel"
+                        className="flex items-center justify-center cursor-row-resize flex-shrink-0 max-lg:hidden"
+                        style={{ height: 6, background: WS.page, borderTop: `1px solid ${WS.border}`, borderBottom: `1px solid ${WS.border}` }}
                         onMouseDown={(e) => { setIsHorizontalResizing(true); e.preventDefault(); }}
                     >
-                        <div className={`w-12 h-1 rounded-full ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                        <span style={{ width: 34, height: 4, borderRadius: 99, background: WS.border, pointerEvents: 'none' }} />
                     </div>}
 
-                    {/* ── Bottom panel (resizable) ──
-                        The shared BottomPanel from the multi-file workspace.
-                        Which surface it IS follows the exercise's evaluation
-                        method: Test Case / AI get Test Result (status summary,
-                        Copy result, per-case chips, the selected case's Input /
-                        Expected / Your output, and the AI breakdown); Manual
-                        gets a plain Terminal — stdin box, Run output, Clear. */}
+                    {/* ── Output (resizable) ──
+                        The shared BottomPanel from the multi-file workspace, titled
+                        "Output". Which surface it IS follows the evaluation method:
+                        Test Case / AI get Test results; Manual gets a plain
+                        Terminal — stdin box, Run output, Clear. Hide output folds
+                        it; the toolbar's Terminal / Test results brings it back. */}
                     {showTerminal && <div className="flex flex-col flex-1 min-h-0 max-lg:h-[50dvh]! max-lg:min-h-[280px]! max-lg:flex-none" style={{ height: outputMaximized ? "100%" : `${100 - rightPanelSplit}%` }}>
                         <BottomPanel
+                            heading="Output"
+                            closeLabel="Hide output"
                             mode={isManualEval ? 'terminal' : 'test-result'}
                             activeTab={isManualEval ? 'terminal' : 'test-result'}
                             onTabChange={() => setBottomTab(isManualEval ? 'console' : 'results')}
@@ -5716,14 +5487,8 @@ else:
                             isSubmitting={isEvaluating}
                         />
                     </div>}
-
-                    <div className={`flex items-center justify-between px-3 py-2 border-t text-xs flex-shrink-0 ${theme === 'dark' ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
-                        <span>{formatLanguageName(selectedLanguage)} · Single-file workspace</span>
-                        <button type="button" onClick={() => { setShowTerminal(true); setOutputMaximized(false) }} className="inline-flex items-center gap-2 border border-gray-300 rounded-md px-3 py-1"><Terminal size={14} />{isManualEval ? 'Open terminal' : 'Open test results'}</button>
-                        <div className="ml-auto flex items-center gap-3"><span className="hidden sm:inline">Submits this question only</span>{submitAnswerAction}</div>
-                    </div>
                 </div>
-                </div>)}{/* end non-link question+editor split */}
+                </div>)}{/* end non-link description + editor split */}
                 {/* ── Exercise Info Right Panel ── */}
                 {/* {showExerciseInfo && exercise && (
                     <div style={{
@@ -5922,6 +5687,119 @@ else:
 
 
             </div>
+
+            {/* BOTTOM BAR — Previous / Problem N of M / Next (+ Skip and the
+                difficulty jump) on the left; Submit Answer (this problem) and
+                Finish (the whole assessment) on the right, each with a
+                one-line note of what it does. */}
+            {exercise && (() => {
+                const prevDisabled = currentProblemIndex === 0 && !onCrossPrev;
+                const nextDisabled = (currentProblemIndex === problems.length - 1 && !onCrossNext) || (!isFreeFlow && !isQuestionSolved(currentProblemIndex));
+                const nextLabel = currentProblemIndex === problems.length - 1 && onCrossNext ? (crossNextLabel || 'Next Section') : 'Next';
+                const showFinish = !embedded || (!!onSubmitTest && currentProblemIndex === problems.length - 1);
+                const showNav = problems.length > 1 || !!onCrossPrev || !!onCrossNext;
+                return (
+                    <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: WS.panel, borderTop: `1px solid ${WS.border}`, padding: '10px 20px' }}>
+                        {showNav && (
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <button
+                                    type="button"
+                                    onClick={prevProblem}
+                                    disabled={prevDisabled}
+                                    aria-label="Previous problem"
+                                    style={wsPagerBtn(prevDisabled)}
+                                >
+                                    <ChevronLeft style={{ width: 15, height: 15 }} /> Previous
+                                </button>
+                                <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: WS.navy, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                                    Problem {currentProblemIndex + 1} of {problems.length}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={nextProblem}
+                                    disabled={nextDisabled}
+                                    aria-label={nextLabel === 'Next' ? 'Next problem' : nextLabel}
+                                    title={!isFreeFlow && !isQuestionSolved(currentProblemIndex) ? 'Submit this problem before moving on' : undefined}
+                                    style={wsPagerBtn(nextDisabled)}
+                                >
+                                    {nextLabel} <ChevronRight style={{ width: 15, height: 15 }} />
+                                </button>
+                                {exercise?.questionBehavior?.allowSkip && (
+                                    <button
+                                        type="button"
+                                        onClick={skipCurrentQuestion}
+                                        disabled={currentProblemIndex === problems.length - 1}
+                                        title="Skip Question"
+                                        aria-label="Skip current question"
+                                        style={{ ...wsPagerBtn(currentProblemIndex === problems.length - 1), width: 36, padding: 0, justifyContent: 'center' }}
+                                    >
+                                        <SkipForward style={{ width: 15, height: 15 }} />
+                                    </button>
+                                )}
+                                {availableDifficulties.length > 0 && (
+                                    <select
+                                        value={selectedDifficulty}
+                                        onChange={(e) => {
+                                            setSelectedDifficulty(e.target.value);
+                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
+                                        }}
+                                        aria-label="Jump to a difficulty"
+                                        title="Jump to the first problem of a difficulty"
+                                        style={{
+                                            height: 36, padding: '0 8px', borderRadius: 6,
+                                            border: `1px solid ${WS.border}`, background: WS.panel, color: WS.text,
+                                            fontFamily: FONT, fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+                                        }}
+                                    >
+                                        <option value="all">All difficulties</option>
+                                        {availableDifficulties.map((diff) => (
+                                            <option key={diff} value={diff}>
+                                                {diff.charAt(0).toUpperCase() + diff.slice(1)} ({difficultyMap[diff].count})
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        )}
+                        {/* Phones: the two actions share one row, half each. */}
+                        <div className="ml-auto flex items-start gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
+                            {!wsIsLinkQ && (
+                                <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
+                                    {submitAnswerAction}
+                                    <span style={{ fontSize: 11.5, color: WS.muted, fontFamily: FONT }}>Submits this problem only</span>
+                                </div>
+                            )}
+                            {showFinish && (
+                                <>
+                                    {!wsIsLinkQ && <span aria-hidden="true" className="max-sm:hidden" style={{ width: 1, alignSelf: 'stretch', background: WS.border }} />}
+                                    <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => { if (!embedded) openFinishConfirm(); else onSubmitTest?.(); }}
+                                            disabled={!embedded && isEvaluating}
+                                            title="Review all answers and finish the assessment"
+                                            aria-label="Finish assessment"
+                                            className="max-sm:min-w-0! max-sm:w-full! max-sm:px-2!"
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                                height: 36, minWidth: 168, padding: '0 18px', borderRadius: 6,
+                                                border: `1.5px solid ${WS.navy}`, background: WS.panel, color: WS.navy,
+                                                fontSize: 13.5, fontWeight: 700, fontFamily: FONT,
+                                                cursor: !embedded && isEvaluating ? 'not-allowed' : 'pointer',
+                                                opacity: !embedded && isEvaluating ? 0.7 : 1,
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            Finish Assessment
+                                        </button>
+                                        <span style={{ fontSize: 11.5, color: WS.muted, fontFamily: FONT }}>Review all answers and finish</span>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Toast Notifications */}
             <div className="fixed top-4 right-4 max-sm:left-4 z-50 flex flex-col gap-2">
