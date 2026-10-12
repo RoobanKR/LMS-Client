@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Search, ChevronDown, LogOut, BookOpen, Layers, UserRound, Undo2 } from "lucide-react"
+import { Search, ChevronDown, LogOut, BookOpen, Layers, UserRound, Undo2, ArrowLeft } from "lucide-react"
 import { staffRouteForCurrentCourse, studentRouteForCurrentCourse } from "@/app/lms/pages/courses/coursesdetailedview/components/useAccountMenu"
 
 const ACCENT = "#F97316"
@@ -135,12 +135,25 @@ export const CourseSidebar: React.FC<CourseSidebarProps> = ({
               </span>
             </div>
           </div>
+          {/* Back to the course list — "My Courses" for a student, the
+              course list for staff (one route, role-aware), like the
+              trainer sidebar's back arrow. */}
+          <button
+            type="button"
+            onClick={() => router.push("/lms/pages/courses")}
+            aria-label="Back to courses"
+            title="Back to courses"
+            className="ml-auto inline-grid place-items-center w-6 h-6 rounded-[7px] flex-shrink-0 text-gray-400 hover:bg-[#E9EBF0] hover:text-gray-600 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden />
+          </button>
           {onCollapse && (
             <button
               type="button"
               onClick={onCollapse}
               aria-label="Collapse navigation"
-              className="ml-auto inline-grid place-items-center w-6 h-6 rounded-[7px] flex-shrink-0 text-gray-400 hover:bg-[#E9EBF0] hover:text-gray-600 transition-colors"
+              title="Collapse sidebar"
+              className="inline-grid place-items-center w-6 h-6 rounded-[7px] flex-shrink-0 text-gray-400 hover:bg-[#E9EBF0] hover:text-gray-600 transition-colors"
             >
               <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M15 6l-6 6 6 6" />
