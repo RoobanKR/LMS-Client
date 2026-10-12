@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, CalendarCheck, CheckCircle2, ClipboardList, GraduationCap, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,12 +43,33 @@ function WorkCard({ stage, summary, categories }: { stage: string; summary: Work
 type FollowUp = "low" | "new" | "inactive";
 function StudentFollowUp({ learners }: { learners: StudentRow[] }) {
   const [filter, setFilter] = useState<FollowUp>("low");
-  const [limit, setLimit] = useState(8);
+  const [courseId, setCourseId] = useState("all");
   const now = Date.now();
+  // Course choices from the learners themselves, keyed on the course id —
+  // names repeat across clients, so a same-named pair is numbered.
+  const courseOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    learners.forEach((s) => {
+      if (s.courseId && !seen.has(s.courseId)) seen.set(s.courseId, s.course || "Untitled course");
+    });
+    const opts = [...seen].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+    const total = new Map<string, number>();
+    opts.forEach((o) => total.set(o.label, (total.get(o.label) || 0) + 1));
+    const nth = new Map<string, number>();
+    return opts.map((o) => {
+      if ((total.get(o.label) || 0) < 2) return o;
+      const n = (nth.get(o.label) || 0) + 1;
+      nth.set(o.label, n);
+      return { ...o, label: `${o.label} (${n})` };
+    });
+  }, [learners]);
+  // A course that dropped out of the list (the page filter changed) falls back to all.
+  const activeCourse = courseId !== "all" && courseOptions.some((o) => o.value === courseId) ? courseId : "all";
+  const scoped = activeCourse === "all" ? learners : learners.filter((student) => student.courseId === activeCourse);
   const groups: Record<FollowUp, StudentRow[]> = {
-    low: learners.filter((student) => student.overall > 0 && student.overall < 50).sort((a, b) => a.overall - b.overall),
-    new: learners.filter((student) => student.overall === 0),
-    inactive: learners.filter((student) => student.overall > 0 && student.overall < 80 && student.last && now - new Date(student.last).getTime() > 7 * 86400000),
+    low: scoped.filter((student) => student.overall > 0 && student.overall < 50).sort((a, b) => a.overall - b.overall),
+    new: scoped.filter((student) => student.overall === 0),
+    inactive: scoped.filter((student) => student.overall > 0 && student.overall < 80 && student.last && now - new Date(student.last).getTime() > 7 * 86400000),
   };
   const filters: { id: FollowUp; label: string; explanation: string }[] = [
     { id: "low", label: "Progress below 50%", explanation: "Students who have started and attempted less than half their learning work. This is a follow-up list, not a pass/fail result or a deadline warning." },
@@ -59,17 +80,33 @@ function StudentFollowUp({ learners }: { learners: StudentRow[] }) {
   const rows = groups[filter];
   return (
     <SectionCard title="Students to follow up" meta={`${count(rows.length)} enrolments`}>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Choose students to follow up">
-        {filters.map((item) => <button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => { setFilter(item.id); setLimit(8); }} className={cn("rounded-control border px-3 py-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500", filter === item.id ? "border-brand-500/30 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400" : "border-hairline text-subtle hover:bg-row-hover")}>
-          {item.label} <span className="ml-1 tabular-nums">{count(groups[item.id].length)}</span>
-        </button>)}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Choose students to follow up">
+          {filters.map((item) => <button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} className={cn("rounded-control border px-3 py-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500", filter === item.id ? "border-brand-500/30 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400" : "border-hairline text-subtle hover:bg-row-hover")}>
+            {item.label} <span className="ml-1 tabular-nums">{count(groups[item.id].length)}</span>
+          </button>)}
+        </div>
+        {/* Course filter — narrows the groups and the list to one course. */}
+        {courseOptions.length > 1 && <label className="flex min-w-0 items-center gap-2 text-xs text-subtle">
+          <span className="shrink-0">Course</span>
+          <select
+            value={activeCourse}
+            onChange={(e) => setCourseId(e.target.value)}
+            aria-label="Filter students by course"
+            className="h-9 min-w-0 max-w-[260px] rounded-control border border-hairline bg-surface px-2 text-xs text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            <option value="all">All courses ({count(courseOptions.length)})</option>
+            {courseOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>}
       </div>
       <p className="mt-3 max-w-4xl text-xs leading-relaxed text-subtle">{selected.explanation}</p>
-      {!rows.length ? <EmptyState title="No students in this group" hint="Choose another group to review its students." /> : <>
-        <div className="mt-4 overflow-x-auto">
+      {!rows.length ? <EmptyState title="No students in this group" hint={activeCourse === "all" ? "Choose another group to review its students." : "Choose another group or course to review its students."} /> : <>
+        {/* Every student in the group, scrolling inside the card. */}
+        <div className="mt-4 max-h-[420px] overflow-auto rounded-control border border-hairline">
           <table className="w-full min-w-[640px] text-left text-sm lg:min-w-0">
             <caption className="sr-only">{selected.label}: students and course progress</caption>
-            <thead className="border-b border-hairline bg-canvas text-xs text-subtle">
+            <thead className="sticky top-0 z-[1] border-b border-hairline bg-canvas text-xs text-subtle">
               <tr>
                 <th scope="col" className="px-3 py-3">Student</th>
                 <th scope="col" className="px-3 py-3">Course</th>
@@ -80,7 +117,7 @@ function StudentFollowUp({ learners }: { learners: StudentRow[] }) {
                 </th>
               </tr>
             </thead>
-            <tbody>{rows.slice(0, limit).map((student, index) => <tr key={`${student.courseId}-${student.id || student.name}-${index}`} className="border-b border-hairline last:border-0 hover:bg-row-hover">
+            <tbody>{rows.map((student, index) => <tr key={`${student.courseId}-${student.id || student.name}-${index}`} className="border-b border-hairline last:border-0 hover:bg-row-hover">
               <th scope="row" className="px-3 py-3 font-medium text-heading">{student.name}</th>
               <td className="px-3 py-3 text-body">{student.course}</td>
               <td className="min-w-[150px] px-3 py-3">
@@ -97,7 +134,6 @@ function StudentFollowUp({ learners }: { learners: StudentRow[] }) {
             </tr>)}</tbody>
           </table>
         </div>
-        {rows.length > limit && <button type="button" className={`${actionClass} mt-4`} onClick={() => setLimit((value) => value + 8)}>Show more students</button>}
       </>}
     </SectionCard>
   );
