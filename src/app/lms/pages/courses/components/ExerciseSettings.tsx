@@ -1358,26 +1358,6 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
 
   const steps = useMemo(() => getSteps(), [formData.exerciseType, formData.isGraded, currentStep]);
 
-  // ── Non-graded pins Evaluation Method to Manual ───────────────────────────
-  // A non-graded exercise records no score, so there is nothing to evaluate and
-  // the Question Configuration step hides the picker entirely. The pin has to
-  // live HERE rather than inside EvaluationMethodConfig: hiding the picker
-  // unmounts it, so its own guard can no longer run — and a trainer who picks
-  // Test Case or AI and only THEN flips Graded off would otherwise save an
-  // exercise with an auto-evaluator still armed behind a control they can no
-  // longer see. Every payload builder reads formData, so pinning it here covers
-  // the full save and the step-scoped one alike.
-  useEffect(() => {
-    if (formData.isGraded !== false) return;
-    if (formData.evaluationMethod?.method === 'manual') return;
-    setFormData(prev => ({
-      ...prev,
-      // AI criteria are left untouched — inert under Manual, and kept so
-      // flipping Graded back on restores the trainer's choices.
-      evaluationMethod: { ...prev.evaluationMethod, method: 'manual' },
-    }));
-  }, [formData.isGraded, formData.evaluationMethod?.method]);
-
   // ── Auto-calc marks ────────────────────────────────────────────────────────
   useEffect(() => {
     if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') && formData.programmingConfig.questionConfigType === 'general' && formData.programmingConfig.scoreSettings.scoreType === 'equalDistribution') {
@@ -4765,16 +4745,17 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
               Column order swapped 2026-09-01 — Evaluation Method leads the
               row, Question Flow sits on the right.
 
-              A NON-GRADED exercise drops the Evaluation Method card entirely
-              (see EvaluationMethodConfig's `graded` prop — nothing is scored,
-              so the stored method is pinned to Manual and the question is not
-              worth asking). Question Flow then takes the full width rather
-              than sitting beside an empty cell. */}
+              Graded or not, the Evaluation Method is asked: a NON-GRADED
+              exercise records no marks, but Manual / Automation / AI Based
+              still decides how its submissions are checked — students get
+              pass/fail feedback without a score (see EvaluationMethodConfig's
+              `graded` prop). */}
           <div className="es-2col" style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: 12 }}>
-            {formData.isGraded !== false && (
             <div className={`${assignmentStyles.generalFields} es-subfields`}>
               <ConfigRow label="Evaluation method" required
-                help="How programming submissions are scored — against the question's test cases, or by an AI evaluator.">
+                help={formData.isGraded !== false
+                  ? "How programming submissions are scored — against the question's test cases, or by an AI evaluator."
+                  : "How submissions are checked — by the trainer, against the test cases, or by an AI evaluator. No marks are recorded: students see pass/fail feedback."}>
                 <div style={{ maxWidth: 420 }}>
                   <EvaluationMethodConfig
                     value={formData.evaluationMethod}
@@ -4783,7 +4764,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                     ODropdown={ODropdown}
                     SectionLabel={EvalMethodLabel}
                     font={FONT}
-                    graded
+                    graded={formData.isGraded !== false}
                     dense
                   />
                   <LiveInteractionOption
@@ -4795,24 +4776,6 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                 </div>
               </ConfigRow>
             </div>
-            )}
-            {/* Non-graded: no evaluation to pick, but students still run code,
-                so the live compiler option stays available on its own row. */}
-            {formData.isGraded === false && (
-            <div className={`${assignmentStyles.generalFields} es-subfields`}>
-              <ConfigRow label="Code execution"
-                help="How students run their code in the editor.">
-                <div style={{ maxWidth: 420 }}>
-                  <LiveInteractionOption
-                    value={formData.evaluationMethod}
-                    onChange={next => setFormData(prev => ({ ...prev, evaluationMethod: next }))}
-                    D={D}
-                    font={FONT}
-                  />
-                </div>
-              </ConfigRow>
-            </div>
-            )}
 
             <div className={`${assignmentStyles.generalFields} es-subfields`}
               style={programmingLevelMismatch ? { opacity: 0.4, pointerEvents: 'none' as const } : undefined}>

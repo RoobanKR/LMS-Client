@@ -1425,18 +1425,15 @@ const buildFullPayload = useCallback((overrideSectionConfigs?: Record<string, an
     
     securitySettings: formData.securitySettings,
 
-    // Evaluation method (test case or AI). Always sent so the stored config
-    // stays coherent across exercise-type switches. A non-graded assessment is
-    // pinned to Manual — its picker is hidden (nothing is scored, so there is
-    // nothing to evaluate), and pinning here rather than in the hidden control
-    // means the value can't drift out of a step-scoped save either. The step
-    // payload reads this same object, so both paths agree.
+    // Evaluation method. Always sent so the stored config stays coherent
+    // across exercise-type switches. Graded: Test Case or AI; non-graded:
+    // Manual, Test Case or AI — whatever the trainer picked (no marks are
+    // recorded either way for a non-graded assessment). The step payload
+    // reads this same object, so both paths agree.
     // The live interactive compiler is a Mock-test option (a Final test's
     // editor has no live terminal), so it never stays on for a Final.
     evaluationMethod: (() => {
-      const em = formData.isGraded === false
-        ? { ...formData.evaluationMethod, method: 'manual' as const }
-        : formData.evaluationMethod;
+      const em = formData.evaluationMethod;
       return formData.testType === 'final' && em?.liveInteraction ? { ...em, liveInteraction: false } : em;
     })(),
 

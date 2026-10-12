@@ -191,6 +191,7 @@ type Tokens = {
 };
 
 const INFO = "How programming submissions are scored — against the question's test cases, or by an AI evaluator.";
+const NON_GRADED_INFO = "How submissions are checked — by the trainer, against the question's test cases, or by an AI evaluator. A non-graded exercise records no marks; students see pass/fail feedback only.";
 const CRITERIA_INFO = 'What the AI evaluator should judge submissions on. Tick one or more.';
 
 type ODropdownComponent = React.FC<{
@@ -242,20 +243,12 @@ interface Props {
    */
   allowedMethods?: EvaluationMethod[];
   /**
-   * Whether the host exercise is graded. Non-graded exercises have nothing to
-   * evaluate — Submit records no score and there is no Review pass — so asking
-   * the trainer "how is this scored?" is a question with no consequence. When
-   * false this renders NOTHING and pins the stored method to Manual, which is
-   * exactly what a non-graded exercise already behaves like (Manual never runs
-   * Piston or Gemini at Submit).
-   *
-   * Pinning rather than merely hiding matters: a trainer who configures Test
-   * Case or AI and only then flips Graded off would otherwise leave an auto-
-   * evaluator armed behind a control they can no longer see.
-   *
-   * `allowedMethods` is deliberately ignored while non-graded — a You_Do,
-   * whose allowed set omits Manual precisely because a GRADED assessment must
-   * auto-score, must not be promoted back onto an evaluator here.
+   * Whether the host exercise is graded. A non-graded exercise records no
+   * marks, but its submissions can still be checked — against the test cases
+   * or by the AI evaluator — so students get pass/fail feedback. While
+   * non-graded every method is offered (Manual, Automation, AI Based) and
+   * `allowedMethods` is ignored: a You_Do's allowed set omits Manual only
+   * because a GRADED assessment must auto-score.
    */
   graded?: boolean;
 }
@@ -266,17 +259,18 @@ export const EvaluationMethodConfig: React.FC<Props> = ({
 }) => {
   const v = normalizeEvaluationMethod(value);
 
-  // Narrowed option list, if the caller passed one. The `allowedMethods`
+  // Narrowed option list, if the caller passed one — graded only; a
+  // non-graded exercise is offered every method. The `allowedMethods`
   // reference itself is stable across renders in the callers we have (both
   // pass a module-scope literal), so the useMemo dependency is on the array's
   // JSON — cheap for 3 values and avoids re-filtering on every keystroke.
   const options = React.useMemo(
     () =>
-      Array.isArray(allowedMethods) && allowedMethods.length > 0
+      graded && Array.isArray(allowedMethods) && allowedMethods.length > 0
         ? EVALUATION_METHOD_OPTIONS.filter(o => allowedMethods.includes(o.value))
         : EVALUATION_METHOD_OPTIONS,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(allowedMethods)],
+    [JSON.stringify(allowedMethods), graded],
   );
 
   // Silently promote a stored method that's outside the allowed set (e.g. a
@@ -286,29 +280,13 @@ export const EvaluationMethodConfig: React.FC<Props> = ({
   React.useEffect(() => {
     if (!Array.isArray(allowedMethods) || allowedMethods.length === 0) return;
     if (disabled) return;
-    if (!graded) return; // non-graded pins Manual below — never promote off it
+    if (!graded) return; // non-graded offers every method — nothing to promote
     if (allowedMethods.includes(v.method)) return;
     onChange({ ...v, method: allowedMethods[0] });
     // Depend only on the current stored method + the allowed set. `v` and
     // `onChange` change identity every render and would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v.method, JSON.stringify(allowedMethods), disabled, graded]);
-
-  // Non-graded: pin the stored method to Manual. Runs on the Graded toggle
-  // flipping too, so a method picked while graded cannot survive as an armed
-  // auto-evaluator behind a hidden control. The AI sub-config is left as-is —
-  // it is inert while the method is Manual, and keeping it means flipping
-  // Graded back on restores the trainer's criteria instead of blanking them.
-  React.useEffect(() => {
-    if (graded || disabled) return;
-    if (v.method === 'manual') return;
-    onChange({ ...v, method: 'manual' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [v.method, graded, disabled]);
-
-  // Nothing to ask once the exercise records no score. Rendered after the
-  // hooks above so the hook order stays stable across the Graded toggle.
-  if (!graded) return null;
 
   const toggleCriterion = (c: AiCriterion) => {
     if (disabled) return;
@@ -360,8 +338,8 @@ export const EvaluationMethodConfig: React.FC<Props> = ({
         .emc-num:focus { border-color: #EE6A22 !important; box-shadow: 0 0 0 3px rgba(238,106,34,.13); }
       `}</style>
       {SectionLabel
-        ? <SectionLabel required info={INFO}>Evaluation Method</SectionLabel>
-        : inlineLabel('Evaluation Method', INFO)}
+        ? <SectionLabel required info={graded ? INFO : NON_GRADED_INFO}>Evaluation Method</SectionLabel>
+        : inlineLabel('Evaluation Method', graded ? INFO : NON_GRADED_INFO)}
 
       {/* Dense mode used to cap the dropdown at 45% width — that made
           sense when the host row was internally 14px-padded, but the 2026-09-01
@@ -384,7 +362,7 @@ export const EvaluationMethodConfig: React.FC<Props> = ({
       {v.method === 'ai' && (
         <div className="mt-3">
           <p style={{ fontSize: 12, color: '#667085', margin: '0 0 10px', lineHeight: 1.6 }}>
-            Gemini evaluates the code against test cases and your selected criteria. Students get Run, Run tests and Test results, including AI verdicts, criterion feedback and the marks breakdown. Run opens the existing Terminal.
+            Gemini evaluates the code against test cases and your selected criteria. Students get Run, Run tests and Test results, including AI verdicts, criterion feedback{graded ? ' and the marks breakdown' : ' (no marks — the exercise is not graded)'}. Run opens the existing Terminal.
           </p>
           {SectionLabel
             ? <SectionLabel required info={CRITERIA_INFO}>Evaluation Criteria</SectionLabel>

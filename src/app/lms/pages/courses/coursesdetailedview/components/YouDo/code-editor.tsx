@@ -2952,7 +2952,7 @@ export default function CodeEditor({
             if (i < testCases.length - 1) await new Promise(r => setTimeout(r, 300));
         }
         const score = Math.round((passed / testCases.length) * maxMarks * 100) / 100;
-        addTerminalLog(passed === testCases.length ? 'success' : 'info', `🏁 Passed ${passed}/${testCases.length} — Score: ${score}/${maxMarks}`);
+        addTerminalLog(passed === testCases.length ? 'success' : 'info', `🏁 Passed ${passed}/${testCases.length}${(exData as any)?.isGraded !== false ? ` — Score: ${score}/${maxMarks}` : ''}`);
         return { passed, total: testCases.length, score, maxMarks, cases };
     };
 
@@ -3176,7 +3176,7 @@ else:
             addTerminalLog('warning', `⚠️ ${aiResult.errorMessage || 'AI grader failed.'}`);
         } else {
             const b = aiResult.breakdown.ai;
-            addTerminalLog('success', `🏁 AI score: ${aiResult.totalScore}/${maxMarks} — ${b.passedTestCases}/${b.totalTestCases} test cases passed, ${b.criteria.length} criteria evaluated`);
+            addTerminalLog('success', `🏁 ${(exData as any)?.isGraded !== false ? `AI score: ${aiResult.totalScore}/${maxMarks}` : 'AI evaluated'} — ${b.passedTestCases}/${b.totalTestCases} test cases passed, ${b.criteria.length} criteria evaluated`);
         }
         const resultState = buildAiTestResultState({
             ai: aiResult.breakdown.ai,
@@ -3223,7 +3223,7 @@ else:
                     title: ai.failed ? 'AI grader unavailable' : 'AI evaluated',
                     message: ai.failed
                         ? 'Could not grade this run — try again, or submit for the trainer to grade.'
-                        : `Score ${ai.score}/${ai.maxMarks} — not submitted yet`,
+                        : ((exData as any)?.isGraded !== false ? `Score ${ai.score}/${ai.maxMarks} — not submitted yet` : 'Feedback ready — not submitted yet'),
                     duration: 3500,
                 });
             } catch (err: any) {
@@ -3340,7 +3340,7 @@ else:
                         })),
                     },
                 };
-                toastMsg = `Passed ${passed}/${total} test cases${maxMarks ? ` · Score ${submitScore}/${maxMarks}` : ''}.`;
+                toastMsg = `Passed ${passed}/${total} test cases${maxMarks && (exData as any)?.isGraded !== false ? ` · Score ${submitScore}/${maxMarks}` : ''}.`;
             } else if (method === 'ai') {
                 addTerminalLog('system', '🤖 Running AI evaluation…');
                 const ai = await evaluateCurrentQuestionWithAi();
@@ -5443,6 +5443,8 @@ else:
                         <BottomPanel
                             heading="Output"
                             closeLabel="Hide output"
+                            // Non-graded: pass/fail and feedback, no marks.
+                            showScore={(exData as any)?.isGraded !== false}
                             mode={isManualEval ? 'terminal' : 'test-result'}
                             activeTab={isManualEval ? 'terminal' : 'test-result'}
                             onTabChange={() => setBottomTab(isManualEval ? 'console' : 'results')}

@@ -156,6 +156,12 @@ interface BottomPanelProps {
   onSelectCase: (i: number) => void
   onRetrySubmit?: () => void
   isSubmitting?: boolean
+  /**
+   * Show marks in Test results (the score line, the AI score allocation and
+   * per-criterion marks). Off for a NON-GRADED exercise: it records no marks,
+   * so students see pass/fail and feedback only.
+   */
+  showScore?: boolean
 }
 
 const FONT = "'Poppins', -apple-system, BlinkMacSystemFont, sans-serif"
@@ -186,7 +192,7 @@ export default function BottomPanel(props: BottomPanelProps) {
     onTabChange, testResult, onClose, onToggleMaximize, maximized, heading, closeLabel,
     termLines, running, stdin, lastRuntime, setStdin, onClearTerm,
     interactive, awaitingInput, inputPrompt, onSubmitInput,
-    selectedCaseIndex, onSelectCase, onRetrySubmit, isSubmitting,
+    selectedCaseIndex, onSelectCase, onRetrySubmit, isSubmitting, showScore = true,
   } = props
 
   const bothTabs = mode === 'both'
@@ -202,7 +208,7 @@ export default function BottomPanel(props: BottomPanelProps) {
     if (typeof testResult.passedCount === 'number' && typeof testResult.totalCount === 'number') {
       lines.push(`Cases passed: ${testResult.passedCount} / ${testResult.totalCount}`)
     }
-    if (typeof testResult.score === 'number' && typeof testResult.maxMarks === 'number') {
+    if (showScore && typeof testResult.score === 'number' && typeof testResult.maxMarks === 'number') {
       lines.push(`Score: ${testResult.score} / ${testResult.maxMarks}`)
     }
     if (testResult.runtimeMs != null) lines.push(`Runtime: ${testResult.runtimeMs} ms`)
@@ -210,10 +216,12 @@ export default function BottomPanel(props: BottomPanelProps) {
       const ai = testResult.ai
       lines.push('')
       lines.push(`AI evaluation${ai.model ? ` (${ai.model})` : ''}`)
-      lines.push(`Test cases (${ai.testCaseWeightPct}% of marks): ${ai.testCasePortion}`)
-      lines.push(`Criteria (${ai.criteriaWeightPct}% of marks): ${ai.criteriaPortion}`)
+      if (showScore) {
+        lines.push(`Test cases (${ai.testCaseWeightPct}% of marks): ${ai.testCasePortion}`)
+        lines.push(`Criteria (${ai.criteriaWeightPct}% of marks): ${ai.criteriaPortion}`)
+      }
       ai.criteria.forEach((c) => {
-        lines.push(`  • ${c.label}: ${c.percentage}% → ${c.score} / ${c.maxScore}`)
+        lines.push(showScore ? `  • ${c.label}: ${c.percentage}% → ${c.score} / ${c.maxScore}` : `  • ${c.label}: ${c.percentage}%`)
       })
     }
     try { await navigator.clipboard.writeText(lines.join('\n')) } catch { /* silent */ }
@@ -352,6 +360,7 @@ export default function BottomPanel(props: BottomPanelProps) {
               onSelect={onSelectCase}
               onRetry={onRetrySubmit}
               isSubmitting={isSubmitting}
+              showScore={showScore}
             />
           )}
         </div>
@@ -418,13 +427,15 @@ function PillTab({ active, onClick, id, children }: { active: boolean; onClick: 
 // view inside its own Console/Test Result tab strip, rather than nesting a
 // second tab bar.
 export function TestResultView({
-  state, selectedIndex, onSelect, onRetry, isSubmitting,
+  state, selectedIndex, onSelect, onRetry, isSubmitting, showScore = true,
 }: {
   state: TestResultState | null
   selectedIndex: number
   onSelect: (i: number) => void
   onRetry?: () => void
   isSubmitting?: boolean
+  /** Off for a non-graded exercise: no score line, no marks — pass/fail and feedback only. */
+  showScore?: boolean
 }) {
   if (!state) {
     return (
@@ -449,7 +460,7 @@ export function TestResultView({
     }
     if (state.runtimeMs != null) summaryBits.push(`Runtime ${state.runtimeMs} ms`)
     if (state.memoryKb != null) summaryBits.push(`Memory ${state.memoryKb} KB`)
-    if (typeof state.score === 'number' && typeof state.maxMarks === 'number') {
+    if (showScore && typeof state.score === 'number' && typeof state.maxMarks === 'number') {
       summaryBits.push(`Score ${state.score} / ${state.maxMarks}`)
     }
   }
@@ -535,7 +546,7 @@ export function TestResultView({
           Rendered above the case list so the "why did I get this mark?"
           answer is the first thing visible. Hidden while re-evaluating so
           the previous submission's numbers never read as the new ones. */}
-      {state.ai && !isEval && <AiEvaluationBlock ai={state.ai} score={state.score} maxMarks={state.maxMarks} />}
+      {state.ai && !isEval && <AiEvaluationBlock ai={state.ai} score={state.score} maxMarks={state.maxMarks} showMarks={showScore} />}
 
       {/* Only unlocked cases are included, preserving server reveal rules. */}
       {shownCases.length > 0 && (
@@ -627,11 +638,13 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: 'ok'
 //     one-line rationale.
 
 function AiEvaluationBlock({
-  ai, score, maxMarks,
+  ai, score, maxMarks, showMarks = true,
 }: {
   ai: AiResultInfo
   score?: number | null
   maxMarks?: number | null
+  /** Off for a non-graded exercise: no score allocation, no marks column. */
+  showMarks?: boolean
 }) {
   const fmt = (n: number) => (Math.round((Number(n) || 0) * 100) / 100).toString()
   const critAvg = ai.criteria.length > 0
@@ -667,8 +680,8 @@ function AiEvaluationBlock({
       ) : (
         <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ margin: 0, fontSize: 12, color: '#667085', lineHeight: 1.5 }}>Gemini reviews your code against test cases and the selected criteria. AI verdicts are model assessments; use Run to see actual program output in Terminal.</p>
-          {/* Score allocation */}
-          <div>
+          {/* Score allocation — graded only */}
+          {showMarks && <div>
             <SectionCaption>Score allocation</SectionCaption>
             <AllocationRow
               label="Test cases"
@@ -699,7 +712,7 @@ function AiEvaluationBlock({
                 </span>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Per-criterion rows */}
           {ai.criteria.length > 0 && (
@@ -708,12 +721,12 @@ function AiEvaluationBlock({
               <div style={{ overflowX: 'auto' }}>
                 <table aria-label="AI evaluation criteria" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
                   <thead style={{ background: '#F5F7FA', color: '#475467' }}>
-                    <tr>{['Criterion', 'Rating', 'Marks', 'Gemini feedback'].map(label => <th key={label} scope="col" style={{ padding: '8px 10px', borderBottom: '1px solid #E4E7EC' }}>{label}</th>)}</tr>
+                    <tr>{['Criterion', 'Rating', ...(showMarks ? ['Marks'] : []), 'Gemini feedback'].map(label => <th key={label} scope="col" style={{ padding: '8px 10px', borderBottom: '1px solid #E4E7EC' }}>{label}</th>)}</tr>
                   </thead>
                   <tbody>{ai.criteria.map(c => <tr key={c.key} style={{ borderBottom: '1px solid #E4E7EC' }}>
                     <th scope="row" style={{ padding: '8px 10px', color: '#172033', fontWeight: 600 }}>{c.label}</th>
                     <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{c.percentage}%</td>
-                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmt(c.score)} / {fmt(c.maxScore)}</td>
+                    {showMarks && <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{fmt(c.score)} / {fmt(c.maxScore)}</td>}
                     <td style={{ padding: '8px 10px', color: '#667085', minWidth: 180, overflowWrap: 'anywhere' }}>{c.comment || 'No feedback provided'}</td>
                   </tr>)}</tbody>
                 </table>

@@ -210,6 +210,7 @@ interface Exercise {
     questions: ExerciseQuestion[]
     courseId?: string
     exerciseType?: string
+    isGraded?: boolean
     gradeSettings?: {
         programmingGradeToPass?: number
         combinedGradeToPass?: number
@@ -2743,7 +2744,7 @@ export default function CodeEditor({
             if (i < testCases.length - 1) await new Promise(r => setTimeout(r, 300));
         }
         const score = Math.round((passed / testCases.length) * maxMarks * 100) / 100;
-        addTerminalLog(passed === testCases.length ? 'success' : 'info', `🏁 Passed ${passed}/${testCases.length} — Score: ${score}/${maxMarks}`);
+        addTerminalLog(passed === testCases.length ? 'success' : 'info', `🏁 Passed ${passed}/${testCases.length}${exData?.isGraded !== false ? ` — Score: ${score}/${maxMarks}` : ''}`);
         return { passed, total: testCases.length, score, maxMarks, cases };
     };
 
@@ -3117,7 +3118,7 @@ export default function CodeEditor({
                     addTerminalLog('warning', `⚠️ ${aiResult.errorMessage || 'AI grader failed.'}`);
                 } else {
                     const b = aiResult.breakdown.ai;
-                    addTerminalLog('success', `🏁 AI score: ${submitScore}/${maxMarks} — ${b.passedTestCases}/${b.totalTestCases} test cases passed, ${b.criteria.length} criteria evaluated`);
+                    addTerminalLog('success', `🏁 ${exData?.isGraded !== false ? `AI score: ${submitScore}/${maxMarks}` : 'AI evaluated'} — ${b.passedTestCases}/${b.totalTestCases} test cases passed, ${b.criteria.length} criteria evaluated`);
                 }
             }
             // method === 'manual' → submitScore stays 0, no breakdown, no auto-eval.
@@ -3229,7 +3230,7 @@ export default function CodeEditor({
                 }
                 addTerminalLog(
                     tc.passed === tc.total ? 'success' : 'info',
-                    `🏁 Passed ${tc.passed}/${tc.total} — Score: ${srvScore}/${maxMarks}${srvStatus === 'solved' ? ' ✓ SOLVED' : ''}`,
+                    `🏁 Passed ${tc.passed}/${tc.total}${exData?.isGraded !== false ? ` — Score: ${srvScore}/${maxMarks}` : ''}${srvStatus === 'solved' ? ' ✓ SOLVED' : ''}`,
                 );
             }
 
@@ -4754,6 +4755,8 @@ export default function CodeEditor({
                                     onSelect={setSelectedCaseIndex}
                                     onRetry={runTestCases}
                                     isSubmitting={isRunning || isRunningTestCases}
+                                    // Non-graded: pass/fail and feedback, no marks.
+                                    showScore={exData?.isGraded !== false}
                                 />
                             </div>
                         )}

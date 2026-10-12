@@ -3069,6 +3069,8 @@ export default function MultiFileCodeEditor({
                   <BottomPanel
                     heading="Output"
                     closeLabel="Hide output"
+                    // Non-graded: pass/fail and feedback, no marks.
+                    showScore={isGradedExercise}
                     activeTab={bottomTab}
                     onTabChange={setBottomTab}
                     testResult={testResult}

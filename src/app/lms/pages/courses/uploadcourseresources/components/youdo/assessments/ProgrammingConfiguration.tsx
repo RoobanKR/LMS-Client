@@ -359,18 +359,16 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
           </div>
         </div>
 
-        {/* Evaluation Method — Test Case OR AI (no Manual for You_Do; the
-            allowed set is enforced by the shared config). The picked method is
-            the single source of truth for the student's Submit: Test Case runs
-            the question's authored cases via Piston; AI hands the (multi-file
-            or single-file) submission to the shared client-side AI grader.
-            See the You_Do editor's `resolveEvaluationMethod` branch.
+        {/* Evaluation Method — the picked method is the single source of
+            truth for the student's Submit: Test Case runs the question's
+            authored cases via Piston; AI hands the (multi-file or single-file)
+            submission to the shared client-side AI grader. See the You_Do
+            editor's `resolveEvaluationMethod` branch.
 
-            Hidden entirely on a NON-GRADED assessment: nothing is scored, so
-            there is nothing to evaluate and the stored method stays Manual.
-            The row's top divider goes with it — an empty bordered strip reads
-            as a section that failed to load. */}
-        {formData.isGraded !== false && (
+            GRADED: Test Case OR AI only (no Manual — a graded You_Do must
+            auto-score; the allowed set is enforced by the shared config).
+            NON-GRADED: Manual, Automation or AI Based — no marks are recorded,
+            the method decides the pass/fail feedback students get. */}
         <div className="pt-3 border-t" style={{ borderColor: designTokens.border }}>
           <EvaluationMethodConfig
             value={formData.evaluationMethod || DEFAULT_EVALUATION_METHOD}
@@ -379,18 +377,10 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
             ODropdown={ODropdown}
             SectionLabel={SectionLabel}
             allowedMethods={YOUDO_ALLOWED_METHODS}
-            graded
+            graded={graded}
           />
           {liveCompilerOption}
         </div>
-        )}
-        {/* Non-graded: no evaluation to pick, but a Mock test's students still
-            run code — the live compiler option keeps its own row. */}
-        {formData.isGraded === false && liveCompilerOption && (
-        <div className="pt-1 border-t" style={{ borderColor: designTokens.border }}>
-          {liveCompilerOption}
-        </div>
-        )}
 
         {/* Attempt Limit */}
         <div className="pt-2 border-t" style={{ borderColor: designTokens.border }}>
