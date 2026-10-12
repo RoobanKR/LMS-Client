@@ -80,6 +80,8 @@ import { LANGUAGE_CONFIG, detectLanguageFromFilename, type SupportedLanguage } f
 // Same AI grader the student-side editors call so the review console's
 // AI-based Run Code path lands on the identical breakdown shape.
 import { evaluateWithAi } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator';
+import { buildAiTestResultState } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiTestResult';
+import { resolveEvaluationMethod } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/resolveEvaluationMethod';
 import { NotionPagesViewer, PageData as NotionPageData } from '@/app/lms/pages/courses/reviewSubmission/components/OthersNotionEditor';
 // ── Grading Console shell ────────────────────────────────────────────────────
 // Presentational only: they take derived view data + callbacks and render the
@@ -3685,64 +3687,33 @@ builtins.input = _async_input
     setTestResult({ status: 'evaluating', cases: [], message: 'AI grader is scoring this submission…' });
     try {
       const q: any = selectedQuestion;
-      // evaluateWithAi's input shape — reuse the same fields the multi-file
-      // editor passes so the breakdown matches exactly.
-      const result: any = await evaluateWithAi({
+      // Same input the student editors send. Judged against the AI test cases
+      // cached on the question (the set the students were judged on) — the
+      // review page never generates a new set.
+      const { aiCriteria } = resolveEvaluationMethod(selectedExercise, (selectedExercise as any)?._category);
+      const result = await evaluateWithAi({
         code: source,
         language: lang,
-        question: q,
-        exercise: selectedExercise as any,
-        maxMarks: maxScore || 0,
-      } as any);
-      // Map the grader's returned shape to a TestResultState. `evaluateWithAi`
-      // hands back `breakdown` (criteria + testCases arrays); we surface both
-      // in the same order the multi-file editor's BottomPanel expects.
-      const cases: MFTestResultCase[] = Array.isArray(result?.breakdown?.testCases)
-        ? result.breakdown.testCases.map((tc: any, i: number) => ({
-            index: Number(tc?.index) ?? i,
-            hidden: false,
-            passed: !!tc?.passed,
-            unlocked: true,
-            source: tc?.source === 'ai' ? 'ai' : 'question',
-            comment: typeof tc?.comment === 'string' ? tc.comment : undefined,
-            input: typeof tc?.input === 'string' ? tc.input : '',
-            expectedOutput: typeof tc?.expectedOutput === 'string' ? tc.expectedOutput : '',
-            actualOutput: '',
-          }))
-        : [];
-      const passedCount = Number(result?.breakdown?.passedTestCases) || cases.filter(c => c.passed).length;
-      const totalCount = Number(result?.breakdown?.totalTestCases) || cases.length;
-      setTestResult({
-        status: result?.failed ? 'submission-failed'
-          : passedCount === totalCount && totalCount > 0 ? 'accepted'
-          : passedCount === 0 ? 'wrong-answer' : 'partial',
-        cases,
-        passedCount,
-        totalCount,
-        score: typeof result?.score === 'number' ? result.score : null,
-        maxMarks: maxScore || null,
-        ai: {
-          criteria: Array.isArray(result?.breakdown?.criteria)
-            ? result.breakdown.criteria.map((c: any) => ({
-                key: String(c?.key || ''),
-                label: String(c?.label || c?.key || ''),
-                percentage: Number(c?.percentage) || 0,
-                score: Number(c?.score) || 0,
-                maxScore: Number(c?.maxScore) || 0,
-                comment: typeof c?.comment === 'string' ? c.comment : undefined,
-              }))
-            : [],
-          perCriterionMax: Number(result?.breakdown?.perCriterionMax) || 0,
-          criteriaPortion: Number(result?.breakdown?.criteriaPortion) || 0,
-          testCasePortion: Number(result?.breakdown?.testCasePortion) || 0,
-          criteriaWeightPct: Number(result?.breakdown?.criteriaWeightPct) || 50,
-          testCaseWeightPct: Number(result?.breakdown?.testCaseWeightPct) || 50,
-          passedTestCases: passedCount,
-          totalTestCases: totalCount,
-          model: typeof result?.breakdown?.model === 'string' ? result.breakdown.model : undefined,
-          failed: !!result?.failed,
+        question: {
+          title: q?.title || q?.questionTitle || '',
+          description: typeof q?.description === 'string' ? q.description : q?.description?.text || '',
+          testCases: q?.testCases || [],
+          constraints: q?.constraints || [],
         },
+        criteria: aiCriteria,
+        maxMarks: maxScore || 0,
+        testCasesCount: 0,
+        cachedGeneratedTestCases: Array.isArray(q?.aiGeneratedTestCases) ? q.aiGeneratedTestCases : [],
       });
+      // The trainer sees every case, hidden ones included.
+      const ai = result.breakdown?.ai;
+      setTestResult(buildAiTestResultState({
+        ai: ai ? { ...ai, testCases: (ai.testCases || []).map(tc => ({ ...tc, hidden: false })) } : ai,
+        score: result.totalScore,
+        maxMarks: maxScore || null,
+        failed: result.failed,
+        errorMessage: result.errorMessage,
+      }));
       setSelectedCaseIndex(0);
     } catch (err: any) {
       setTestResult({

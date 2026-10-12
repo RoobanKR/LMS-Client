@@ -33,7 +33,7 @@ import BottomPanel, { type SubmitStatus, type TestResultCase, type TestResultSta
 // Gemini call for AI grading. Manual and AI are new for You_Do; Test Case is
 // unchanged (this file already implemented it).
 import { resolveEvaluationMethod } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/resolveEvaluationMethod';
-import { evaluateWithAi } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator';
+import { evaluateWithAi, cachedAiTestCasesFor, AI_TESTCASE_SET_VERSION } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator';
 // Shared AI breakdown → Test Result mapping, so an AI-graded question shows
 // the same case list Test Case scoring shows plus the parameter/allocation
 // detail. Identical to what the multi-file and We_Do editors render.
@@ -3128,8 +3128,8 @@ else:
         const aiTestCasesCount = getAiTestCasesCountFor(liveQuestion);
         // Cached generated cases from an earlier student's run — Gemini REUSES
         // these rather than regenerating, so everyone is judged on the same set.
-        const cachedGen = Array.isArray(liveQuestion?.aiGeneratedTestCases)
-            ? liveQuestion.aiGeneratedTestCases : [];
+        // A set made under older generation rules is regenerated once.
+        const cachedGen = cachedAiTestCasesFor(liveQuestion);
         const aiResult = await evaluateWithAi({
             code: currentCode,
             language: selectedLanguage,
@@ -3139,6 +3139,7 @@ else:
                     ? liveQuestion.description
                     : liveQuestion?.description?.text || '',
                 testCases: liveQuestion?.testCases || [],
+                constraints: liveQuestion?.constraints || [],
             },
             criteria: aiCriteria,
             maxMarks,
@@ -3162,7 +3163,8 @@ else:
                     category: category || 'You_Do',
                     subcategory,
                     testCases: aiResult.newlyGeneratedTestCases,
-                    model: aiResult.breakdown.ai.model,
+                    model: aiResult.cacheModel || aiResult.breakdown.ai.model,
+                    version: AI_TESTCASE_SET_VERSION,
                 }),
             }).catch(() => { /* silent */ });
         }

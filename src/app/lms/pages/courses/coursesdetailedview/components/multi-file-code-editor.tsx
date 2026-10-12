@@ -27,7 +27,7 @@ import ExerciseInfoModals, { ExerciseInfoButtons } from "./ExerciseInfoModals"
 // is judged server-side by the submit endpoint, AI is graded client-side.
 import { resolveEvaluationMethod } from "@/app/lms/pages/courses/coursesdetailedview/components/lib/resolveEvaluationMethod"
 import { hostOf } from "@/lib/frameEmbed"
-import { evaluateWithAi } from "@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator"
+import { evaluateWithAi, cachedAiTestCasesFor, AI_TESTCASE_SET_VERSION } from "@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator"
 // Shared AI breakdown → Test Result mapping, so an AI-graded question shows
 // the same case list Test Case scoring shows plus the parameter/allocation
 // detail. Used identically by the We_Do and You_Do single-file editors.
@@ -1757,8 +1757,8 @@ export default function MultiFileCodeEditor({
       // its `aiTestCasesCount` (falling back to the exercise's count).
       const { getAiTestCasesCountFor } = resolveEvaluationMethod(exData, category)
       const aiTestCasesCount = getAiTestCasesCountFor(currentQuestion)
-      const cachedGen = Array.isArray((currentQuestion as any)?.aiGeneratedTestCases)
-        ? (currentQuestion as any).aiGeneratedTestCases : []
+      // A cached set made under older generation rules is regenerated once.
+      const cachedGen = cachedAiTestCasesFor(currentQuestion)
       const aiResult = await evaluateWithAi({
         code: bundled,
         language: selectedLanguage,
@@ -1769,6 +1769,7 @@ export default function MultiFileCodeEditor({
               ? currentQuestion.description
               : (currentQuestion?.description as any)?.text || "",
           testCases: (currentQuestion as any)?.testCases || [],
+          constraints: (currentQuestion as any)?.constraints || [],
         },
         criteria: aiCriteria,
         maxMarks,
@@ -1792,7 +1793,8 @@ export default function MultiFileCodeEditor({
             category: category || 'We_Do',
             subcategory,
             testCases: aiResult.newlyGeneratedTestCases,
-            model: aiResult.breakdown.ai.model,
+            model: aiResult.cacheModel || aiResult.breakdown.ai.model,
+            version: AI_TESTCASE_SET_VERSION,
           }),
         }).catch(() => { /* silent */ })
       }

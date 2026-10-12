@@ -255,7 +255,7 @@ ${contextHint ? `Target language(s): ${contextHint}.\n` : ''}Each item must matc
   "title": "short imperative title (<=80 chars)",
   "description": "one or two paragraph problem statement; explain input/output format clearly",
   "difficulty": "${difficulty}",
-  "constraints": ["bulletable constraint string", "another"],
+  "constraints": ["1 <= n <= 10^4", "another constraint in the same form"],
   "sampleInput":  "stdin string for the sample test case",
   "sampleOutput": "stdout string for the sample test case",
   "testCases": [
@@ -266,7 +266,16 @@ ${contextHint ? `Target language(s): ${contextHint}.\n` : ''}Each item must matc
   "timeLimit": 2000,
   "memoryLimit": 256
 }
-Use EXACTLY ${tcCount} test cases per question (at least 1 sample, at least 1 hidden). Use EXACTLY ${hintCount} hint${hintCount === 1 ? '' : 's'}. Keep inputs/outputs realistic and parseable.`;
+Use EXACTLY ${tcCount} test cases per question, built FROM THE CONSTRAINTS:
+- Write each numeric constraint as "<lower> <= <name> <= <upper>" with powers as 10^k (e.g. "1 <= n <= 10^4").
+- Every test case input MUST satisfy every constraint — never outside a range, never invalid input.
+- Test case 1 is the sample (isSample true, isHidden false): a small typical input; sampleInput / sampleOutput must equal it.
+- The rest are hidden (isSample false, isHidden true) and run from the START of the allowed range to the END: ${tcCount > 2
+    ? `test case 2 uses the SMALLEST allowed input (e.g. n = 1), test case ${tcCount} — the LAST — uses the LARGEST allowed input (e.g. "1 <= n <= 10^4" → n = 10000), and the ones between climb steadily across the range.`
+    : `test case 2 — the LAST — uses the LARGEST allowed input (e.g. "1 <= n <= 10^4" → n = 10000).`}
+- Keep each input within 600 characters: when a maximum is a SIZE too long to write out (e.g. 10^4 array elements), use the longest input that fits, with values at their extremes.
+- Each expectedOutput must be the exact output for its input, in the format the description states.
+Use EXACTLY ${hintCount} hint${hintCount === 1 ? '' : 's'}.`;
   }
 
   if (formType === 'frontend') {

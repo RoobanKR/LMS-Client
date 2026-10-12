@@ -23,7 +23,7 @@ import ExerciseInfoModals from './ExerciseInfoModals'
 // helpers are shared with the You_Do editor and multi-file editor so the
 // three surfaces evaluate identically for the same setting.
 import { resolveEvaluationMethod } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/resolveEvaluationMethod';
-import { evaluateWithAi } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator';
+import { evaluateWithAi, cachedAiTestCasesFor, AI_TESTCASE_SET_VERSION } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator';
 // Test Result panel shared with the multi-file workspace and the You_Do
 // editor — same component, so all three surfaces read identically.
 import { TestResultView, type SubmitStatus, type TestResultCase, type TestResultState } from './multi-file/BottomPanel';
@@ -3065,8 +3065,9 @@ export default function CodeEditor({
                 const aiTestCasesCount = getAiTestCasesCountFor(liveQ);
                 // Cached generated cases from an earlier student's run — Gemini
                 // REUSES these rather than regenerating so everyone sees the
-                // same set. `aiGeneratedTestCases` lives on the question doc.
-                const cachedGen = Array.isArray(liveQ?.aiGeneratedTestCases) ? liveQ.aiGeneratedTestCases : [];
+                // same set. `aiGeneratedTestCases` lives on the question doc; a set
+                // made under older generation rules is regenerated once.
+                const cachedGen = cachedAiTestCasesFor(liveQ);
                 const aiResult = await evaluateWithAi({
                     code: currentCode,
                     language: selectedLanguage,
@@ -3074,6 +3075,7 @@ export default function CodeEditor({
                         title: liveQ?.title || liveQ?.questionTitle || '',
                         description: typeof liveQ?.description === 'string' ? liveQ.description : liveQ?.description?.text || '',
                         testCases: liveQ?.testCases || [],
+                        constraints: liveQ?.constraints || [],
                     },
                     criteria: aiCriteria,
                     maxMarks,
@@ -3102,7 +3104,8 @@ export default function CodeEditor({
                             category: category || 'We_Do',
                             subcategory,
                             testCases: aiResult.newlyGeneratedTestCases,
-                            model: aiResult.breakdown.ai.model,
+                            model: aiResult.cacheModel || aiResult.breakdown.ai.model,
+                            version: AI_TESTCASE_SET_VERSION,
                         }),
                     }).catch(() => { /* silent — question is still gradable next time */ });
                 }

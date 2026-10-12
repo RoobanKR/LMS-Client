@@ -27,6 +27,14 @@
 // question doc; subsequent submits pass those cached cases back in
 // (`cachedGeneratedTestCases`) and Gemini only judges. Same 20 for every student.
 //
+// GENERATED CASES FOLLOW THE QUESTION'S CONSTRAINTS — every input stays inside
+// them, and the set runs from the START of the allowed range to the END: case
+// #1 is the smallest input (e.g. n = 1), the LAST case is the largest (e.g.
+// "1 ≤ n ≤ 10^4" → n = 10000), the ones between climb across the range. Caches
+// generated under older rules (no constraints, "invalid input" cases) are
+// skipped by `cachedAiTestCasesFor` and regenerated once — see
+// AI_TESTCASE_SET_VERSION.
+//
 // FALLBACK — every failure path (network, non-JSON, empty response, missing
 // key) returns `{failed: true, totalScore: 0, breakdown}` so the caller can
 // still POST the submission. The breakdown carries `failed: true` so the
@@ -51,6 +59,22 @@ const MAX_OUTPUT_CHARS = 400;
 const MAX_CODE_CHARS = 12000;
 const MAX_TESTCASE_LIST = 25;      // cap the number of PROMPTED cases so the
                                     // prompt stays under the token budget
+const MAX_CONSTRAINTS = 20;
+
+/**
+ * Rules the cached AI test cases were generated under. Stamped on the
+ * question doc (`aiGeneratedTestCasesModel`) when a set is persisted; a cache
+ * without it predates the current rules and is regenerated once. Bump it when
+ * the generation rules change.
+ */
+export const AI_TESTCASE_SET_VERSION = 'tc-range-v2';
+
+/** The question's cached AI test cases — only when made under the current rules. */
+export function cachedAiTestCasesFor(question: any): GeneratedTestCase[] {
+  const cases = question?.aiGeneratedTestCases;
+  if (!Array.isArray(cases) || cases.length === 0) return [];
+  return String(question?.aiGeneratedTestCasesModel || '').includes(AI_TESTCASE_SET_VERSION) ? cases : [];
+}
 
 // ─── Public types ────────────────────────────────────────────────────────────
 export type BreakdownCriterion = {
@@ -108,6 +132,11 @@ export interface AiEvaluationResult {
    * same set.
    */
   newlyGeneratedTestCases?: GeneratedTestCase[];
+  /**
+   * `model` to persist with `newlyGeneratedTestCases` — carries
+   * AI_TESTCASE_SET_VERSION so later submits know the set is current.
+   */
+  cacheModel?: string;
 }
 
 export interface EvaluateWithAiInput {
@@ -118,6 +147,8 @@ export interface EvaluateWithAiInput {
     description?: string;
     /** Test cases the trainer authored on the question. Always judged. */
     testCases?: Array<{ input?: string; expectedOutput?: string; isSample?: boolean; isHidden?: boolean }>;
+    /** The question's constraints (e.g. "1 ≤ n ≤ 10^4") — generated cases stay inside them. */
+    constraints?: string[];
   };
   criteria: AiCriterion[];
   maxMarks: number;
@@ -160,7 +191,29 @@ interface PromptInput {
   questionTestCases: Array<{ input: string; expectedOutput: string }>;
   cachedGenerated: Array<{ input: string; expectedOutput: string }>;
   countToGenerate: number;
+  constraints: string[];
 }
+
+// How the generated cases are spread: from the smallest allowed input to the
+// largest, so even a set of 5 ends on the maximum ("1 ≤ n ≤ 10^4" → #5 is
+// n = 10000) instead of five small inputs.
+const generationRules = (count: number, hasConstraints: boolean): string[] => [
+  '',
+  `Also GENERATE exactly ${count} NEW test case${count === 1 ? '' : 's'} into the "newlyGenerated" array, each with concrete`,
+  '`input` and `expectedOutput` strings you compute FROM THE PROBLEM DESCRIPTION (not by running the code):',
+  hasConstraints
+    ? '  - Every input MUST satisfy EVERY constraint above. Never go outside a range and never use invalid input — the problem guarantees valid input.'
+    : '  - No constraints are listed: infer the valid input range from the description and stay inside it. Never use invalid input.',
+  count === 1
+    ? '  - The single case uses the LARGEST input the constraints allow (every value at its maximum).'
+    : `  - Order them from the START of the allowed range to the END: case #1 uses the SMALLEST allowed input (every value at its minimum, e.g. n = 1); case #${count} — the LAST — uses the LARGEST allowed input (e.g. "1 ≤ n ≤ 10^4" → n = 10000).`,
+  count > 2
+    ? `  - Cases #2–#${count - 1} climb steadily between them: just above the minimum, a typical case like the authored ones, the middle of the range, just below the maximum.`
+    : '',
+  '  - Use exactly the same input format as the authored test cases.',
+  `  - Keep each input within ${MAX_INPUT_CHARS} characters. When a maximum is a SIZE too long to write out (e.g. 10^4 array elements), use the longest input that fits, with values at their extremes.`,
+  'Judge the student code against these newly generated cases too, filed under source "ai".',
+].filter(Boolean);
 
 const buildPrompt = (p: PromptInput): string => {
   const critLines = p.criteria.length > 0
@@ -175,27 +228,23 @@ const buildPrompt = (p: PromptInput): string => {
   };
 
   const generationInstructions = p.countToGenerate > 0
-    ? [
-        '',
-        `Also GENERATE exactly ${p.countToGenerate} NEW test cases that cover meaningful behaviours the`,
-        'authored test cases might miss (edge / boundary / invalid input / typical case mix). Include them',
-        'in the "newlyGenerated" array of the response, each with concrete `input` and `expectedOutput`',
-        'strings you compute FROM THE PROBLEM DESCRIPTION (not by running the code). Judge the student code',
-        'against these newly generated cases too, filed under source "ai".',
-      ].join('\n')
+    ? generationRules(p.countToGenerate, p.constraints.length > 0).join('\n')
     : '';
 
   return [
     'You are grading a student\'s programming submission. Do THREE things in ONE JSON response:',
     ' A) JUDGE the student code against every test case listed below (mark passed true/false + one-line comment).',
     p.countToGenerate > 0
-      ? ` B) GENERATE ${p.countToGenerate} NEW test cases (input + expected output) covering edge cases + typical + boundary.`
+      ? ` B) GENERATE ${p.countToGenerate} NEW test cases (input + expected output) inside the constraints, running from the smallest allowed input to the largest.`
       : ' B) (No generation requested this call — testCasesCount is 0.)',
     ' C) SCORE the code independently on each selected criterion.',
     '',
     `Question title: ${p.title || '(untitled)'}`,
     `Language: ${p.language || '(unspecified)'}`,
     p.description ? `Description:\n${truncate(p.description, 1500)}\n` : '',
+    p.constraints.length > 0
+      ? `Constraints (every valid input satisfies these):\n${p.constraints.map(c => `  - ${c}`).join('\n')}\n`
+      : '',
     'Selected evaluation criteria:',
     critLines,
     '',
@@ -262,7 +311,11 @@ export async function evaluateWithAi(input: EvaluateWithAiInput): Promise<AiEval
   // Never leave criteria empty — the settings UI shows a red hint but doesn't
   // hard-block, so a mis-configured exercise still reaches us. Fall back to
   // ['correctness'] so the student's Submit isn't wedged waiting on config.
-  const criteria: AiCriterion[] = input.criteria.length ? input.criteria : ['correctness'];
+  const criteria: AiCriterion[] = Array.isArray(input.criteria) && input.criteria.length ? input.criteria : ['correctness'];
+  const constraints = (Array.isArray(input.question.constraints) ? input.question.constraints : [])
+    .map(c => String(c ?? '').replace(/<[^>]*>/g, '').trim())
+    .filter(Boolean)
+    .slice(0, MAX_CONSTRAINTS);
   // Clamp count [0, 50]; 0 means "skip generation, only judge question's cases".
   const rawCount = Math.max(0, Math.min(50, Math.floor(Number(input.testCasesCount) || 0)));
   const cachedGen = (input.cachedGeneratedTestCases || []).map(cleanTestCase);
@@ -298,6 +351,7 @@ export async function evaluateWithAi(input: EvaluateWithAiInput): Promise<AiEval
     questionTestCases: questionCases.slice(0, MAX_TESTCASE_LIST),
     cachedGenerated: cachedGen.slice(0, MAX_TESTCASE_LIST),
     countToGenerate,
+    constraints,
   });
 
   let raw: GeminiResponse;
@@ -307,7 +361,8 @@ export async function evaluateWithAi(input: EvaluateWithAiInput): Promise<AiEval
       systemInstruction:
         'You are a strict programming code grader. Return only valid JSON matching the requested schema.',
       temperature: 0.2,
-      maxOutputTokens: 4096,
+      // Room for generated cases that run up to the maximum input.
+      maxOutputTokens: countToGenerate > 0 ? 8192 : 4096,
       jsonMode: true,
       signal: input.signal,
     });
@@ -451,5 +506,6 @@ export async function evaluateWithAi(input: EvaluateWithAiInput): Promise<AiEval
     },
     failed: false,
     newlyGeneratedTestCases: newlyGeneratedForCaller,
+    cacheModel: newlyGeneratedForCaller ? `${GEMINI_MODEL_LABEL} · ${AI_TESTCASE_SET_VERSION}` : undefined,
   };
 }
