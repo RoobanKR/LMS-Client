@@ -127,7 +127,7 @@ export default function AttendanceTab({ courseId }: AttendanceTabProps) {
           : windowError
             ? "Couldn't check the training window — reload to retry"
             : windowMissing
-              ? "Set the Program Calendar first — attendance needs a training schedule"
+              ? "No training schedule yet — save a start date in the Program Calendar to mark attendance"
               : beforeStart
                 ? `Training starts ${fmtWindowDay(trainingWindow?.startDate)} — marking disabled`
                 : afterEnd

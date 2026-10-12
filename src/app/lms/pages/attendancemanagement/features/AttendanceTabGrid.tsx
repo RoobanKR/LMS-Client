@@ -222,7 +222,7 @@ export default function AttendanceTabGrid({
                                   : future
                                     ? "Future date — attendance can't be marked yet"
                                     : windowMissing
-                                      ? "Set the Program Calendar first — attendance needs a training schedule"
+                                      ? "No training schedule yet — save a start date in the Program Calendar to mark attendance"
                                       : outsideWindow
                                         ? "Outside the training window — attendance can't be marked"
                                         : on
