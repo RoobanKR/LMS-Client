@@ -18,6 +18,7 @@
 
 import { mondayKey, stageDone, weekLabel } from "@/features/ld-dashboard/lib/metrics";
 import { tallyPractice, type PracticeTally } from "./practice";
+import { batchesDueToday, todayYmd } from "@/app/lms/pages/attendancemanagement/features/attendanceManagementHelpers";
 import { bandOf, courseStatus, industryReadiness, READINESS_BANDS, READINESS_WEIGHTS } from "./readiness";
 import type {
   CourseHealthRow,
@@ -678,14 +679,17 @@ function countTrainers(roster: any[], inScope: (id: string) => boolean): number 
   return ids.size;
 }
 
+// Unmarked batches whose attendance is due today — a course outside its
+// training window (not started / ended) has no register today, matching
+// Attendance Management's "Active today" list.
 function countPendingBatches(overview: any[], inScope: (id: string) => boolean): number {
+  const today = todayYmd();
   let pending = 0;
   (Array.isArray(overview) ? overview : [])
     .filter((c: any) => inScope(String(c?._id ?? "")))
     .forEach((c: any) => {
-      if (!c.hasSchedule) return;
-      (Array.isArray(c.batches) ? c.batches : []).forEach((b: any) => {
-        if (!b.markedToday) pending += 1;
+      batchesDueToday(c, today).forEach((b) => {
+        if (!b.marked) pending += 1;
       });
     });
   return pending;

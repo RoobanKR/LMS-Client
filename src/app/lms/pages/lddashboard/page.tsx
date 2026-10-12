@@ -26,6 +26,7 @@ import LDLayout, { LDView, CourseOpt, LDSelect } from "../../component/ldshell/L
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useIsPreviewingAsStudent } from "../courses/coursesdetailedview/components/useAccountMenu";
 import ApprovalHierarchyModal from "../approvals/components/ApprovalHierarchyModal";
+import { batchesDueToday, todayYmd } from "../attendancemanagement/features/attendanceManagementHelpers";
 // Redesigned dashboard view. Owns its own data fetching and derivations
 // (src/features/ld-dashboard) — the legacy DashboardView below is superseded.
 import { LDDashboard } from "@/features/ld-dashboard";
@@ -845,11 +846,15 @@ function DashboardView({ filter }: { filter: DashFilter }) {
   const ovRows = (attnDay.data || []).filter((c: any) => inClient(String(c._id)) && (course === "all" || String(c._id) === course));
   let batchT = 0, batchM = 0;
   const attByClient = new Map<string, { m: number; t: number }>();
+  // Only batches whose attendance is due today (training window covers
+  // today) — Attendance Management's "Active today" rule.
+  const dueDay = todayYmd();
   ovRows.forEach((c: any) => {
-    if (!c.hasSchedule) return;
+    const due = batchesDueToday(c, dueDay);
+    if (!due.length) return;
     const cn = clientOf(String(c._id)) || c.clientName || "Unassigned";
     const e = attByClient.get(cn) || { m: 0, t: 0 };
-    (Array.isArray(c.batches) ? c.batches : []).forEach((b: any) => { batchT++; e.t++; if (b.markedToday) { batchM++; e.m++; } });
+    due.forEach((b) => { batchT++; e.t++; if (b.marked) { batchM++; e.m++; } });
     attByClient.set(cn, e);
   });
   const pendingBatches = batchT - batchM;
@@ -5420,16 +5425,17 @@ function AttendanceReport({ f }: { f: ViewFilter }) {
     // built from the institution-scoped /courses-structure/getAll).
     .filter((c: any) => f.clientOf(String(c._id)) !== undefined && inScope(f, String(c._id)))
     .map((c: any) => {
-      const total = Array.isArray(c.batches) ? c.batches.length : 0;
-      const batchMarked = Array.isArray(c.batches) ? c.batches.filter((b: any) => b.markedToday).length : 0;
-      // Legacy (batch-less) marks count as "the course was marked" — the
-      // server contract — so they must not surface as pending.
-      const marked = batchMarked === 0 && c.legacyMarkedToday ? total : batchMarked;
+      // Due today only when the training window covers today; legacy
+      // (batch-less) marks count as "the course was marked" — the server
+      // contract — so they never surface as pending.
+      const due = batchesDueToday(c, todayYmd());
+      const total = due.length;
+      const marked = due.filter((b) => b.marked).length;
       return {
         id: String(c._id),
         name: c.courseName || "Untitled",
         client: f.clientOf(String(c._id)) || c.clientName || "Unassigned",
-        inDelivery: !!c.hasSchedule && total > 0,
+        inDelivery: total > 0,
         batches: total,
         marked,
         students: n(c.totalStudents),
@@ -5481,7 +5487,7 @@ function AttendanceReport({ f }: { f: ViewFilter }) {
             { value: "full", label: "Fully marked" },
             { value: "part", label: "Partially marked" },
             { value: "none", label: "Not marked" },
-            { value: "ns", label: "Not scheduled" },
+            { value: "ns", label: "Not running today" },
           ],
           match: (r: any, v) =>
             v === "full" ? r.inDelivery && r.marked === r.batches :
@@ -5495,7 +5501,7 @@ function AttendanceReport({ f }: { f: ViewFilter }) {
           { k: "students", h: "Students", r: true },
           { k: "batches", h: "Batches", r: true },
           { k: "window", h: "Training window", sv: (r: any) => r.startT },
-          { k: "marked", h: "Marked today", r: true, sv: (r: any) => (r.inDelivery ? r.marked / Math.max(1, r.batches) : 2), render: (r: any) => (r.inDelivery ? <StatusChip tone={r.marked === r.batches ? "success" : r.marked === 0 ? "danger" : "warning"}>{r.marked}/{r.batches}</StatusChip> : <StatusChip tone="neutral">not scheduled</StatusChip>) },
+          { k: "marked", h: "Marked today", r: true, sv: (r: any) => (r.inDelivery ? r.marked / Math.max(1, r.batches) : 2), render: (r: any) => (r.inDelivery ? <StatusChip tone={r.marked === r.batches ? "success" : r.marked === 0 ? "danger" : "warning"}>{r.marked}/{r.batches}</StatusChip> : <StatusChip tone="neutral">not running today</StatusChip>) },
         ]}
       />
       <Note>Pick a course in the filter for its full register — trends, batch split and the below-75% follow-up list.</Note>

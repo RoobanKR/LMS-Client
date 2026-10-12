@@ -23,6 +23,7 @@ import type { DashboardModel, DashFilter, StudentRow } from "@/features/ld-dashb
 import { deriveModel, pickFocusCourse } from "@/features/ld-dashboard/lib/metrics";
 import { combineWork, combineCategories, type WorkSummary, type WorkCategory } from "@/features/ld-dashboard/lib/work-summary";
 import { plural } from "@/features/ld-dashboard/lib/format";
+import { batchesDueToday } from "@/app/lms/pages/attendancemanagement/features/attendanceManagementHelpers";
 // The five reads are IDENTICAL to the L&D dashboard's, so they share its
 // query hooks rather than keeping a second uncached copy of the fetch layer.
 // Same shared cache keys, so a trainer who opens both surfaces (or the L&D
@@ -270,17 +271,15 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
       sparkAgg.set(x.courseId, sp);
     });
 
+    // Only courses whose training window covers today carry a register today
+    // (the Attendance page's "Active today" rule); others show no attendance.
     const attMap = new Map<string, { marked: number; total: number }>();
     (attendance.data ?? []).forEach((c: any) => {
-      if (!c.hasSchedule) return;
       const id = String(c._id);
       if (!inScope(id)) return;
-      const e = { marked: 0, total: 0 };
-      (Array.isArray(c.batches) ? c.batches : []).forEach((b: any) => {
-        e.total += 1;
-        if (b.markedToday) e.marked += 1;
-      });
-      attMap.set(id, e);
+      const due = batchesDueToday(c, today);
+      if (!due.length) return;
+      attMap.set(id, { marked: due.filter((b) => b.marked).length, total: due.length });
     });
 
     return rows
@@ -301,29 +300,31 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
         };
       })
       .sort((a, b) => b.students - a.students);
-  }, [analytics.data, attendance.data, inScope]);
+  }, [analytics.data, attendance.data, inScope, today]);
 
   /* ── today's batches (attendance overview, pending first) ──────────────── */
+  // Only batches whose attendance is due today — a course outside its
+  // training window (not started / ended) has no register today, exactly as
+  // Attendance Management's "Active today" list shows.
   const batchesToday = useMemo<BatchToday[]>(() => {
     const out: BatchToday[] = [];
     (attendance.data ?? []).forEach((c: any) => {
-      if (!c.hasSchedule) return;
       const id = String(c._id);
       if (!inScope(id)) return;
-      (Array.isArray(c.batches) ? c.batches : []).forEach((b: any, i: number) => {
+      batchesDueToday(c, today).forEach((b, i) => {
         out.push({
-          key: `${id}-${b._id || b.batchName || i}`,
-          batchName: b.batchName || "Batch",
+          key: `${id}-${b.id || i}`,
+          batchName: b.name,
           courseName: c.courseName || "Course",
           courseId: id,
-          students: Number(b.studentCount) || 0,
-          marked: !!b.markedToday,
-          mine: !!b.mine,
+          students: b.students,
+          marked: b.marked,
+          mine: b.mine,
         });
       });
     });
     return out.sort((a, b) => Number(a.marked) - Number(b.marked));
-  }, [attendance.data, inScope]);
+  }, [attendance.data, inScope, today]);
 
   /* ── course filter options (ids stay unique across same-name records) ──── */
   const courseOptions = useMemo<TrainerCourseOpt[]>(() => {

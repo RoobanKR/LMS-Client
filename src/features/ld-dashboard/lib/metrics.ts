@@ -40,6 +40,7 @@ import type {
   WeekPoint,
 } from "../types";
 import { num } from "./format";
+import { batchesDueToday, todayYmd } from "@/app/lms/pages/attendancemanagement/features/attendanceManagementHelpers";
 
 export const STAGE_META = [
   { key: "iDo", label: "I Do", tag: "Concept MCQs" },
@@ -259,19 +260,22 @@ export function deriveModel(input: DeriveInput): DashboardModel {
     value: stageMean(m.key),
   }));
 
-  /* attendance today */
+  /* attendance today — only batches whose attendance is due today (the
+     course's training window covers today), as Attendance Management lists */
+  const today = todayYmd();
   const ovRows = attendanceToday.filter((c: any) => inScope(String(c._id)));
   let batchT = 0;
   let batchM = 0;
   const attByClient = new Map<string, { marked: number; total: number }>();
   ovRows.forEach((c: any) => {
-    if (!c.hasSchedule) return;
+    const due = batchesDueToday(c, today);
+    if (!due.length) return;
     const cn = clientOf(String(c._id)) || c.clientName || "Unassigned";
     const e = attByClient.get(cn) || { marked: 0, total: 0 };
-    (Array.isArray(c.batches) ? c.batches : []).forEach((b: any) => {
+    due.forEach((b) => {
       batchT += 1;
       e.total += 1;
-      if (b.markedToday) {
+      if (b.marked) {
         batchM += 1;
         e.marked += 1;
       }

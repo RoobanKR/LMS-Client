@@ -54,3 +54,42 @@ export const realBatchesOf = (c: OverviewCourse) => {
         return [];
     return c.batches;
 };
+
+/** One batch whose attendance is due today. */
+export type DueBatch = {
+    id: string;
+    name: string;
+    students: number;
+    marked: boolean;
+    mine: boolean;
+};
+
+// The batches whose attendance is due TODAY — the rule Attendance
+// Management's "Active today" list applies: nothing unless today falls
+// inside the course's training window, and a batchless course (its lone
+// "Default" container) counts once, as the course itself. Legacy day-marks
+// without a batch count as the course being marked. Every dashboard that
+// says "N batches need attendance" counts through this, so a course that
+// has not started or has already ended is never reported as pending.
+export const batchesDueToday = (c: OverviewCourse, today: string): DueBatch[] => {
+    if (scheduleStateOf(c, today) !== "active") return [];
+    const all = Array.isArray(c.batches) ? c.batches : [];
+    const real = realBatchesOf({ ...c, batches: all });
+    if (real.length === 0) {
+        return [{
+            id: String(all[0]?._id || c._id),
+            name: "All students",
+            students: Number(c.totalStudents) || 0,
+            marked: all.some((b) => b.markedToday) || !!c.legacyMarkedToday,
+            mine: all.length === 0 || all.some((b) => b.mine),
+        }];
+    }
+    const anyBatchMarked = real.some((b) => b.markedToday);
+    return real.map((b) => ({
+        id: String(b._id),
+        name: b.batchName || "Batch",
+        students: Number(b.studentCount) || 0,
+        marked: !!b.markedToday || (!anyBatchMarked && !!c.legacyMarkedToday),
+        mine: !!b.mine,
+    }));
+};

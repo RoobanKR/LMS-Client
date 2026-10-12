@@ -205,9 +205,11 @@ export default function AttendanceManagementPage() {
             }).length,
         };
     }, [courses, today]);
+    // Enrolled across the courses LISTED (same set as the "N courses" chip),
+    // not every scheduled course behind the current filters.
     const totalStudents = useMemo(
-        () => courses.reduce((n, c) => n + c.totalStudents, 0),
-        [courses]
+        () => rows.reduce((n, r) => n + (Number(r.course.totalStudents) || 0), 0),
+        [rows]
     );
 
     // Reset to page 1 whenever the row set shrinks or the filters change —
@@ -279,7 +281,7 @@ export default function AttendanceManagementPage() {
                         >
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             {pendingCount > 0
-                                ? `${pendingCount} to mark today`
+                                ? `${pendingCount} course${pendingCount === 1 ? "" : "s"} to mark today`
                                 : activeCount > 0
                                     ? "All marked today"
                                     : "Nothing to mark today"}
