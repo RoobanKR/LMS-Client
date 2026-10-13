@@ -349,7 +349,7 @@ const ConfigRow: React.FC<{
 // still renders as a small heading with the teal ? tooltip.
 const EvalMethodLabel: React.FC<{ children: React.ReactNode; required?: boolean; info?: string; className?: string }> =
   ({ children, required, info }) => (
-    children === 'Evaluation Method' ? null : (
+    children === 'Evaluation Type' ? null : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0 6px' }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: '#263746' }}>
           {children}{required && <span style={{ color: '#b42318', marginLeft: 4 }}>*</span>}
@@ -4718,7 +4718,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
               `graded` prop). */}
           <div className="es-2col" style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: 12 }}>
             <div className={`${assignmentStyles.generalFields} es-subfields`}>
-              <ConfigRow label="Evaluation method" required
+              <ConfigRow label="Evaluation type" required
                 help={formData.isGraded !== false
                   ? "How programming submissions are scored — against the question's test cases, or by an AI evaluator."
                   : "How submissions are checked — by the trainer, against the test cases, or by an AI evaluator. No marks are recorded: students see pass/fail feedback."}>
