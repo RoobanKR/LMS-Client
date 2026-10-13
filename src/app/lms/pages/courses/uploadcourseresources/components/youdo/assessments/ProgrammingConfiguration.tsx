@@ -1,5 +1,6 @@
 // ProgrammingConfiguration.tsx
 import React from 'react';
+import assignmentStyles from '@/app/lms/component/ExerciseSettings/AssignmentSettings.module.css';
 import { Terminal, AlertCircle, Check, Shuffle, Calculator } from 'lucide-react';
 import { D, formatDecimal, isApproximatelyEqual, configOptions, questionFlowOptions } from './constants';
 import { BaseConfigProps } from './types';
@@ -263,13 +264,6 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
                     })}
                   </div>
 
-                  <div style={{ ...rowStyle, marginTop: 2, marginBottom: 8 }}>
-                    <div className="text-[10px] font-semibold" style={{ color: designTokens.textMuted }}>Total questions</div>
-                    <div />
-                    <div />
-                    <div className="text-right text-xs font-bold" style={{ color: designTokens.textMain }}>{questionTotal}</div>
-                  </div>
-
                   {graded && (<>
                   <div style={rowStyle}>
                     <div className="text-[10px] font-semibold" style={{ color: designTokens.textMuted }}>Score Type</div>
@@ -334,6 +328,10 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
                     })}
                   </div>
                   </>)}
+                  <div className={assignmentStyles.questionTotal}>
+                    <span>Total questions</span>
+                    <strong>{questionTotal}</strong>
+                  </div>
                 </div>
               );
             })()}

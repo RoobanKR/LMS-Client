@@ -616,15 +616,14 @@
 .compact :global(.es-matrix-grid) > div:nth-last-child(-n+4):nth-child(n) { border-bottom: 1px solid #b8c3cf !important; }
 .compact :global(.es-matrix-wrap) ~ :global(.es-note), .compact :global(.es-matrix-wrap) ~ p { margin:12px !important; }
 .compact :global(.es-note) { border-radius:5px !important; font-size:12px !important; line-height:1.6 !important; }
-.compact :global(.es-matrix):last-child > div:nth-child(n+2) > * { width:auto; }
-/* The matrix rows are children of the "Questions & Scoring" heading, so
-   indent the whole table (and any note that follows it) to show the
-   nesting. Without this the heading and its sub-rows share a left edge
-   and the grouping is invisible. */
-.compact :global(.es-matrix-wrap) { padding-left:48px !important; }
-.compact :global(.es-matrix-grid) { margin-left:48px !important; }
+/* Align the table with its section heading; keep the overall count separate. */
+.compact :global(.es-matrix-wrap) { padding-left:12px !important; }
+.compact :global(.es-matrix-grid) { margin-left:12px !important; }
 .compact :global(.es-matrix-wrap) ~ :global(.es-note),
-.compact :global(.es-matrix-wrap) ~ p { margin-left:48px !important; }
+.compact :global(.es-matrix-wrap) ~ p { margin-left:12px !important; }
+.questionTotal { display:flex; justify-content:flex-end; align-items:baseline; gap:12px; margin:12px 0 0; font-size:13px; color:#526171; }
+.questionTotal strong { font-weight:600; color:#0f1720; }
+.compact .questionTotal { margin:12px 12px 0; }
 /* Evaluation method / Question flow / Attempt limit / All questions required
    — these are top-level rows in the Question Configuration step, NOT sub
    items of the "Questions & Scoring" card. Keep them un-indented (align
@@ -814,6 +813,7 @@ p.previewPlaceholder.previewMissing {
 @container settings-editor (max-width: 640px) {
   .compact :global(.es-matrix-wrap) { padding-left: 0 !important; padding-right: 0 !important; }
   .compact :global(.es-matrix-grid) { margin-left: 0 !important; margin-right: 0 !important; }
+  .compact .questionTotal { margin-left: 0; margin-right: 0; }
   .compact :global(.es-matrix-wrap) ~ :global(.es-note),
   .compact :global(.es-matrix-wrap) ~ p { margin-left: 0 !important; margin-right: 0 !important; }
   .compact :global(.es-subfields ~ .es-matrix-wrap) :global(.es-matrix),

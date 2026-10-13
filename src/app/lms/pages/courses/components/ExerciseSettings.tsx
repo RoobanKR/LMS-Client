@@ -3956,16 +3956,6 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                             </div>
                           );
                         })}
-                        {(() => {
-                          const counts = isSelLevel ? formData.othersConfig.selectionLevelCounts : formData.othersConfig.levelBasedCounts;
-                          const questionTotal = (counts.easy || 0) + (counts.medium || 0) + (counts.hard || 0);
-                          return <>
-                            <MatrixLabel style={SPEC_MATRIX_RLABEL}>Total questions</MatrixLabel>
-                            <div style={bodyCell('easy')} />
-                            <div style={bodyCell('medium')} />
-                            <div style={{ ...bodyCell('hard'), textAlign: 'right', fontWeight: 700, color: D.textMain }}>{questionTotal}</div>
-                          </>;
-                        })()}
                         {formData.isGraded !== false && (<>
                         {/* Row 2: Marking */}
                         <MatrixLabel style={SPEC_MATRIX_RLABEL} help={MATRIX_HELP.distribution}>Mark Distribution</MatrixLabel>
@@ -4038,6 +4028,10 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                           );
                         })}
                         </>)}
+                      </div>
+                      <div className={assignmentStyles.questionTotal}>
+                        <span>Total questions</span>
+                        <strong>{Object.values(isSelLevel ? formData.othersConfig.selectionLevelCounts : formData.othersConfig.levelBasedCounts).reduce((sum, count) => sum + (count || 0), 0)}</strong>
                       </div>
                       {!isSelLevel && validationErrors.othersLevelCounts && touchedFields.has('othersLevelCounts') && (
                         <p style={{ marginTop: 5, fontSize: 11.4, color: D.red }}>{validationErrors.othersLevelCounts}</p>
@@ -4470,7 +4464,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         {formData.programmingConfig.questionConfigType === '' ? (
           <div className="es-note" style={SPEC_NOTE.warn}>
             <span>⚠</span>
-            <span>Please select a Config Strategy above to configure {formData.isGraded !== false ? 'questions and scoring' : 'the question distribution'}.</span>
+            <span>Please select a Config Strategy above to configure questions and scoring.</span>
           </div>
         ) : (<>
 
@@ -4516,21 +4510,20 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                                   const nc = { ...formData.programmingConfig.selectionLevelCounts, [level]: e.target.checked ? 1 : 0 };
                                   const active = (['easy', 'medium', 'hard'] as const).filter(l => nc[l] > 0).length;
                                   if (active > 2) {
-                                    const nextCounts = { easy: nc.easy > 0 ? nc.easy : 1, medium: nc.medium > 0 ? nc.medium : 1, hard: nc.hard > 0 ? nc.hard : 1 };
                                     setFormData(prev => ({
                                       ...prev,
                                       programmingConfig: {
                                         ...prev.programmingConfig,
                                         questionConfigType: 'levelBased',
-                                        levelBasedCounts: nextCounts,
-                                        patternTotal: nextCounts.easy + nextCounts.medium + nextCounts.hard,
+                                        levelBasedCounts: { easy: nc.easy > 0 ? nc.easy : 1, medium: nc.medium > 0 ? nc.medium : 1, hard: nc.hard > 0 ? nc.hard : 1 },
+                            patternTotal: (nc.easy > 0 ? nc.easy : 1) + (nc.medium > 0 ? nc.medium : 1) + (nc.hard > 0 ? nc.hard : 1),
                                         selectionLevelCounts: { easy: 0, medium: 0, hard: 0 }
                                       }
                                     }));
                                   } else {
                                     setFormData(prev => ({
                                       ...prev,
-                                      programmingConfig: { ...prev.programmingConfig, selectionLevelCounts: nc, patternTotal: nc.easy + nc.medium + nc.hard }
+                                        programmingConfig: { ...prev.programmingConfig, selectionLevelCounts: nc, patternTotal: nc.easy + nc.medium + nc.hard }
                                     }));
                                   }
                                 }}
@@ -4565,12 +4558,6 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                         </div>
                       );
                     })}
-                  </div>
-                  <div className="es-matrix" style={MROW}>
-                    <div className="es-mcell" style={{ ...MCELL, ...MATRIX_LABEL }}>Total questions</div>
-                    <div className="es-mcell" style={MCELL} />
-                    <div className="es-mcell" style={MCELL} />
-                    <div className="es-mcell" style={{ ...MCELL, textAlign: 'right', fontWeight: 700, color: D.textMain }}>{patternSum}</div>
                   </div>
 
                   {formData.isGraded !== false && showScoringRows && (<>
@@ -4688,6 +4675,10 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                       })}
                     </div>
                   </>)}
+                </div>
+                <div className={assignmentStyles.questionTotal}>
+                  <span>Total questions</span>
+                  <strong>{patternSum}</strong>
                 </div>
 
                 {!isSelLevel && validationErrors.programmingLevelCounts && touchedFields.has('programmingLevelCounts') && (
