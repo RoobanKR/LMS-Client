@@ -1767,24 +1767,10 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
         // decisions (graded > submitted > missed > in-progress > due-soon >
         // active > upcoming) never have to be reconstructed at the render
         // layer. `labelSuffix` carries the "· 92%" for graded rows.
-        // A finished row with more than one attempt allowed also says how
-        // many are used, so "Retake" in the Action column reads naturally.
-        const allowedAttempts = getSubmissionAttempts(ex)
-        const usedAttempts = getTestSubmissions(ex, studentAnswers, method, subcategory)
-        const showAttempts = (s.kind === 'submitted' || s.kind === 'graded') && allowedAttempts > 1
         return (
-          <div className="flex flex-col items-start gap-1">
-            <StatusPill tone={s.tone as StatusPillTone} dot>
-              {s.label}{s.labelSuffix}
-            </StatusPill>
-            {showAttempts && (
-              // Short and wrappable: the cell is nowrap, and a long caption
-              // ran past the column into the Retake button.
-              <span className="pl-1 text-[11.5px] leading-tight text-subtle whitespace-normal">
-                Attempt {Math.min(usedAttempts, allowedAttempts)} of {allowedAttempts}
-              </span>
-            )}
-          </div>
+          <StatusPill tone={s.tone as StatusPillTone} dot>
+            {s.label}{s.labelSuffix}
+          </StatusPill>
         )
       },
     },
@@ -1818,23 +1804,45 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
 
         // Finished with attempts left and the window still open: Retake (its
         // popup says the new submission replaces the previous one, marks
-        // included), with the submission one click away beneath it.
+        // included). The attempt count shows in a tooltip on the button; a
+        // graded assignment keeps its submission one click away beneath it.
         const allowedAttempts = getSubmissionAttempts(ex)
         const usedAttempts = getTestSubmissions(ex, studentAnswers, method, subcategory)
+        const graded = ex.isGraded !== false
         if (isReview && usedAttempts < allowedAttempts && s.availability.canStart) {
+          const tipId = `retake-tip-${ex._id}`
           return (
             <div className="flex flex-col items-center justify-center gap-1.5 py-1">
-              <button type="button" onClick={(e) => handleStartClick(ex, e)} className={btnBase} style={{ ...secondary, maxWidth: 128 }}>
-                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Retake
-              </button>
-              <button
+              <span className="relative inline-flex group">
+                <button type="button" onClick={(e) => handleStartClick(ex, e)} className={btnBase} style={{ ...secondary, maxWidth: 128 }} aria-describedby={tipId}>
+                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Retake
+                </button>
+                <span
+                  id={tipId}
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-[11.5px] font-medium text-white opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                  style={{ background: '#101828' }}
+                >
+                  Attempt {usedAttempts} of {allowedAttempts} used · {allowedAttempts - usedAttempts} left
+                </span>
+              </span>
+              {graded && <button
                 type="button"
                 onClick={(e) => handleGradeClick(ex, e)}
                 className="px-1.5 text-[12px] font-semibold leading-5 rounded-control hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-500/30"
                 style={{ color: '#175CD3' }}
               >
                 {s.kind === 'graded' ? 'View feedback' : 'View submission'}
-              </button>
+              </button>}
+            </div>
+          )
+        }
+
+        // Non-graded work has nothing to review — no "View submission".
+        if (isReview && !graded) {
+          return (
+            <div className="inline-flex items-center justify-center gap-1.5 h-9 text-[12.5px] font-semibold text-subtle whitespace-nowrap">
+              <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> Completed
             </div>
           )
         }

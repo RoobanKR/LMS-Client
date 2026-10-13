@@ -28,7 +28,7 @@ const nextConfig = {
   // require() for its Node-only code path; webpack can't follow it and warns
   // "Critical dependency" on every build. Browsers never take that path, so
   // only that warning from only that package is hidden; anything else still shows.
-  webpack: (config) => {
+  webpack: (config: any) => {
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),
       { module: /@vladmandic[\\/]face-api/, message: /Critical dependency/ },
