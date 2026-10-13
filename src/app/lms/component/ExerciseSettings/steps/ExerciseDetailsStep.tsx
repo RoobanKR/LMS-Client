@@ -266,16 +266,6 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
       <input id="exercise-id" className={styles.shortInput} value={formData.exerciseId || ''} readOnly />
       <p className={styles.fieldNote}>Created automatically</p>
     </FormRow>
-    <FormRow label="Assignment name" required htmlFor="exercise-name"
-      help="The name displayed to students in their dashboard" error={errorFor('exerciseName')}>
-      <input id="exercise-name" className={styles.textInput} value={formData.exerciseName || ''}
-        placeholder="e.g. Advanced Algorithms" aria-invalid={!!errorFor('exerciseName')}
-        onChange={event => {
-          const value = event.target.value;
-          setFormData((previous: any) => ({ ...previous, exerciseName: value }));
-          if (value.trim()) clearError('exerciseName');
-        }} onBlur={() => markTouched('exerciseName')} />
-    </FormRow>
     <FormRow label="Assignment type" required htmlFor="exercise-type"
       help="Choose multiple choice, programming, combined, or a custom assignment" error={errorFor('exerciseType')}>
       <FormSelect id="exercise-type" value={formData.exerciseType || ''} disabled={isLockedForEdit} width={280}
@@ -366,6 +356,16 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
       <TipTapEditor value={formData.description}
         onChange={(value: string) => setFormData((previous: any) => ({ ...previous, description: value }))}
         placeholder="Enter a brief description…" minHeight="150px" maxHeight="300px" showToolbar editable />
+    </FormRow>
+    <FormRow label="Assignment name" required htmlFor="exercise-name"
+      help="The name displayed to students in their dashboard" error={errorFor('exerciseName')}>
+      <input id="exercise-name" className={styles.textInput} value={formData.exerciseName || ''}
+        placeholder="e.g. Advanced Algorithms" aria-invalid={!!errorFor('exerciseName')}
+        onChange={event => {
+          const value = event.target.value;
+          setFormData((previous: any) => ({ ...previous, exerciseName: value }));
+          if (value.trim()) clearError('exerciseName');
+        }} onBlur={() => markTouched('exerciseName')} />
     </FormRow>
     <FormRow label="Instructions" help="Optional guidance shown on the student pre-start page" editor>
       <TipTapEditor value={formData.instructions || ''}

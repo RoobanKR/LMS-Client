@@ -534,7 +534,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     instructions: '',
     exerciseLevel: '' as 'beginner' | 'intermediate' | 'expert',
     isGraded: false,
-    totalDuration: 60, totalMarks: 0, totalMarksMCQ: 0, totalMarksProgramming: 0,
+    totalDuration: 0, totalMarks: 0, totalMarksMCQ: 0, totalMarksProgramming: 0,
     mcqConfig: {
       questionConfigType: 'general' as const, generalQuestionCount: 0,
       scoreSettings: { scoreType: 'equalDistribution' as 'equalDistribution' | 'questionSpecific', equalDistribution: 0, totalMarks: 0 },
@@ -793,7 +793,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       description: typeof info.description === 'string' ? info.description : (info.description?.text ?? ''),
       instructions: typeof ex.instructions === 'string' ? ex.instructions : (prev.instructions ?? ''),
       exerciseLevel: (info.exerciseLevel as any) ?? 'intermediate',
-      totalDuration: info.totalDuration ?? 60,
+      totalDuration: info.totalDuration ?? 0,
       totalMarks: info.totalMarks ?? 0,
       totalMarksMCQ: info.totalMarksMCQ ?? 0,
       totalMarksProgramming: info.totalMarksProgramming ?? 0,
@@ -806,7 +806,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         questionConfigType: progConfigType,
         // Phase 1 — seed patternTotal from stored value, else derive from counts
         // so pre-Phase-1 exercises pass the strict E+M+H===Total check on load.
-        patternTotal: progCfg.patternTotal ?? (
+        patternTotal: (
           progConfigType === 'levelBased'
             ? (progCfg.levelBasedCounts?.easy ?? 0) + (progCfg.levelBasedCounts?.medium ?? 0) + (progCfg.levelBasedCounts?.hard ?? 0)
             : progConfigType === 'selectionLevel'
@@ -976,7 +976,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       description: typeof info.description === 'string' ? info.description : (info.description?.text ?? ''),
       instructions: typeof ex.instructions === 'string' ? ex.instructions : (prev.instructions ?? ''),
       exerciseLevel: (info.exerciseLevel as any) ?? 'intermediate',
-      totalDuration: info.totalDuration ?? 60,
+      totalDuration: info.totalDuration ?? 0,
       totalMarks: info.totalMarks ?? 0,
       totalMarksMCQ: info.totalMarksMCQ ?? 0,
       totalMarksProgramming: info.totalMarksProgramming ?? 0,
@@ -998,7 +998,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       programmingConfig: {
         questionConfigType: (progCfg.questionConfigType as any) || 'general',
         // Phase 1 — seed patternTotal (see first hydration effect above)
-        patternTotal: progCfg.patternTotal ?? (
+        patternTotal: (
           progCfg.questionConfigType === 'levelBased'
             ? (progCfg.levelBasedCounts?.easy ?? 0) + (progCfg.levelBasedCounts?.medium ?? 0) + (progCfg.levelBasedCounts?.hard ?? 0)
             : progCfg.questionConfigType === 'selectionLevel'
@@ -2321,7 +2321,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         exerciseName: formData.exerciseName,
         description: formData.description || '',
         exerciseLevel: formData.exerciseLevel || 'beginner',
-        totalDuration: formData.totalDuration || 60,
+        totalDuration: formData.totalDuration || 0,
         totalMarks: formData.isGraded === false ? null : formData.exerciseType === 'Combined'
           ? (formData.totalMarksMCQ + formData.totalMarksProgramming)
           : formData.totalMarks,
@@ -4225,6 +4225,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
           programmingConfig: {
             ...prev.programmingConfig,
             levelBasedCounts: newCounts,
+            patternTotal: (newCounts.easy || 0) + (newCounts.medium || 0) + (newCounts.hard || 0),
             scoreSettings: {
               ...prev.programmingConfig.scoreSettings,
               levelScoringConfiguration: updatedScoring,
@@ -4324,6 +4325,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         programmingConfig: {
           ...prev.programmingConfig,
           selectionLevelCounts: newCounts,
+          patternTotal: (newCounts.easy || 0) + (newCounts.medium || 0) + (newCounts.hard || 0),
           scoreSettings: {
             ...prev.programmingConfig.scoreSettings,
             levelScoringConfiguration: updatedScoring,
@@ -4364,9 +4366,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     // told about. Levels with a zero count still dim their own cells, so an
     // unused level cannot be edited by accident.
     const showScoringRows = true;
-    const patternTarget = formData.programmingConfig.patternTotal || 0;
     const patternSum = (mCounts.easy || 0) + (mCounts.medium || 0) + (mCounts.hard || 0);
-    const patternBalanced = patternTarget > 0 && patternSum === patternTarget;
     const anyQuestionSpecific = (['easy', 'medium', 'hard'] as const)
       .some(l => (mCounts[l] || 0) > 0 && ls[l]?.type === 'question_specific');
 
@@ -4419,6 +4419,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                         programmingConfig: {
                           ...prev.programmingConfig,
                           questionConfigType: v as any,
+                          patternTotal: 0,
                           ...(v === 'general'
                             ? { generalQuestionCount: 0, levelBasedCounts: { easy: 0, medium: 0, hard: 0 }, selectionLevelCounts: { easy: 0, medium: 0, hard: 0 } }
                             : { levelBasedCounts: { easy: 0, medium: 0, hard: 0 }, selectionLevelCounts: { easy: 0, medium: 0, hard: 0 } }
@@ -4481,35 +4482,12 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
             )}
           </>)}
 
-          {isLevelMode && (
-            <ConfigRow label="Total questions" required
-              help="Total pattern size. Easy + Medium + Hard must equal this.">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ width: 140 }}>
-                  <ONumberInput
-                    value={patternTarget === 0 ? ('' as any) : patternTarget}
-                    liveUpdate min={0} placeholder="e.g. 15"
-                    onChange={v => setFormData(prev => ({
-                      ...prev,
-                      programmingConfig: { ...prev.programmingConfig, patternTotal: v || 0 }
-                    }))}
-                  />
-                </div>
-                <span style={{
-                  ...(patternBalanced ? SPEC_PILL.green : (patternTarget > 0 ? SPEC_PILL.amber : SPEC_PILL.grey)),
-                  height: 30,
-                }}>
-                  {patternBalanced ? '✓' : patternTarget > 0 ? '⚠' : ''} E + M + H = {patternSum}{patternTarget > 0 ? ` / ${patternTarget}` : ''}
-                </span>
-              </div>
-            </ConfigRow>
-          )}
         </div>
 
         {formData.programmingConfig.questionConfigType === '' ? (
           <div className="es-note" style={SPEC_NOTE.warn}>
             <span>⚠</span>
-            <span>Please select a Config Strategy above to configure questions and scoring.</span>
+            <span>Please select a Config Strategy above to configure {formData.isGraded !== false ? 'questions and scoring' : 'the question distribution'}.</span>
           </div>
         ) : (<>
 
@@ -4523,7 +4501,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
           {isLevelMode && (
           <div style={SPEC_CARD}>
             <div className="es-card-h" style={SPEC_CARD_H}>
-              <span style={SPEC_CARD_T}>Questions &amp; Scoring</span>
+              <span style={SPEC_CARD_T}>{formData.isGraded !== false ? 'Questions & Scoring' : 'Question distribution'}</span>
               {formData.isGraded !== false && (
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                   <span className="es-pill" style={SPEC_PILL.blue}>Total <strong>{totalToUse}</strong></span>
@@ -4555,19 +4533,21 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                                   const nc = { ...formData.programmingConfig.selectionLevelCounts, [level]: e.target.checked ? 1 : 0 };
                                   const active = (['easy', 'medium', 'hard'] as const).filter(l => nc[l] > 0).length;
                                   if (active > 2) {
+                                    const nextCounts = { easy: nc.easy > 0 ? nc.easy : 1, medium: nc.medium > 0 ? nc.medium : 1, hard: nc.hard > 0 ? nc.hard : 1 };
                                     setFormData(prev => ({
                                       ...prev,
                                       programmingConfig: {
                                         ...prev.programmingConfig,
                                         questionConfigType: 'levelBased',
-                                        levelBasedCounts: { easy: nc.easy > 0 ? nc.easy : 1, medium: nc.medium > 0 ? nc.medium : 1, hard: nc.hard > 0 ? nc.hard : 1 },
+                                        levelBasedCounts: nextCounts,
+                                        patternTotal: nextCounts.easy + nextCounts.medium + nextCounts.hard,
                                         selectionLevelCounts: { easy: 0, medium: 0, hard: 0 }
                                       }
                                     }));
                                   } else {
                                     setFormData(prev => ({
                                       ...prev,
-                                      programmingConfig: { ...prev.programmingConfig, selectionLevelCounts: nc }
+                                      programmingConfig: { ...prev.programmingConfig, selectionLevelCounts: nc, patternTotal: nc.easy + nc.medium + nc.hard }
                                     }));
                                   }
                                 }}
@@ -4719,6 +4699,12 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                       })}
                     </div>
                   </>)}
+                  <div className="es-matrix" style={MROW}>
+                    <div className="es-mcell" style={{ ...MCELL, ...MATRIX_LABEL, borderBottom: 'none' }}>Total questions</div>
+                    <div className="es-mcell" style={{ ...MCELL, gridColumn: 'span 3', borderBottom: 'none', fontSize: 12.6, fontWeight: 700, color: D.textMain }}>
+                      {patternSum} questions
+                    </div>
+                  </div>
                 </div>
 
                 {!isSelLevel && validationErrors.programmingLevelCounts && touchedFields.has('programmingLevelCounts') && (
