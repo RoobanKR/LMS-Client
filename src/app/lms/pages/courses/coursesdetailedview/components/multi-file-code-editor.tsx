@@ -448,7 +448,9 @@ export default function MultiFileCodeEditor({
     lg.addEventListener("change", onLg)
     return () => { wide.removeEventListener("change", onWide); lg.removeEventListener("change", onLg) }
   }, [])
-  const [showSearch, setShowSearch] = useState(false)
+  // Search / difficulty filter / sort are open by default; the search icon hides them.
+  const [showSearch, setShowSearch] = useState(true)
+  const problemSearchRef = useRef<HTMLInputElement>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterDifficulty, setFilterDifficulty] = useState<"all" | "easy" | "medium" | "hard">("all")
   const [sortBy, setSortBy] = useState<"default" | "difficulty" | "title">("default")
@@ -2761,7 +2763,7 @@ export default function MultiFileCodeEditor({
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setShowSearch((v) => !v)}
+                  onClick={() => { const open = !showSearch; setShowSearch(open); if (open) requestAnimationFrame(() => problemSearchRef.current?.focus()) }}
                   aria-pressed={showSearch}
                   aria-label="Search, filter and sort problems"
                   title="Search, filter and sort"
@@ -2782,7 +2784,7 @@ export default function MultiFileCodeEditor({
                       aria-label="Search problems"
                       className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md outline-none"
                       style={{ border: `1px solid ${UI.border}`, background: UI.soft, color: UI.navy }}
-                      autoFocus
+                      ref={problemSearchRef}
                     />
                   </div>
                   <div className="flex items-center gap-2">

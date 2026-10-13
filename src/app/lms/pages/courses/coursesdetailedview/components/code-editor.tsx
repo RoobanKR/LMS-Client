@@ -866,7 +866,9 @@ export default function CodeEditor({
     const [micEnabled, setMicEnabled] = useState(true);
     const [pyodideReady, setPyodideReady] = useState(false);
     const pyodideRef = useRef<any>(null);
-    const [showSearch, setShowSearch] = useState(false);
+    // Search / difficulty filter / sort are open by default; the search icon hides them.
+    const [showSearch, setShowSearch] = useState(true);
+    const problemSearchRef = useRef<HTMLInputElement>(null);
     const [selectedDifficulty, setSelectedDifficulty] = useState('all');
     // --- Core State ---
     const [code, setCode] = useState("")
@@ -4234,7 +4236,7 @@ export default function CodeEditor({
                                 </h3>
                                 <button
                                     type="button"
-                                    onClick={() => setShowSearch(!showSearch)}
+                                    onClick={() => { const open = !showSearch; setShowSearch(open); if (open) requestAnimationFrame(() => problemSearchRef.current?.focus()); }}
                                     aria-pressed={showSearch}
                                     aria-label="Search, filter and sort problems"
                                     title="Search, filter and sort"
@@ -4255,7 +4257,7 @@ export default function CodeEditor({
                                             aria-label="Search problems"
                                             className="w-full pl-7 pr-7 py-1.5 text-xs rounded-md outline-none"
                                             style={{ border: `1px solid ${WS.border}`, background: WS.soft, color: WS.navy }}
-                                            autoFocus
+                                            ref={problemSearchRef}
                                         />
                                         {searchQuery && (
                                             <button onClick={() => setSearchQuery("")} aria-label="Clear search" className="absolute right-1.5 top-1/2 -translate-y-1/2">
