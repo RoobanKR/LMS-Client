@@ -829,7 +829,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       othersConfig: {
         questionConfigType: (qc.othersQuestionConfiguration?.questionConfigType as any) ?? 'general',
         // Phase 1 — seed patternTotal from stored value else sum counts
-        patternTotal: qc.othersQuestionConfiguration?.patternTotal ?? (
+        patternTotal: (
           (qc.othersQuestionConfiguration?.questionConfigType === 'levelBased')
             ? (qc.othersQuestionConfiguration?.levelBasedCounts?.easy ?? 0) + (qc.othersQuestionConfiguration?.levelBasedCounts?.medium ?? 0) + (qc.othersQuestionConfiguration?.levelBasedCounts?.hard ?? 0)
             : (qc.othersQuestionConfiguration?.questionConfigType === 'selectionLevel')
@@ -1035,7 +1035,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       othersConfig: {
         questionConfigType: (qc.othersQuestionConfiguration?.questionConfigType as any) ?? 'general',
         // Phase 1 — seed patternTotal (see first hydration effect above)
-        patternTotal: qc.othersQuestionConfiguration?.patternTotal ?? (
+        patternTotal: (
           (qc.othersQuestionConfiguration?.questionConfigType === 'levelBased')
             ? (qc.othersQuestionConfiguration?.levelBasedCounts?.easy ?? 0) + (qc.othersQuestionConfiguration?.levelBasedCounts?.medium ?? 0) + (qc.othersQuestionConfiguration?.levelBasedCounts?.hard ?? 0)
             : (qc.othersQuestionConfiguration?.questionConfigType === 'selectionLevel')
@@ -3530,7 +3530,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         {/* ── QUESTIONS & SCORING ── */}
         <div style={SPEC_CARD}>
           <div className="es-card-h" style={SPEC_CARD_H}>
-            <span style={SPEC_CARD_T}>Questions &amp; Scoring</span>
+            <span style={SPEC_CARD_T}>{formData.isGraded !== false ? 'Questions & Scoring' : 'Question distribution'}</span>
             {formData.isGraded !== false && (
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                 <span className="es-pill" style={SPEC_PILL.blue}>
@@ -3773,7 +3773,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         {/* ── QUESTIONS & SCORING ── */}
         <div style={SPEC_CARD}>
           <div className="es-card-h" style={SPEC_CARD_H}>
-            <span style={SPEC_CARD_T}>Questions &amp; Scoring</span>
+            <span style={SPEC_CARD_T}>{formData.isGraded !== false ? 'Questions & Scoring' : 'Question distribution'}</span>
             {formData.othersConfig.questionConfigType !== 'general' && formData.isGraded !== false && (
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                 <span className="es-pill" style={SPEC_PILL.blue}>
@@ -3806,6 +3806,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                             othersConfig: {
                               ...prev.othersConfig,
                               questionConfigType: v as any,
+                              patternTotal: 0,
                               ...(v === 'general'
                                 ? { generalQuestionCount: 0, levelBasedCounts: { easy: 0, medium: 0, hard: 0 }, selectionLevelCounts: { easy: 0, medium: 0, hard: 0 } }
                                 : { levelBasedCounts: { easy: 0, medium: 0, hard: 0 }, selectionLevelCounts: { easy: 0, medium: 0, hard: 0 } }
@@ -3849,11 +3850,11 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                       onBlur={() => markTouched('othersGeneralQuestionCount')} min={0} placeholder="e.g. 5" />
                   </div>
                 </ConfigRow>
-                <ConfigRow label="Marks per question" help="Auto-calculated: total marks divided by total questions"
+                {formData.isGraded !== false && <ConfigRow label="Marks per question" help="Auto-calculated: total marks divided by total questions"
                   note="Calculated automatically">
                   <input readOnly className={assignmentStyles.shortInput}
                     value={formData.othersConfig.scoreSettings.equalDistribution > 0 ? formatDecimal(formData.othersConfig.scoreSettings.equalDistribution) : '0'} />
-                </ConfigRow>
+                </ConfigRow>}
               </div>
             ) : (
               /* ── LEVEL BASED / SELECTION LEVEL ── */
@@ -3873,6 +3874,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                         othersConfig: {
                           ...prev.othersConfig,
                           questionConfigType: v as any,
+                          patternTotal: 0,
                           ...(v === 'general'
                             ? { generalQuestionCount: 0, levelBasedCounts: { easy: 0, medium: 0, hard: 0 }, selectionLevelCounts: { easy: 0, medium: 0, hard: 0 } }
                             : { levelBasedCounts: { easy: 0, medium: 0, hard: 0 }, selectionLevelCounts: { easy: 0, medium: 0, hard: 0 } }
@@ -3882,43 +3884,6 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                       setLevelScoringOpen({ easy: false, medium: false, hard: false });
                     }} />
                 </div>
-                {/* Pattern total — compact: input + live sum chip only. */}
-                {(() => {
-                  const c = formData.othersConfig.questionConfigType === 'levelBased'
-                    ? formData.othersConfig.levelBasedCounts
-                    : formData.othersConfig.selectionLevelCounts;
-                  const sum = (c.easy || 0) + (c.medium || 0) + (c.hard || 0);
-                  const target = (formData.othersConfig as any).patternTotal || 0;
-                  const balanced = target > 0 && sum === target;
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Hash size={12} style={{ color: D.textMuted }} />
-                        <span style={{ ...SPEC_LABEL, marginBottom: 0 }}>
-                          Total Questions <span style={{ color: D.orange }}>*</span>
-                        </span>
-                        <InfoTooltip content="Total pattern size. Easy + Medium + Hard must equal this." side="right" />
-                      </div>
-                      <div style={{ width: 96 }}>
-                        <ONumberInput
-                          value={target === 0 ? ('' as any) : target}
-                          liveUpdate
-                          min={0}
-                          placeholder="e.g. 15"
-                          onChange={v => {
-                            setFormData(prev => ({
-                              ...prev,
-                              othersConfig: { ...prev.othersConfig, patternTotal: v || 0 } as any
-                            }));
-                          }}
-                        />
-                      </div>
-                      <span className="es-pill" style={balanced ? SPEC_PILL.green : SPEC_PILL.amber}>
-                        {balanced ? '✓' : '⚠'} E + M + H = <strong>{sum}</strong>{target > 0 ? <> / {target}</> : null}
-                      </span>
-                    </div>
-                  );
-                })()}
                 {/* Level mismatch — bad note (marks pills live in the card header) */}
                 {othersLevelMismatch && (
                   <div className="es-note" style={SPEC_NOTE.bad}>
@@ -3945,8 +3910,10 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                                   <input type="checkbox" checked={checked} onChange={e => {
                                     const nc = { ...formData.othersConfig.selectionLevelCounts, [level]: e.target.checked ? 1 : 0 };
                                     const active = (['easy', 'medium', 'hard'] as const).filter(l => nc[l] > 0).length;
-                                    if (active > 2) setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, questionConfigType: 'levelBased', levelBasedCounts: { easy: nc.easy > 0 ? nc.easy : 1, medium: nc.medium > 0 ? nc.medium : 1, hard: nc.hard > 0 ? nc.hard : 1 }, selectionLevelCounts: { easy: 0, medium: 0, hard: 0 } } }));
-                                    else setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, selectionLevelCounts: nc } }));
+                                    if (active > 2) {
+                                      const nextCounts = { easy: nc.easy > 0 ? nc.easy : 1, medium: nc.medium > 0 ? nc.medium : 1, hard: nc.hard > 0 ? nc.hard : 1 };
+                                      setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, questionConfigType: 'levelBased', levelBasedCounts: nextCounts, patternTotal: nextCounts.easy + nextCounts.medium + nextCounts.hard, selectionLevelCounts: { easy: 0, medium: 0, hard: 0 } } }));
+                                    } else setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, selectionLevelCounts: nc, patternTotal: nc.easy + nc.medium + nc.hard } }));
                                   }} style={{ width: 13, height: 13, accentColor: SPEC_LEVEL_DOT[level] }} />
                                   <span style={{ ...SPEC_DOT, background: SPEC_LEVEL_DOT[level] }} />
                                   <span style={{ color: SPEC_LEVEL_TEXT[level] }}>{level}</span>
@@ -3970,8 +3937,14 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                             ? (formData.othersConfig.selectionLevelCounts?.[level] === 0 ? ('' as any) : formData.othersConfig.selectionLevelCounts?.[level])
                             : (formData.othersConfig.levelBasedCounts?.[level] === 0 ? ('' as any) : formData.othersConfig.levelBasedCounts?.[level]);
                           const handleChange = isSelLevel
-                            ? (v: number) => setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, selectionLevelCounts: { ...prev.othersConfig.selectionLevelCounts, [level]: v } } }))
-                            : (v: number) => { setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, levelBasedCounts: { ...prev.othersConfig.levelBasedCounts, [level]: v } } })); if (v > 0) setValidationErrors(prev => { const e = { ...prev }; delete e[ek]; return e; }); setTouchedFields(prev => { const n = new Set(prev); n.delete('scoring_others_easy'); n.delete('scoring_others_medium'); n.delete('scoring_others_hard'); return n; }); };
+                            ? (v: number) => setFormData(prev => {
+                                const selectionLevelCounts = { ...prev.othersConfig.selectionLevelCounts, [level]: v };
+                                return { ...prev, othersConfig: { ...prev.othersConfig, selectionLevelCounts, patternTotal: selectionLevelCounts.easy + selectionLevelCounts.medium + selectionLevelCounts.hard } };
+                              })
+                            : (v: number) => { setFormData(prev => {
+                                const levelBasedCounts = { ...prev.othersConfig.levelBasedCounts, [level]: v };
+                                return { ...prev, othersConfig: { ...prev.othersConfig, levelBasedCounts, patternTotal: levelBasedCounts.easy + levelBasedCounts.medium + levelBasedCounts.hard } };
+                              }); if (v > 0) setValidationErrors(prev => { const e = { ...prev }; delete e[ek]; return e; }); setTouchedFields(prev => { const n = new Set(prev); n.delete('scoring_others_easy'); n.delete('scoring_others_medium'); n.delete('scoring_others_hard'); return n; }); };
                           return (
                             <div key={level} style={bodyCell(level)}>
                               <ONumberInput value={val} onChange={handleChange}
@@ -3983,6 +3956,16 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                             </div>
                           );
                         })}
+                        {(() => {
+                          const counts = isSelLevel ? formData.othersConfig.selectionLevelCounts : formData.othersConfig.levelBasedCounts;
+                          const questionTotal = (counts.easy || 0) + (counts.medium || 0) + (counts.hard || 0);
+                          return <>
+                            <MatrixLabel style={SPEC_MATRIX_RLABEL}>Total questions</MatrixLabel>
+                            <div style={bodyCell('easy')} />
+                            <div style={bodyCell('medium')} />
+                            <div style={{ ...bodyCell('hard'), textAlign: 'right', fontWeight: 700, color: D.textMain }}>{questionTotal}</div>
+                          </>;
+                        })()}
                         {formData.isGraded !== false && (<>
                         {/* Row 2: Marking */}
                         <MatrixLabel style={SPEC_MATRIX_RLABEL} help={MATRIX_HELP.distribution}>Mark Distribution</MatrixLabel>
@@ -4583,6 +4566,12 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                       );
                     })}
                   </div>
+                  <div className="es-matrix" style={MROW}>
+                    <div className="es-mcell" style={{ ...MCELL, ...MATRIX_LABEL }}>Total questions</div>
+                    <div className="es-mcell" style={MCELL} />
+                    <div className="es-mcell" style={MCELL} />
+                    <div className="es-mcell" style={{ ...MCELL, textAlign: 'right', fontWeight: 700, color: D.textMain }}>{patternSum}</div>
+                  </div>
 
                   {formData.isGraded !== false && showScoringRows && (<>
                     {/* Marking */}
@@ -4699,12 +4688,6 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                       })}
                     </div>
                   </>)}
-                  <div className="es-matrix" style={MROW}>
-                    <div className="es-mcell" style={{ ...MCELL, ...MATRIX_LABEL, borderBottom: 'none' }}>Total questions</div>
-                    <div className="es-mcell" style={{ ...MCELL, gridColumn: 'span 3', borderBottom: 'none', fontSize: 12.6, fontWeight: 700, color: D.textMain }}>
-                      {patternSum} questions
-                    </div>
-                  </div>
                 </div>
 
                 {!isSelLevel && validationErrors.programmingLevelCounts && touchedFields.has('programmingLevelCounts') && (

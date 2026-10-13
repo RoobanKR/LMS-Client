@@ -103,7 +103,7 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
                 touched={touchedFields.has('othersGeneralQuestionCount')}
               />
             </div>
-            <div>
+            {graded && <div>
               <SectionLabel info="Auto-calculated from total marks">Marks Per Question</SectionLabel>
               <div className="relative">
                 <input
@@ -116,7 +116,7 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
                 />
                 <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold" style={{ color: designTokens.orange }}>Auto</span>
               </div>
-            </div>
+            </div>}
           </div>
         )}
 
@@ -125,11 +125,12 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
           <>
             <div className="flex items-center gap-1">
               <Calculator size={12} style={{ color: designTokens.textMuted }} />
-              <span className="text-xs font-semibold" style={{ color: designTokens.textMain }}>Questions and Scoring Configuration</span>
+              <span className="text-xs font-semibold" style={{ color: designTokens.textMain }}>{graded ? 'Questions and Scoring Configuration' : 'Question distribution'}</span>
             </div>
 
             {(() => {
               const isSelLevel = formData.othersConfig.questionConfigType === 'selectionLevel';
+              const questionTotal = (scoringCounts.easy || 0) + (scoringCounts.medium || 0) + (scoringCounts.hard || 0);
               const gridCols = '70px 1fr 1fr 1fr';
               const rowStyle = { display: 'grid', gridTemplateColumns: gridCols, gap: '6px', marginBottom: '4px', alignItems: 'center' } as const;
               
@@ -209,6 +210,14 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
                     })}
                   </div>
 
+                  <div style={{ ...rowStyle, marginTop: 2, marginBottom: 8 }}>
+                    <div className="text-[10px] font-semibold" style={{ color: designTokens.textMuted }}>Total questions</div>
+                    <div />
+                    <div />
+                    <div className="text-right text-xs font-bold" style={{ color: designTokens.textMain }}>{questionTotal}</div>
+                  </div>
+
+                  {graded && (<>
                   {/* Score Type Row */}
                   <div style={rowStyle}>
                     <div className="text-[10px] font-semibold" style={{ color: designTokens.textMuted }}>Score Type</div>
@@ -274,6 +283,7 @@ export const OthersConfiguration: React.FC<BaseConfigProps> = ({
                       );
                     })}
                   </div>
+                  </>)}
                 </div>
               );
             })()}
