@@ -24,6 +24,17 @@ const nextConfig = {
     // ✅ Skip TypeScript type errors during build
     ignoreBuildErrors: true,
   },
+  // @vladmandic/face-api (camera proctoring in You Do tests) ships a dynamic
+  // require() for its Node-only code path; webpack can't follow it and warns
+  // "Critical dependency" on every build. Browsers never take that path, so
+  // only that warning from only that package is hidden; anything else still shows.
+  webpack: (config) => {
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      { module: /@vladmandic[\\/]face-api/, message: /Critical dependency/ },
+    ];
+    return config;
+  },
   // Cross-origin isolation enables SharedArrayBuffer, which the interactive
   // Python runner (Pyodide in a Web Worker) uses to let input() type directly in
   // the terminal. COEP is set to "credentialless" (the lenient mode) so existing
