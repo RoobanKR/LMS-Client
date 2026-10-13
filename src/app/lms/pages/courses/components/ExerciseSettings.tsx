@@ -5783,9 +5783,10 @@ const renderNotifications = useCallback(() => (
           <div className={assignmentStyles.accordionToolbar}>
             <span>Assignment settings</span>
             <div>
-              <button type="button" onClick={() => setExpandedSteps(new Set(steps.map(step => step.id)))} disabled={steps.every(step => expandedSteps.has(step.id))}>Expand all</button>
-              <span aria-hidden="true">·</span>
-              <button type="button" onClick={() => setExpandedSteps(new Set())} disabled={expandedSteps.size === 0}>Collapse all</button>
+              {/* One control at a time: Collapse all once every section is open, Expand all otherwise. */}
+              {steps.every(step => expandedSteps.has(step.id))
+                ? <button type="button" onClick={() => setExpandedSteps(new Set())}>Collapse all</button>
+                : <button type="button" onClick={() => setExpandedSteps(new Set(steps.map(step => step.id)))}>Expand all</button>}
             </div>
           </div>
           {isLocked && <p className={assignmentStyles.lockedNote}>This assignment has been submitted and is now read-only.</p>}
