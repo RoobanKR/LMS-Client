@@ -73,7 +73,7 @@ export interface ExercisePayload {
   tabType: "I_Do" | "We_Do" | "You_Do";
   subcategory: string;
   exerciseType: 'MCQ' | 'Programming' | 'Combined' | 'Other';
-  programmingSettings?: { selectedModule: string; selectedLanguages: string[] };
+  programmingSettings?: { selectedModule: string; selectedLanguages: string[]; languageVersions?: Record<string, string> };
   exerciseInformation: {
     exerciseId: string; exerciseName: string; description: string;
     exerciseLevel: 'beginner' | 'intermediate' | 'expert';
@@ -522,6 +522,8 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
   const [formData, setFormData] = useState({
     exerciseType: '' as 'MCQ' | 'Programming' | 'Combined' | 'Other' | '',
     selectedModule: '', selectedLanguages: [] as string[],
+    // Piston version per language ({ java: '21.0.12' }); missing = default.
+    languageVersions: {} as Record<string, string>,
     exerciseId: `EX${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
     exerciseName: '', description: '',
     // Author-written instructions rendered on the student pre-start page.
@@ -784,6 +786,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       isGraded: ex.isGraded !== false,
       selectedModule: progSettings.selectedModule ?? prev.selectedModule,
       selectedLanguages: Array.isArray(progSettings.selectedLanguages) ? progSettings.selectedLanguages : prev.selectedLanguages,
+      languageVersions: progSettings.languageVersions && typeof progSettings.languageVersions === 'object'
+        ? { ...progSettings.languageVersions } : prev.languageVersions,
       exerciseId: info.exerciseId ?? prev.exerciseId,
       exerciseName: info.exerciseName ?? '',
       description: typeof info.description === 'string' ? info.description : (info.description?.text ?? ''),
@@ -965,6 +969,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       isGraded: ex.isGraded !== false,
       selectedModule: progSettings.selectedModule ?? prev.selectedModule,
       selectedLanguages: Array.isArray(progSettings.selectedLanguages) ? progSettings.selectedLanguages : prev.selectedLanguages,
+      languageVersions: progSettings.languageVersions && typeof progSettings.languageVersions === 'object'
+        ? { ...progSettings.languageVersions } : prev.languageVersions,
       exerciseId: info.exerciseId ?? prev.exerciseId,
       exerciseName: info.exerciseName ?? '',
       description: typeof info.description === 'string' ? info.description : (info.description?.text ?? ''),
@@ -2413,6 +2419,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       payload.programmingSettings = {
         selectedModule: formData.selectedModule || '',
         selectedLanguages: formData.selectedLanguages || [],
+        languageVersions: formData.languageVersions || {},
       };
     }
 

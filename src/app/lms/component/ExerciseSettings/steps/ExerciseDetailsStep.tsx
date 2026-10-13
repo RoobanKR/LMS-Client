@@ -2,6 +2,7 @@ import { SettingsHelp } from '../SettingsHelp';
 import React, { useEffect, useRef, useState } from 'react';
 import styles from '../AssignmentSettings.module.css';
 import TipTapEditor from '../../tiptopEditor';
+import { fetchInstalledRuntimes, pistonLanguageKey, type InstalledRuntimes } from '@/lib/pistonVersions';
 
 // 2026-08-30 REDESIGN: matches the "Exercise setup" mockup — orange section
 // titles with a hairline divider, three semantic groups (Identity, Format,
@@ -227,6 +228,31 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
   };
   const allLangs = buildConfiguredLangList();
 
+  // Version picker per skill that runs as code (Java, Python, C, C++, C#,
+  // JavaScript, TypeScript, Go). Lists the versions installed in Piston;
+  // Default ('') keeps the language on its standard version. Stored in
+  // formData.languageVersions → programmingSettings.languageVersions.
+  const isCodeExercise = formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined';
+  const [runtimes, setRuntimes] = useState<InstalledRuntimes | null>(null);
+  const [runtimesFailed, setRuntimesFailed] = useState(false);
+  useEffect(() => {
+    if (!isCodeExercise) return;
+    const ctrl = new AbortController();
+    fetchInstalledRuntimes(ctrl.signal)
+      .then(setRuntimes)
+      .catch(err => { if (err?.name !== 'AbortError') setRuntimesFailed(true); });
+    return () => ctrl.abort();
+  }, [isCodeExercise]);
+  const skillNames: string[] = allLangs.length ? allLangs.map(l => l.name) : (formData.selectedLanguages || []);
+  const versionLangs = Array.from(new Map(
+    skillNames.map(name => [pistonLanguageKey(name), name] as [string, string]).filter(([key]) => key),
+  ).entries()).map(([key, name]) => ({ key, name }));
+  const setLanguageVersion = (key: string, value: string) => setFormData((previous: any) => {
+    const next = { ...(previous.languageVersions || {}) };
+    if (value) next[key] = value; else delete next[key];
+    return { ...previous, languageVersions: next };
+  });
+
   const allStepsSaved = steps.length > 0 && steps.every(s => savedSteps.has(s.title));
   const gradedLocked = allStepsSaved;
 
@@ -313,6 +339,29 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
         </span>)}
       </div>
     </FormRow>
+    {isCodeExercise && versionLangs.length > 0 && <FormRow label="Language versions"
+      help="The version students' code runs on for each skill: Run, Run tests and Submit. Default keeps the standard version.">
+      <div className={styles.inlineControls} style={{ flexWrap: 'wrap', rowGap: 10 }}>
+        {versionLangs.map(({ key, name }) => {
+          const def = runtimes?.defaults?.[key];
+          const installed = runtimes?.versions?.[key] || [];
+          const stored: string = formData.languageVersions?.[key] || '';
+          const picked = stored === def ? '' : stored;
+          const options = [
+            { value: '', label: def ? `Default (${def})` : 'Default' },
+            ...installed.filter(v => v !== def).map(v => ({ value: v, label: v })),
+            ...(picked && !installed.includes(picked) ? [{ value: picked, label: `${picked} (not installed)` }] : []),
+          ];
+          return <span key={key} className={styles.inlineControls}>
+            <label htmlFor={`exercise-version-${key}`}>{name}</label>
+            <FormSelect id={`exercise-version-${key}`} value={picked} width={170} options={options}
+              onChange={value => setLanguageVersion(key, value)} />
+          </span>;
+        })}
+      </div>
+      {!runtimes && !runtimesFailed && <p className={styles.fieldNote}>Loading installed versions…</p>}
+      {runtimesFailed && <p className={styles.fieldNote}>Couldn't load the installed versions. Code runs on the default version.</p>}
+    </FormRow>}
     <FormRow label="Description" help="Description shown to students before they start" editor>
       <TipTapEditor value={formData.description}
         onChange={(value: string) => setFormData((previous: any) => ({ ...previous, description: value }))}

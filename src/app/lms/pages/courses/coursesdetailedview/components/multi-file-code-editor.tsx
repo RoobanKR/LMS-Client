@@ -32,6 +32,7 @@ import { evaluateWithAi, cachedAiTestCasesFor, AI_TESTCASE_SET_VERSION } from "@
 // the same case list Test Case scoring shows plus the parameter/allocation
 // detail. Used identically by the We_Do and You_Do single-file editors.
 import { buildAiTestResultState } from "@/app/lms/pages/courses/coursesdetailedview/components/lib/aiTestResult"
+import { exerciseLanguageVersion } from "@/lib/pistonVersions"
 import axios from "axios"
 import toast from "react-hot-toast"
 import {
@@ -1848,6 +1849,7 @@ export default function MultiFileCodeEditor({
               testCases: currentQuestion?.testCases || [],
               functionName: currentQuestion?.solutions?.functionName || null,
               maxMarks: Number(currentQuestion?.score ?? currentQuestion?.points ?? 10) || 10,
+              version: exerciseLanguageVersion(exData, selectedLanguage),
             }),
           })
           const judged = await response.json()

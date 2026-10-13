@@ -28,6 +28,7 @@ import { evaluateWithAi, cachedAiTestCasesFor, AI_TESTCASE_SET_VERSION } from '@
 // editor — same component, so all three surfaces read identically.
 import { TestResultView, type SubmitStatus, type TestResultCase, type TestResultState } from './multi-file/BottomPanel';
 import { buildAiTestResultState } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiTestResult';
+import { withExerciseVersion } from '@/lib/pistonVersions';
 import { firstSampleInput } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/sampleInput';
 import { API_ORIGIN } from '@/lib/apiBase'
 import { uploadRecordingToVps } from '@/lib/uploadRecording'
@@ -410,15 +411,15 @@ const convertExerciseToProblems = (exercise: Exercise): ProblemData[] => {
 
 const getPistonLanguage = (language: string): { language: string; version: string } => {
     const languageMap: { [key: string]: { language: string; version: string } } = {
-        javascript: { language: "javascript", version: "20.11.1" },
-        python: { language: "python", version: "3.11.0" },
+        javascript: { language: "javascript", version: "18.15.0" },
+        python: { language: "python", version: "3.10.0" },
         java: { language: "java", version: "15.0.2" },
         cpp: { language: "cpp", version: "10.2.0" },
         c: { language: "c", version: "10.2.0" },
         csharp: { language: "csharp", version: "6.12.0" },
         typescript: { language: "typescript", version: "5.0.3" }
     };
-    return languageMap[language.toLowerCase()] || { language: "javascript", version: "20.11.1" };
+    return languageMap[language.toLowerCase()] || { language: "javascript", version: "18.15.0" };
 };
 
 // Security Agreement Modal Component
@@ -2432,7 +2433,7 @@ export default function CodeEditor({
     // Update the executeCode function around line ~730
     const executeCode = async (input: string = ""): Promise<{ output: string; error?: string; runtime?: number }> => {
         try {
-            const pistonLang = getPistonLanguage(selectedLanguage);
+            const pistonLang = withExerciseVersion(getPistonLanguage(selectedLanguage), exData, selectedLanguage);
             const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code;
 
             // Check for Python execution with Pyodide
@@ -2637,7 +2638,7 @@ export default function CodeEditor({
     // used to grade one test case at a time. Compile errors surface as `error`.
     const runCodeForGrading = async (input: string): Promise<{ output: string; error?: string }> => {
         try {
-            const pistonLang = getPistonLanguage(selectedLanguage);
+            const pistonLang = withExerciseVersion(getPistonLanguage(selectedLanguage), exData, selectedLanguage);
             const currentCode = editorInstanceRef.current ? editorInstanceRef.current.getValue() : code;
             const getFileName = (lang: string, src: string): string => {
                 if (lang === 'java') {

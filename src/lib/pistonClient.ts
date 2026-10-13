@@ -25,8 +25,8 @@ export const PISTON_API_URL =
 
 // Pinned Piston runtimes (same versions the single-file editor uses).
 const PISTON_RUNTIME: Record<string, { language: string; version: string }> = {
-  python: { language: "python", version: "3.11.0" },
-  javascript: { language: "javascript", version: "20.11.1" },
+  python: { language: "python", version: "3.10.0" },
+  javascript: { language: "javascript", version: "18.15.0" },
   typescript: { language: "typescript", version: "5.0.3" },
   java: { language: "java", version: "15.0.2" },
   cpp: { language: "cpp", version: "10.2.0" },
@@ -92,10 +92,12 @@ export interface RunOptions {
   // Override the executed source of the entry file (used by the tracer to run
   // instrumented code) without mutating the student's saved files.
   entryContentOverride?: string
+  // Piston version the exercise picked for this language (default pin otherwise).
+  version?: string
 }
 
 export async function runOnPiston(opts: RunOptions): Promise<RunResult> {
-  const { language, files, stdin = "", signal, entryContentOverride } = opts
+  const { language, files, stdin = "", signal, entryContentOverride, version } = opts
   if (!files.length) {
     return { stdout: "", stderr: "No files to run.", output: "No files to run.", code: null, signal: null }
   }
@@ -113,7 +115,7 @@ export async function runOnPiston(opts: RunOptions): Promise<RunResult> {
 
   const body = {
     language: runtime.language,
-    version: runtime.version,
+    version: version || runtime.version,
     files: pistonFiles,
     stdin,
     args: [],

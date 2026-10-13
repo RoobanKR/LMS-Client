@@ -80,6 +80,7 @@ import { LANGUAGE_CONFIG, detectLanguageFromFilename, type SupportedLanguage } f
 // Same AI grader the student-side editors call so the review console's
 // AI-based Run Code path lands on the identical breakdown shape.
 import { evaluateWithAi } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator';
+import { exerciseLanguageVersion, withExerciseVersion } from '@/lib/pistonVersions';
 import { buildAiTestResultState } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiTestResult';
 import { resolveEvaluationMethod } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/resolveEvaluationMethod';
 import { NotionPagesViewer, PageData as NotionPageData } from '@/app/lms/pages/courses/reviewSubmission/components/OthersNotionEditor';
@@ -3073,13 +3074,13 @@ builtins.input = _async_input
     try {
       const getPistonLang = (l: string) => {
         const langMap: { [key: string]: any } = {
-          javascript: { language: "javascript", version: "20.11.1" },
+          javascript: { language: "javascript", version: "18.15.0" },
           java: { language: "java", version: "15.0.2" },
           cpp: { language: "cpp", version: "10.2.0" },
           c: { language: "c", version: "10.2.0" },
-          python: { language: "python", version: "3.11.0" }
+          python: { language: "python", version: "3.10.0" }
         };
-        return langMap[l] || { language: "javascript", version: "20.11.1" };
+        return withExerciseVersion(langMap[l] || { language: "javascript", version: "18.15.0" }, selectedExercise, l);
       };
 
       const config = getPistonLang(lang);
@@ -3572,13 +3573,13 @@ builtins.input = _async_input
     stdin: string,
   ): Promise<{ stdout: string; stderr: string; runtimeMs: number | null; ok: boolean }> => {
     const langMap: Record<string, { language: string; version: string }> = {
-      javascript: { language: "javascript", version: "20.11.1" },
+      javascript: { language: "javascript", version: "18.15.0" },
       java: { language: "java", version: "15.0.2" },
       cpp: { language: "cpp", version: "10.2.0" },
       c: { language: "c", version: "10.2.0" },
-      python: { language: "python", version: "3.11.0" },
+      python: { language: "python", version: "3.10.0" },
     };
-    const cfg = langMap[lang] || { language: 'javascript', version: '20.11.1' };
+    const cfg = withExerciseVersion(langMap[lang] || { language: 'javascript', version: '18.15.0' }, selectedExercise, lang);
     try {
       const t0 = Date.now();
       const res = await fetch(PISTON_API_URL, {
@@ -3647,7 +3648,10 @@ builtins.input = _async_input
       : [{ path: activeFile?.path || 'main', content: source, isEntryPoint: true }];
     const runCase = async (stdin: string) => {
       try {
-        const r = await runOnPiston({ language: lang as SupportedLanguage, files: runFiles, stdin });
+        const r = await runOnPiston({
+          language: lang as SupportedLanguage, files: runFiles, stdin,
+          version: exerciseLanguageVersion(selectedExercise, lang),
+        });
         return { stdout: r.stdout || '', stderr: r.compileError || r.stderr || '' };
       } catch (err: any) {
         return { stdout: '', stderr: err?.message || 'Execution failed.' };
