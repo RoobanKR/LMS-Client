@@ -56,7 +56,6 @@ import { ExerciseDetailsStep } from '../../../component/ExerciseSettings/steps/E
 // wizard so both surfaces capture and store the identical `evaluationMethod`.
 import {
   EvaluationMethodConfig,
-  LiveInteractionOption,
   DEFAULT_EVALUATION_METHOD,
   normalizeEvaluationMethod,
   type EvaluationMethodSetting,
@@ -4734,14 +4733,43 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
                     graded={formData.isGraded !== false}
                     dense
                   />
-                  <LiveInteractionOption
-                    value={formData.evaluationMethod}
-                    onChange={next => setFormData(prev => ({ ...prev, evaluationMethod: next }))}
-                    D={D}
-                    font={FONT}
-                  />
                 </div>
               </ConfigRow>
+            </div>
+
+            {/* Live compiler — its own row (on by default): students run
+                their code in a live console and type input while it runs. */}
+            <div className={`${assignmentStyles.generalFields} es-subfields`}>
+              {(() => {
+                const liveOn = normalizeEvaluationMethod(formData.evaluationMethod).liveInteraction === true;
+                return (
+                  <ConfigRow label="Live compiler"
+                    help="Students get a Run button with a live console: the program runs and waits for their input as they type it. Run tests works as before."
+                    note={liveOn ? 'Students run their code in a live console and type input while it runs.' : 'Live console is off.'}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 40 }}>
+                      <button type="button" role="switch" aria-checked={liveOn} aria-label="Live compiler"
+                        onClick={() => setFormData(prev => {
+                          const em = normalizeEvaluationMethod(prev.evaluationMethod);
+                          return { ...prev, evaluationMethod: { ...em, liveInteraction: !em.liveInteraction } };
+                        })}
+                        style={{
+                          position: 'relative', width: 35, height: 20, borderRadius: 999, border: 'none',
+                          cursor: 'pointer', flexShrink: 0, transition: 'background .16s',
+                          background: liveOn ? D.emerald : '#DEDAD5',
+                        }}>
+                        <span style={{
+                          position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%',
+                          background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'transform .16s',
+                          transform: liveOn ? 'translateX(15px)' : 'none',
+                        }} />
+                      </button>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: liveOn ? D.emerald : D.textHint }}>
+                        {liveOn ? 'Enabled' : 'Off'}
+                      </span>
+                    </div>
+                  </ConfigRow>
+                );
+              })()}
             </div>
 
             <div className={`${assignmentStyles.generalFields} es-subfields`}

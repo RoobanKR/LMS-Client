@@ -19,7 +19,8 @@
 // sitting right above it. A native <select> was wrong here: it renders the OS
 // list instead of the app's portal dropdown.
 import React from 'react';
-import { Info, Check } from 'lucide-react';
+import { Info, Check, ChevronDown } from 'lucide-react';
+import { PortalDropdown } from '@/app/lms/pages/courses/uploadcourseresources/components/youdo/assessments/shared/UIComponents';
 
 // ─── Stored shape ────────────────────────────────────────────────────────────
 // Manual  = student Submit posts score:0, no auto-eval; trainer grades on Review.
@@ -67,6 +68,7 @@ export interface EvaluationMethodSetting {
    * a Run button that opens a live Terminal: the program runs on the LMS
    * compiler service and waits for input as the student types it. Run
    * Testcase keeps working as before. Off = the editor is unchanged.
+   * On by default for a new exercise.
    */
   liveInteraction?: boolean;
 }
@@ -102,6 +104,7 @@ export const DEFAULT_EVALUATION_METHOD: EvaluationMethodSetting = {
     testCasesCountMode: 'common',
     testCasesCount: DEFAULT_AI_TEST_CASES_COUNT,
   },
+  liveInteraction: true,
 };
 
 /**
@@ -131,10 +134,11 @@ export const normalizeEvaluationMethod = (raw: any): EvaluationMethodSetting => 
   const rawMode = raw?.ai?.testCasesCountMode;
   const testCasesCountMode: AiTestCasesCountMode =
     rawMode === 'perQuestion' ? 'perQuestion' : 'common';
-  return { method, ai: { criteria, testCasesCountMode, testCasesCount }, liveInteraction: raw?.liveInteraction === true };
+  // Live compiler is on unless the exercise explicitly turned it off.
+  return { method, ai: { criteria, testCasesCountMode, testCasesCount }, liveInteraction: raw?.liveInteraction !== false };
 };
 
-const LIVE_INFO = 'Adds a Run button to the student\'s code editor that opens a live terminal: the program runs and waits for input as the student types it, like a real console. Run tests keeps working as before.';
+const LIVE_INFO = 'Adds a Run button to the student\'s code editor that opens a live console: the program runs and waits for input as the student types it. Run tests keeps working as before.';
 
 /**
  * "Live interactive compiler" checkbox, shown under the Evaluation Method
@@ -177,7 +181,7 @@ export const LiveInteractionOption: React.FC<{
           }}>i</span>
         </span>
         <span style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.45 }}>
-          Students get a Run button with a live terminal: the program waits for their input while it runs.
+          Students get a Run button with a live console: the program waits for their input while it runs.
         </span>
       </span>
     </label>
@@ -192,7 +196,86 @@ type Tokens = {
 
 const INFO = "How programming submissions are scored — against the question's test cases, or by an AI evaluator.";
 const NON_GRADED_INFO = "How submissions are checked — by the trainer, against the question's test cases, or by an AI evaluator. A non-graded exercise records no marks; students see pass/fail feedback only.";
-const CRITERIA_INFO = 'What the AI evaluator should judge submissions on. Tick one or more.';
+const CRITERIA_INFO = 'What the AI evaluator should judge submissions on. Pick one or more.';
+
+const TEST_CASE_COUNT_MODES: { value: AiTestCasesCountMode; label: string }[] = [
+  { value: 'common', label: 'Common (one for the exercise)' },
+  { value: 'perQuestion', label: 'Per Question (each question’s own count)' },
+];
+
+/**
+ * Multi-select dropdown for the AI evaluation criteria — the trigger lists
+ * what is picked, the menu has a checkbox per criterion and stays open while
+ * the trainer ticks several. Same trigger metrics and portal menu as the
+ * hosts' ODropdown.
+ */
+const CriteriaMultiSelect: React.FC<{
+  selected: AiCriterion[];
+  onToggle: (c: AiCriterion) => void;
+  disabled?: boolean;
+  font?: string;
+  accent: string;
+}> = ({ selected, onToggle, disabled = false, font, accent }) => {
+  const [open, setOpen] = React.useState(false);
+  const btnRef = React.useRef<HTMLButtonElement>(null) as React.RefObject<HTMLButtonElement>;
+  const close = React.useCallback(() => setOpen(false), []);
+  const picked = AI_CRITERIA_OPTIONS.filter(o => selected.includes(o.value)).map(o => o.label);
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen(o => !o)}
+        className="w-full flex items-center justify-between rounded-lg border text-left transition-all outline-none"
+        style={{
+          height: 34, padding: '0 11px', gap: 8, fontSize: 12.6, fontWeight: 500,
+          borderColor: open ? accent : '#b6c0cb',
+          background: disabled ? '#f7f9fc' : '#fff',
+          color: disabled ? '#6B7280' : picked.length ? '#1D2433' : '#9CA3AF',
+          boxShadow: open ? '0 0 0 3px #FADFCE' : '',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          fontFamily: font,
+        }}
+      >
+        <span className="truncate">{picked.length ? picked.join(', ') : 'Select criteria'}</span>
+        <ChevronDown size={12} strokeWidth={1.4} style={{ color: '#6B7280', flexShrink: 0, transform: open ? 'rotate(180deg)' : '', transition: 'transform 0.2s' }} />
+      </button>
+      <PortalDropdown isOpen={open} onClose={close} triggerRef={btnRef}>
+        <div className="py-1" role="listbox" aria-multiselectable="true" aria-label="Evaluation criteria">
+          {AI_CRITERIA_OPTIONS.map(opt => {
+            const on = selected.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={on}
+                onClick={() => onToggle(opt.value)}
+                className="w-full text-left flex items-center transition-colors hover:bg-[#FAF9F8]"
+                style={{
+                  gap: 8, padding: '8px 11px', fontSize: 12.6, fontWeight: on ? 600 : 500,
+                  background: on ? '#FFF2E8' : undefined, color: on ? '#D65A16' : '#475467', fontFamily: font,
+                }}
+              >
+                <span style={{
+                  width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  border: `1px solid ${on ? accent : '#C9CDD3'}`, background: on ? accent : '#fff',
+                }}>
+                  {on && <Check size={10} strokeWidth={3} color="#fff" />}
+                </span>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </PortalDropdown>
+    </div>
+  );
+};
 
 type ODropdownComponent = React.FC<{
   value: string;
@@ -356,48 +439,21 @@ export const EvaluationMethodConfig: React.FC<Props> = ({
         />
       </div>
 
-      {/* AI Evaluation Setup — criteria as plain visible checkboxes, only when
-          AI is picked. Deliberately NOT a dropdown: all options and their
-          checked state stay visible at a glance. */}
+      {/* AI Evaluation Setup — only when AI is picked: the criteria as a
+          multi-select dropdown, then the AI test case count. */}
       {v.method === 'ai' && (
         <div className="mt-3">
-          <p style={{ fontSize: 12, color: '#667085', margin: '0 0 10px', lineHeight: 1.6 }}>
-            Gemini evaluates the code against test cases and your selected criteria. Students get Run, Run tests and Test results, including AI verdicts, criterion feedback{graded ? ' and the marks breakdown' : ' (no marks — the exercise is not graded)'}. Run opens the existing Terminal.
-          </p>
           {SectionLabel
             ? <SectionLabel required info={CRITERIA_INFO}>Evaluation Criteria</SectionLabel>
             : inlineLabel('Evaluation Criteria', CRITERIA_INFO)}
 
-          <div className="flex flex-wrap" style={{ gap: 6 }}>
-            {AI_CRITERIA_OPTIONS.map(opt => {
-              const on = v.ai.criteria.includes(opt.value);
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => toggleCriterion(opt.value)}
-                  disabled={disabled}
-                  className="inline-flex items-center flex-shrink-0 transition-colors"
-                  style={{
-                    // Spec pill: 23px tall, radius 999, 10.8px/600 — grey when
-                    // off, orange-soft/#D65A16 with an orange border when on.
-                    height: 23, padding: '0 9px', borderRadius: 999, gap: 5,
-                    fontSize: 10.8, fontWeight: 600,
-                    background: on ? '#FFF2E8' : '#F4F4F5',
-                    color: on ? '#D65A16' : '#57606E',
-                    border: `1px solid ${on ? D.orange : '#E7E5E4'}`,
-                    cursor: disabled ? 'not-allowed' : 'pointer',
-                    opacity: disabled ? 0.45 : 1,
-                    fontFamily: font,
-                  }}
-                >
-                  {on && <Check size={10} strokeWidth={3} style={{ flexShrink: 0 }} />}
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
+          <CriteriaMultiSelect
+            selected={v.ai.criteria}
+            onToggle={toggleCriterion}
+            disabled={disabled}
+            font={font}
+            accent={D.orange}
+          />
 
           {v.ai.criteria.length === 0 && (
             <p
@@ -425,45 +481,13 @@ export const EvaluationMethodConfig: React.FC<Props> = ({
               </span>
               {infoDot('Choose whether one count applies to every question in the exercise, or each Programming question has its own count entered in the question authoring form.')}
             </div>
-            {/* Spec segmented control — the two modes are mutually exclusive,
-                so the old radio pair maps 1:1 onto the demo's 2-way segment. */}
-            <div
-              className="mb-2 inline-flex max-w-full flex-wrap"
-              style={{
-                background: '#F5F3F1', border: '1px solid #E9E5E1', borderRadius: 8,
-                padding: 3, gap: 3, opacity: disabled ? 0.45 : 1,
-              }}
-            >
-              {([
-                { value: 'common' as const, label: 'Common (one for the exercise)' },
-                { value: 'perQuestion' as const, label: 'Per Question (each question’s own count)' },
-              ]).map(opt => {
-                const on = v.ai.testCasesCountMode === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => onChange({ ...v, ai: { ...v.ai, testCasesCountMode: opt.value } })}
-                    disabled={disabled}
-                    className="transition-colors"
-                    style={{
-                      height: 27, padding: '0 12px', borderRadius: 5,
-                      fontSize: 12, fontWeight: 600,
-                      background: on ? '#fff' : 'transparent',
-                      color: on ? '#D65A16' : '#6B7280',
-                      border: 'none',
-                      boxShadow: on ? '0 1px 3px rgba(15,23,42,.1)' : 'none',
-                      cursor: disabled ? 'not-allowed' : 'pointer',
-                      whiteSpace: 'nowrap',
-                      fontFamily: font,
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* The two modes are mutually exclusive — a single select. */}
+            <ODropdown
+              value={v.ai.testCasesCountMode}
+              options={TEST_CASE_COUNT_MODES}
+              disabled={disabled}
+              onChange={m => onChange({ ...v, ai: { ...v.ai, testCasesCountMode: m as AiTestCasesCountMode } })}
+            />
           </div>
 
           {/* Exercise-level count input — shown only in Common mode.

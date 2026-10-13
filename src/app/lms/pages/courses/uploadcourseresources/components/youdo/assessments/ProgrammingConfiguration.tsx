@@ -8,8 +8,8 @@ import { SectionLabel, ODropdown, ONumberInput, OToggle } from './UIComponents';
 import { MarksMeter, MarksIssue } from './MarksMeter';
 import {
   EvaluationMethodConfig,
-  LiveInteractionOption,
   DEFAULT_EVALUATION_METHOD,
+  normalizeEvaluationMethod,
   type EvaluationMethod,
 } from '@/app/lms/pages/courses/coursesdetailedview/components/EvaluationMethodConfig';
 
@@ -41,12 +41,19 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
     && formData.exerciseType === 'Programming'
     && formData.selectedModule !== 'Frontend'
     && formData.selectedModule !== 'Database';
+  // Its own toggle row under Evaluation Method — on by default.
   const liveCompilerOption = offerLiveCompiler && (
-    <LiveInteractionOption
-      value={formData.evaluationMethod || DEFAULT_EVALUATION_METHOD}
-      onChange={next => setFormData(prev => ({ ...prev, evaluationMethod: next }))}
-      D={designTokens}
-    />
+    <div className="pt-2 border-t" style={{ borderColor: designTokens.border }}>
+      <OToggle
+        enabled={normalizeEvaluationMethod(formData.evaluationMethod || DEFAULT_EVALUATION_METHOD).liveInteraction === true}
+        onChange={(on: boolean) => setFormData(prev => ({
+          ...prev,
+          evaluationMethod: { ...normalizeEvaluationMethod(prev.evaluationMethod || DEFAULT_EVALUATION_METHOD), liveInteraction: on },
+        }))}
+        label="Live interactive compiler"
+        description="Students run their code in a live console and type input while it runs"
+      />
+    </div>
   );
   // A graded assessment splits its marks across the questions configured
   // here, so nothing can be configured until there are marks to split: the
@@ -387,8 +394,9 @@ export const ProgrammingConfiguration: React.FC<BaseConfigProps> = ({
             allowedMethods={YOUDO_ALLOWED_METHODS}
             graded={graded}
           />
-          {liveCompilerOption}
         </div>
+
+        {liveCompilerOption}
 
         {/* Attempt Limit */}
         <div className="pt-2 border-t" style={{ borderColor: designTokens.border }}>
