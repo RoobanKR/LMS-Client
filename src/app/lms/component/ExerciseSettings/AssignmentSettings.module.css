@@ -592,11 +592,28 @@
 /* Reference matrix: four aligned columns, fine dividers, colour only on dots. */
 .compact :global(.es-matrix-wrap) { padding:0 12px; overflow-x:auto !important; }
 .compact :global(.es-matrix), .compact :global(.es-matrix-grid) { grid-template-columns:180px repeat(3,minmax(150px,1fr)) !important; min-width:630px; }
-.compact :global(.es-matrix) > div, .compact :global(.es-matrix-grid) > div { border:0 !important; border-radius:0 !important; border-bottom:1px solid #e1e7ee !important; padding:10px 12px !important; background:#fff !important; }
-.compact :global(.es-matrix) > div:first-child, .compact :global(.es-matrix-grid) > div:nth-child(4n+1) { padding-left:0 !important; padding-right:20px !important; }
-.compact :global(.es-matrix) > div:nth-child(n+2), .compact :global(.es-matrix-grid) > div:not(:nth-child(4n+1)) { border-left:1px solid #e1e7ee !important; }
-.compact :global(.es-matrix):first-child > div, .compact :global(.es-matrix-grid) > div:nth-child(-n+4) { border-top:0 !important; }
-.compact :global(.es-matrix):last-child > div, .compact :global(.es-matrix-grid) > div:nth-last-child(-n+4) { border-bottom:0 !important; }
+/* Draw one shared edge per cell, including the label and total rows.
+   Match the earlier cell selectors so their border resets cannot erase the frame. */
+.compact :global(.es-matrix) > div:nth-child(n),
+.compact :global(.es-matrix-grid) > div:nth-child(n) {
+  border: 0 !important;
+  border-left: 1px solid #b8c3cf !important;
+  border-bottom: 1px solid #b8c3cf !important;
+  border-radius: 0 !important;
+  padding: 10px 12px !important;
+  background: #fff !important;
+}
+.compact :global(.es-matrix) > div:first-child,
+.compact :global(.es-matrix-grid) > div:nth-child(4n+1) { padding: 10px 12px !important; }
+.compact :global(.es-matrix) > div:last-child,
+.compact :global(.es-matrix-grid) > div:nth-child(4n) { border-right: 1px solid #b8c3cf !important; }
+.compact :global(.es-matrix):first-child > div:nth-child(n),
+.compact :global(.es-matrix-grid) > div:nth-child(-n+4):nth-child(n) {
+  border-top: 1px solid #b8c3cf !important;
+  background: #f6f8fa !important;
+}
+.compact :global(.es-matrix):last-child > div:nth-child(n),
+.compact :global(.es-matrix-grid) > div:nth-last-child(-n+4):nth-child(n) { border-bottom: 1px solid #b8c3cf !important; }
 .compact :global(.es-matrix-wrap) ~ :global(.es-note), .compact :global(.es-matrix-wrap) ~ p { margin:12px !important; }
 .compact :global(.es-note) { border-radius:5px !important; font-size:12px !important; line-height:1.6 !important; }
 .compact :global(.es-matrix):last-child > div:nth-child(n+2) > * { width:auto; }
