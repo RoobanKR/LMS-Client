@@ -1,14 +1,14 @@
 "use client"
 
-// Two-tab bottom panel for the multi-file code editor: Terminal + Test Result.
+// Two-tab bottom panel for the code editors: Console + Test Results.
 //
-// - Terminal hosts the interactive RunTerminal exactly as before; state
+// - Console (the "terminal" tab) hosts the interactive RunTerminal exactly as before; state
 //   (termLines/stdin/awaitingInput) is owned by the parent and passed through
 //   so switching tabs is pure UI — no output is dropped.
 // - Test Result renders the last Submit answer response: a summary chip
 //   (Accepted / Wrong answer / Partial / Compilation error / Runtime error /
 //   Time limit / Submission failed / Evaluating), then a row of Case
-//   selectors, then Input / Expected / Your output for the selected case.
+//   selectors, then Input / Expected / Actual output for the selected case.
 //   Hidden cases never reveal the trainer's input/expected; the student's
 //   own output is safe to show (helps debug format mismatches).
 
@@ -16,6 +16,7 @@ import React from "react"
 import {
   ClipboardCheck, Copy, CheckCircle2, XCircle, AlertTriangle,
   Loader2, RefreshCw, Sparkles, TerminalSquare, Trash2, X, Maximize2, Minimize2,
+  ChevronDown, ChevronUp,
 } from "lucide-react"
 import RunTerminal, { type TermLine } from "./RunTerminal"
 
@@ -115,6 +116,14 @@ interface BottomPanelProps {
    */
   heading?: string
   closeLabel?: string
+  /**
+   * Collapsible panel: with `onExpand` set, the hide control folds the panel
+   * down to its tab bar instead of removing it, and `collapsed` renders just
+   * that bar. Picking a tab or "Show panel" calls onExpand (so does the
+   * editor's Run Code / Run tests).
+   */
+  collapsed?: boolean
+  onExpand?: () => void
   activeTab: 'terminal' | 'test-result'
   onTabChange: (t: 'terminal' | 'test-result') => void
   testResult: TestResultState | null
@@ -190,6 +199,7 @@ export default function BottomPanel(props: BottomPanelProps) {
   const {
     mode = 'test-result', activeTab, liveTerminal = false, onStopRun,
     onTabChange, testResult, onClose, onToggleMaximize, maximized, heading, closeLabel,
+    collapsed = false, onExpand,
     termLines, running, stdin, lastRuntime, setStdin, onClearTerm,
     interactive, awaitingInput, inputPrompt, onSubmitInput,
     selectedCaseIndex, onSelectCase, onRetrySubmit, isSubmitting, showScore = true,
@@ -199,6 +209,11 @@ export default function BottomPanel(props: BottomPanelProps) {
   // The surface shown right now: fixed by the mode, or the active tab.
   const isTerminal = bothTabs ? activeTab === 'terminal' : mode === 'terminal'
   const isEval = testResult?.status === 'evaluating'
+  // Picking a tab on the folded bar opens the panel on that tab.
+  const pickTab = (t: 'terminal' | 'test-result') => {
+    onTabChange(t)
+    if (collapsed) onExpand?.()
+  }
 
   const copyResult = async () => {
     if (!testResult) return
@@ -245,16 +260,20 @@ export default function BottomPanel(props: BottomPanelProps) {
         }}
       >
         {heading ? (
-          // Titled panel: "Output", then the two surfaces as a small switch
-          // when the exercise has both (Terminal for Run, Test results for
-          // Run tests / Submit).
+          // Titled panel: the two surfaces as the panel's own tabs, Console
+          // (Run Code) and Test Results (Run tests / Submit); a panel with a
+          // single surface shows that surface's name.
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#101B3B', whiteSpace: 'nowrap' }}>{heading}</span>
-            {bothTabs && (
+            {bothTabs ? (
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2, borderRadius: 7, background: '#F2F1ED' }}>
-                <PillTab id="terminal" active={isTerminal} onClick={() => onTabChange('terminal')}>Terminal</PillTab>
-                <PillTab id="test-result" active={!isTerminal} onClick={() => onTabChange('test-result')}>Test results</PillTab>
+                <PillTab id="terminal" active={isTerminal} onClick={() => pickTab('terminal')}><TerminalSquare size={13} /> Console</PillTab>
+                <PillTab id="test-result" active={!isTerminal} onClick={() => pickTab('test-result')}><ClipboardCheck size={13} /> Test Results</PillTab>
               </div>
+            ) : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: '#101B3B', whiteSpace: 'nowrap' }}>
+                {isTerminal ? <TerminalSquare size={14} /> : <ClipboardCheck size={14} />}
+                {isTerminal ? 'Console' : 'Test Results'}
+              </span>
             )}
           </div>
         ) : (
@@ -265,15 +284,15 @@ export default function BottomPanel(props: BottomPanelProps) {
               either way so the panel reads as a labeled surface and the
               right-hand action has a home. */}
           {(bothTabs || isTerminal) && (
-            <TabButton id="terminal" active={isTerminal} onClick={() => onTabChange('terminal')}>
+            <TabButton id="terminal" active={isTerminal} onClick={() => pickTab('terminal')}>
               <TerminalSquare size={12} style={{ color: '#FF641A' }} />
-              Terminal
+              Console
             </TabButton>
           )}
           {(bothTabs || !isTerminal) && (
-            <TabButton id="test-result" active={!isTerminal} onClick={() => onTabChange('test-result')}>
+            <TabButton id="test-result" active={!isTerminal} onClick={() => pickTab('test-result')}>
               <ClipboardCheck size={12} style={{ color: '#FF641A' }} />
-              Test results
+              Test Results
             </TabButton>
           )}
         </div>
@@ -283,13 +302,29 @@ export default function BottomPanel(props: BottomPanelProps) {
             The titled panel keeps them icon-only so a narrow editor column
             still fits "Hide output"; labels stay in the tooltip. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto' }}>
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={onExpand}
+              title="Show panel"
+              aria-label="Show panel"
+              className="hover:bg-[#F2F1ED]"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                height: 28, padding: '0 8px', borderRadius: 6, border: 'none', whiteSpace: 'nowrap',
+                background: 'transparent', color: '#475467', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+              }}
+            >
+              Show panel <ChevronUp size={14} />
+            </button>
+          ) : (<>
           {isTerminal ? (
             <button
               type="button"
               onClick={onClearTerm}
               disabled={termLines.length === 0}
-              title="Clear terminal"
-              aria-label="Clear terminal output"
+              title="Clear console"
+              aria-label="Clear console output"
               style={{ ...smallBtn, ...(heading ? iconOnly : null), opacity: termLines.length === 0 ? 0.5 : 1 }}
             >
               <Trash2 size={heading ? 13 : 11} />{!heading && ' Clear'}
@@ -320,16 +355,17 @@ export default function BottomPanel(props: BottomPanelProps) {
                 background: 'transparent', color: '#475467', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
               }}
             >
-              {closeLabel} <X size={14} />
+              {closeLabel} {onExpand ? <ChevronDown size={14} /> : <X size={14} />}
             </button>
           ) : (
             <button type="button" onClick={onClose} title="Close output panel" aria-label="Close output panel" style={smallBtn}><X size={15} /></button>
           ))}
+          </>)}
         </div>
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      {/* Content — folded away while the panel is collapsed to its tab bar */}
+      {!collapsed && <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <div
           role="tabpanel"
           id={isTerminal ? 'bp-panel-terminal' : 'bp-panel-test-result'}
@@ -364,7 +400,7 @@ export default function BottomPanel(props: BottomPanelProps) {
             />
           )}
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -410,6 +446,7 @@ function PillTab({ active, onClick, id, children }: { active: boolean; onClick: 
       aria-controls={`bp-panel-${id}`}
       onClick={onClick}
       style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
         height: 26, padding: '0 10px', borderRadius: 5, border: 'none',
         background: active ? '#FFFFFF' : 'transparent',
         boxShadow: active ? '0 1px 2px rgba(16,24,40,0.08)' : 'none',
@@ -592,7 +629,7 @@ export function TestResultView({
             {!active.passed && !state.ai && <p style={{ margin: 0, color: '#667085', fontSize: 12 }}>Output does not match the expected result.</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {showTrainerFields && <Row label="Expected output" value={active.expectedOutput} />}
-              {state.ai ? <Row label="AI verdict" value={active.comment || 'No feedback provided'} tone={active.passed ? 'ok' : 'bad'} /> : <Row label="Your output" value={active.actualOutput} tone={active.passed ? 'ok' : 'bad'} />}
+              {state.ai ? <Row label="AI verdict" value={active.comment || 'No feedback provided'} tone={active.passed ? 'ok' : 'bad'} /> : <Row label="Actual output" value={active.actualOutput} tone={active.passed ? 'ok' : 'bad'} />}
             </div>
             {active.errorMessage && (
               <Row label="Error" value={active.errorMessage} tone="bad" />

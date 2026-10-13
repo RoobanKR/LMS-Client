@@ -39,7 +39,7 @@ import {
   Loader2, CheckCircle, X, ChevronRight, ChevronLeft,
   Award, Clock, Search, ArrowUpDown, FileCode, Info,
   FileText, Eye, Play, Square,
-  Terminal as TerminalIcon, AlertCircle,
+  AlertCircle,
   AlertTriangle, MinusCircle, CloudUpload, Check,
   NotebookPen,
 } from "lucide-react"
@@ -1202,7 +1202,7 @@ export default function MultiFileCodeEditor({
     const myRun = ++runSeqRef.current
     const stopRequested = () => stoppedRunRef.current >= myRun
     const terminalMode = isInteractiveTerminalSupported()
-    log("system", `$ Run ${basename(entry.path)} (Python · ${terminalMode ? "live terminal" : "input via popup"})`)
+    log("system", `$ Run ${basename(entry.path)} (Python · ${terminalMode ? "live console" : "input via popup"})`)
 
     // Capture the generation. Cold-load Pyodide can take several seconds
     // (getMainPyodide downloads ~10MB of wasm on first use), so a student
@@ -1368,7 +1368,7 @@ export default function MultiFileCodeEditor({
     setAwaitingInput(false)
     setInputPrompt("")
     inputPromptRef.current = ""
-    log("system", `$ Run ${basename(entry.path)} (${label} · live terminal)`)
+    log("system", `$ Run ${basename(entry.path)} (${label} · live console)`)
 
     // Same generation guard as the other runs: a question switch mid-run
     // drops every late write.
@@ -2490,7 +2490,7 @@ export default function MultiFileCodeEditor({
                 <button
                   onClick={() => void runLive()}
                   disabled={!ready || vizRunning}
-                  title="Run your code in a live terminal: type input while it runs"
+                  title="Run your code in the Console: type input while it runs"
                   aria-label="Run code"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
@@ -2673,14 +2673,6 @@ export default function MultiFileCodeEditor({
                 {availableLanguages.map((lang) => <option key={lang} value={lang}>{LANGUAGE_CONFIG[lang].label}</option>)}
               </select>
 
-              <button
-                onClick={() => { setBottomTab("terminal"); setShowTerminal(true) }}
-                aria-label="Open terminal"
-                title="Open terminal"
-                style={{ ...softBtn, padding: "0 12px" }}
-              >
-                <TerminalIcon size={14} /> Terminal
-              </button>
             </div>
           )}
         </div>
@@ -3043,12 +3035,13 @@ export default function MultiFileCodeEditor({
                 </div>
               </div>
 
-              {/* Output — Terminal (Run Code) and Test results (Run tests /
-                  Submit) under one titled panel. Height drags from the grip
-                  on its top edge; Hide output folds it, the toolbar's
-                  Terminal brings it back. Switching tabs keeps both states. */}
-              {showTerminal && (
-                <>
+              {/* Execution panel — Console (Run Code) and Test Results (Run
+                  tests / Submit). Height drags from the grip on its top edge;
+                  Hide panel folds it to its tab bar, and a tab, Show panel,
+                  Run Code or Run tests opens it again. Switching tabs keeps
+                  both states. */}
+              <>
+                {showTerminal && (
                   <div
                     role="separator"
                     aria-orientation="horizontal"
@@ -3071,10 +3064,13 @@ export default function MultiFileCodeEditor({
                       <ArrowUpDown size={11} />
                     </span>
                   </div>
-                  <div className="flex-shrink-0 flex flex-col max-lg:max-h-[40dvh] max-lg:border-t" style={{ height: outputMaximized ? "100%" : bottomPanelHeight, borderColor: UI.border, background: UI.panel }}>
+                )}
+                  <div className="flex-shrink-0 flex flex-col max-lg:max-h-[40dvh] max-lg:border-t" style={{ height: !showTerminal ? "auto" : outputMaximized ? "100%" : bottomPanelHeight, borderColor: UI.border, background: UI.panel, ...(showTerminal ? null : { borderTop: `1px solid ${UI.border}` }) }}>
                   <BottomPanel
                     heading="Output"
-                    closeLabel="Hide output"
+                    closeLabel="Hide panel"
+                    collapsed={!showTerminal}
+                    onExpand={() => setShowTerminal(true)}
                     // Non-graded: pass/fail and feedback, no marks.
                     showScore={isGradedExercise}
                     activeTab={bottomTab}
@@ -3106,8 +3102,7 @@ export default function MultiFileCodeEditor({
                     isSubmitting={isSubmittingQuestion || isRunningTestCases}
                   />
                   </div>
-                </>
-              )}
+              </>
             </div>
           </div>
         </div>
