@@ -37,6 +37,12 @@ const moduleLanguages: Record<string, { name: string; icon: string }[]> = {
 
 const MC = { orange: '#EE6A22', text: '#263746', readonly: '#eef0f2' };
 
+// Display names for the language-version rows ("java" → "Java").
+const LANGUAGE_LABEL: Record<string, string> = {
+  java: 'Java', python: 'Python', c: 'C', cpp: 'C++', csharp: 'C#',
+  javascript: 'JavaScript', typescript: 'TypeScript', go: 'Go',
+};
+
 function FormRow({ label, htmlFor, help, required, children, error, editor }: {
   label: string; htmlFor?: string; help?: string; required?: boolean;
   children: React.ReactNode; error?: string; editor?: boolean;
@@ -344,29 +350,27 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
         </span>)}
       </div>
     </FormRow>
-    {isCodeExercise && versionLangs.length > 0 && <FormRow label="Language versions"
-      help="The version students' code runs on for each skill: Run, Run tests and Submit. Default keeps the standard version.">
-      <div className={styles.inlineControls} style={{ flexWrap: 'wrap', rowGap: 10 }}>
-        {versionLangs.map(({ key, name }) => {
-          const def = runtimes?.defaults?.[key];
-          const installed = runtimes?.versions?.[key] || [];
-          const stored: string = formData.languageVersions?.[key] || '';
-          const picked = stored === def ? '' : stored;
-          const options = [
-            { value: '', label: def ? `Default (${def})` : 'Default' },
-            ...installed.filter(v => v !== def).map(v => ({ value: v, label: v })),
-            ...(picked && !installed.includes(picked) ? [{ value: picked, label: `${picked} (not installed)` }] : []),
-          ];
-          return <span key={key} className={styles.inlineControls}>
-            <label htmlFor={`exercise-version-${key}`}>{name}</label>
-            <FormSelect id={`exercise-version-${key}`} value={picked} width={170} options={options}
-              onChange={value => setLanguageVersion(key, value)} />
-          </span>;
-        })}
-      </div>
-      {!runtimes && !runtimesFailed && <p className={styles.fieldNote}>Loading installed versions…</p>}
-      {runtimesFailed && <p className={styles.fieldNote}>Couldn't load the installed versions. Code runs on the default version.</p>}
-    </FormRow>}
+    {isCodeExercise && versionLangs.map(({ key }) => {
+      // One row per language: "Java version" on the left, the version select
+      // on the right ("Java 15.0.2 (default)", "Java 21.0.12", …).
+      const lang = LANGUAGE_LABEL[key] || key;
+      const def = runtimes?.defaults?.[key];
+      const installed = runtimes?.versions?.[key] || [];
+      const stored: string = formData.languageVersions?.[key] || '';
+      const picked = stored === def ? '' : stored;
+      const options = [
+        { value: '', label: def ? `${lang} ${def} (default)` : `${lang} (default)` },
+        ...installed.filter(v => v !== def).map(v => ({ value: v, label: `${lang} ${v}` })),
+        ...(picked && !installed.includes(picked) ? [{ value: picked, label: `${lang} ${picked} (not installed)` }] : []),
+      ];
+      return <FormRow key={key} label={`${lang} version`} htmlFor={`exercise-version-${key}`}
+        help={`The ${lang} version students' code runs on: Run, Run tests and Submit. Default keeps the standard version.`}>
+        <FormSelect id={`exercise-version-${key}`} value={picked} width={240} options={options}
+          onChange={value => setLanguageVersion(key, value)} />
+        {!runtimes && !runtimesFailed && <p className={styles.fieldNote}>Loading installed versions…</p>}
+        {runtimesFailed && <p className={styles.fieldNote}>Couldn't load the installed versions. Code runs on the default version.</p>}
+      </FormRow>;
+    })}
     <FormRow label="Instructions" help="Optional guidance shown on the student pre-start page" editor>
       <TipTapEditor value={formData.instructions || ''}
         onChange={(value: string) => setFormData((previous: any) => ({ ...previous, instructions: value }))}
