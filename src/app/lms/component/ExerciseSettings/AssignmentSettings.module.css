@@ -384,7 +384,9 @@
    level-based modes surface their Total / Used / Remaining tallies there;
    styled as a quiet uppercase caption above the rows. */
 .compact :global(.es-card-h) { display: flex !important; padding: 10px 12px 2px !important; margin: 0 !important; border-bottom: none !important; }
-.compact :global(.es-card-h > span:first-child) { font-size: 11.5px !important; font-weight: 600 !important; color: #5e6e7e !important; text-transform: uppercase; letter-spacing: .05em; }
+/* Same text as a field label (.compact .fieldLabel label) — "Question
+   distribution" reads like "Config strategy" above it. */
+.compact :global(.es-card-h > span:first-child) { font-size: 13px !important; font-weight: 400 !important; color: #0f1720 !important; line-height: 1.5; text-transform: none; letter-spacing: normal; }
 
 /* ── Difficulty matrix (Level Based / Selection Level) ────────────────
    Same two-column rhythm as the General rows: the row labels (Questions,
