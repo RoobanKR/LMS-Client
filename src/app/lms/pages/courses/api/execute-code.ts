@@ -9,8 +9,8 @@ export async function executeCodeAction(code: string, languageId: number, input:
   try {
     // Map language IDs to Piston API language names and versions
     const languageMap: { [key: number]: { language: string; version: string } } = {
-      63: { language: "javascript", version: "18.15.0" },  // JavaScript
-      71: { language: "python", version: "3.10.0" },       // Python
+      63: { language: "javascript", version: "20.11.1" },  // JavaScript
+      71: { language: "python", version: "3.11.0" },       // Python
       62: { language: "java", version: "15.0.2" },         // Java
       54: { language: "c++", version: "10.2.0" },          // C++
       74: { language: "typescript", version: "5.0.3" },    // TypeScript

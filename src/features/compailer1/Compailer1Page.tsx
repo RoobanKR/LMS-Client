@@ -52,7 +52,7 @@ const LANGUAGES = {
     extension: javascript(),
     fileExt: "js",
     pistonLang: "javascript",
-    pistonVersion: "18.15.0",
+    pistonVersion: "20.11.1",
     defaultCode: `// Interactive JavaScript example
 const readline = require('readline');
 const rl = readline.createInterface({
@@ -75,7 +75,7 @@ rl.question('What is your name? ', (name) => {
     extension: python(),
     fileExt: "py",
     pistonLang: "python",
-    pistonVersion: "3.10.0",
+    pistonVersion: "3.11.0",
     defaultCode: `print("Hello from Python!")
 name = input("What is your name? ")
 print(f"Hello, {name}!")

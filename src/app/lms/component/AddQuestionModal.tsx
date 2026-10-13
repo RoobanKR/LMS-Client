@@ -308,8 +308,8 @@ class PistonExecutionEngine {
 
   private static getRuntime(language: string): { language: string; version: string; filename: string } {
     const runtimes: { [key: string]: { language: string; version: string; filename: string } } = {
-      python: { language: 'python', version: '3.10.0', filename: 'main.py' },
-      javascript: { language: 'javascript', version: '18.15.0', filename: 'main.js' },
+      python: { language: 'python', version: '3.11.0', filename: 'main.py' },
+      javascript: { language: 'javascript', version: '20.11.1', filename: 'main.js' },
       typescript: { language: 'typescript', version: '5.0.3', filename: 'main.ts' },
       java: { language: 'java', version: '15.0.2', filename: 'Main.java' },
       cpp: { language: 'cpp', version: '10.2.0', filename: 'main.cpp' },

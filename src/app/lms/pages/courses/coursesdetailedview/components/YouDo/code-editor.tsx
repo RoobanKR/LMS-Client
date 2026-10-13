@@ -467,15 +467,15 @@ const convertExerciseToProblems = (exercise: Exercise): ProblemData[] => {
 
 const getPistonLanguage = (language: string): { language: string; version: string } => {
     const languageMap: { [key: string]: { language: string; version: string } } = {
-        javascript: { language: "javascript", version: "18.15.0" },
-        python: { language: "python", version: "3.10.0" },
+        javascript: { language: "javascript", version: "20.11.1" },
+        python: { language: "python", version: "3.11.0" },
         java: { language: "java", version: "15.0.2" },
         cpp: { language: "cpp", version: "10.2.0" },
         c: { language: "c", version: "10.2.0" },
         csharp: { language: "csharp", version: "6.12.0" },
         typescript: { language: "typescript", version: "5.0.3" }
     };
-    return languageMap[language.toLowerCase()] || { language: "javascript", version: "18.15.0" };
+    return languageMap[language.toLowerCase()] || { language: "javascript", version: "20.11.1" };
 };
 
 // Security Agreement Modal Component

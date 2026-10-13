@@ -3073,13 +3073,13 @@ builtins.input = _async_input
     try {
       const getPistonLang = (l: string) => {
         const langMap: { [key: string]: any } = {
-          javascript: { language: "javascript", version: "18.15.0" },
+          javascript: { language: "javascript", version: "20.11.1" },
           java: { language: "java", version: "15.0.2" },
           cpp: { language: "cpp", version: "10.2.0" },
           c: { language: "c", version: "10.2.0" },
-          python: { language: "python", version: "3.10.0" }
+          python: { language: "python", version: "3.11.0" }
         };
-        return langMap[l] || { language: "javascript", version: "18.15.0" };
+        return langMap[l] || { language: "javascript", version: "20.11.1" };
       };
 
       const config = getPistonLang(lang);
@@ -3572,13 +3572,13 @@ builtins.input = _async_input
     stdin: string,
   ): Promise<{ stdout: string; stderr: string; runtimeMs: number | null; ok: boolean }> => {
     const langMap: Record<string, { language: string; version: string }> = {
-      javascript: { language: "javascript", version: "18.15.0" },
+      javascript: { language: "javascript", version: "20.11.1" },
       java: { language: "java", version: "15.0.2" },
       cpp: { language: "cpp", version: "10.2.0" },
       c: { language: "c", version: "10.2.0" },
-      python: { language: "python", version: "3.10.0" },
+      python: { language: "python", version: "3.11.0" },
     };
-    const cfg = langMap[lang] || { language: 'javascript', version: '18.15.0' };
+    const cfg = langMap[lang] || { language: 'javascript', version: '20.11.1' };
     try {
       const t0 = Date.now();
       const res = await fetch(PISTON_API_URL, {
