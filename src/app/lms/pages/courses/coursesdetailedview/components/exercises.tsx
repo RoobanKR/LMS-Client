@@ -1773,13 +1773,15 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
         const usedAttempts = getTestSubmissions(ex, studentAnswers, method, subcategory)
         const showAttempts = (s.kind === 'submitted' || s.kind === 'graded') && allowedAttempts > 1
         return (
-          <div className="flex flex-col items-start gap-0.5">
+          <div className="flex flex-col items-start gap-1">
             <StatusPill tone={s.tone as StatusPillTone} dot>
               {s.label}{s.labelSuffix}
             </StatusPill>
             {showAttempts && (
-              <span className="text-[11.5px] text-subtle">
-                {Math.min(usedAttempts, allowedAttempts)} of {allowedAttempts} attempts used
+              // Short and wrappable: the cell is nowrap, and a long caption
+              // ran past the column into the Retake button.
+              <span className="pl-1 text-[11.5px] leading-tight text-subtle whitespace-normal">
+                Attempt {Math.min(usedAttempts, allowedAttempts)} of {allowedAttempts}
               </span>
             )}
           </div>
@@ -1821,14 +1823,14 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
         const usedAttempts = getTestSubmissions(ex, studentAnswers, method, subcategory)
         if (isReview && usedAttempts < allowedAttempts && s.availability.canStart) {
           return (
-            <div className="flex flex-col items-center justify-center gap-0.5">
-              <button type="button" onClick={(e) => handleStartClick(ex, e)} className={btnBase} style={secondary}>
+            <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+              <button type="button" onClick={(e) => handleStartClick(ex, e)} className={btnBase} style={{ ...secondary, maxWidth: 128 }}>
                 <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Retake
               </button>
               <button
                 type="button"
                 onClick={(e) => handleGradeClick(ex, e)}
-                className="h-6 px-2 text-[12px] font-semibold rounded-control hover:bg-info-50 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-500/30"
+                className="px-1.5 text-[12px] font-semibold leading-5 rounded-control hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-500/30"
                 style={{ color: '#175CD3' }}
               >
                 {s.kind === 'graded' ? 'View feedback' : 'View submission'}
