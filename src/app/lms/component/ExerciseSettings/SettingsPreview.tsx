@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, CalendarDays, Clock3, FileQuestion, Radio, CircleCheck, CircleAlert } from 'lucide-react';
+import { Award, CalendarDays, Clock3, FileQuestion, CircleCheck, CircleAlert } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import styles from './AssignmentSettings.module.css';
 
@@ -63,7 +63,7 @@ export function SettingsPreview({ formData: data, questionSource, customSources,
     : null;
   const levelScoring = config?.scoreSettings?.levelScoringConfiguration;
   return <aside className={styles.previewPane} aria-label={`Live ${noun} preview`}>
-    <div className={styles.previewHeading}><div><strong>{Noun} preview</strong><span>Updates as you edit</span></div><span className={styles.liveBadge}><Radio size={12} /> Live</span></div>
+    <div className={styles.previewHeading}><strong>Preview</strong></div>
     <article className={styles.previewCard}>
       <div className={styles.previewEyebrow}>{noun.toUpperCase()} {data.exerciseId && <span>· {data.exerciseId}</span>}</div>
       <h2>{data.exerciseName || <Missing>Untitled {noun}</Missing>}</h2>
