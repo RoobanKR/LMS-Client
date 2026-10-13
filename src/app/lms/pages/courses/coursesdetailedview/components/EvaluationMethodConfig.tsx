@@ -421,8 +421,8 @@ export const EvaluationMethodConfig: React.FC<Props> = ({
         .emc-num:focus { border-color: #EE6A22 !important; box-shadow: 0 0 0 3px rgba(238,106,34,.13); }
       `}</style>
       {SectionLabel
-        ? <SectionLabel required info={graded ? INFO : NON_GRADED_INFO}>Evaluation Type</SectionLabel>
-        : inlineLabel('Evaluation Type', graded ? INFO : NON_GRADED_INFO)}
+        ? <SectionLabel required info={graded ? INFO : NON_GRADED_INFO}>Execution Type</SectionLabel>
+        : inlineLabel('Execution Type', graded ? INFO : NON_GRADED_INFO)}
 
       {/* Dense mode used to cap the dropdown at 45% width — that made
           sense when the host row was internally 14px-padded, but the 2026-09-01
