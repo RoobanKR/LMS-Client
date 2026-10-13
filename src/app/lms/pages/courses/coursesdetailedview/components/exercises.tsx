@@ -8,7 +8,7 @@ import {
   Calendar, Hourglass, Lock, CheckCircle, Code,
   Info, Target, Settings, FileText, BarChart2, Shield, Cpu,
   Search, SlidersHorizontal, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye,
-  MoreVertical, ArrowUpDown, ArrowUp, ArrowDown
+  MoreVertical, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 // The exercise description is trainer-authored TipTap HTML, so it is sanitised
@@ -1018,6 +1018,18 @@ function StartExercisePopup({
           </div>
         </div>
 
+        {/* Retake: which attempt this is, and that the new submission
+            replaces the previous one (the latest attempt counts). */}
+        {isRetake && canProceed && (
+          <div role="note" style={{
+            margin: '0 20px 12px', padding: '9px 12px', borderRadius: 8,
+            background: '#FFFAEB', border: '1px solid #F5DFA8', color: '#93370D',
+            fontSize: 12.5, lineHeight: 1.5, flexShrink: 0,
+          }}>
+            Attempt {(testSubmissions ?? 0) + 1} of {submissionAttempts ?? 1}. Your new submission replaces your previous one, including its marks.
+          </div>
+        )}
+
         {/* FOOTER — Cancel + primary Begin. The button label carries any
             availability story ("Not Yet Open" / "Expired") — no separate banner
             is repeated here per the launch-modal spec. */}
@@ -1755,10 +1767,22 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
         // decisions (graded > submitted > missed > in-progress > due-soon >
         // active > upcoming) never have to be reconstructed at the render
         // layer. `labelSuffix` carries the "· 92%" for graded rows.
+        // A finished row with more than one attempt allowed also says how
+        // many are used, so "Retake" in the Action column reads naturally.
+        const allowedAttempts = getSubmissionAttempts(ex)
+        const usedAttempts = getTestSubmissions(ex, studentAnswers, method, subcategory)
+        const showAttempts = (s.kind === 'submitted' || s.kind === 'graded') && allowedAttempts > 1
         return (
-          <StatusPill tone={s.tone as StatusPillTone} dot>
-            {s.label}{s.labelSuffix}
-          </StatusPill>
+          <div className="flex flex-col items-start gap-0.5">
+            <StatusPill tone={s.tone as StatusPillTone} dot>
+              {s.label}{s.labelSuffix}
+            </StatusPill>
+            {showAttempts && (
+              <span className="text-[11.5px] text-subtle">
+                {Math.min(usedAttempts, allowedAttempts)} of {allowedAttempts} attempts used
+              </span>
+            )}
+          </div>
         )
       },
     },
@@ -1789,6 +1813,29 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
           : isStart
             ? (e: React.MouseEvent) => handleStartClick(ex, e)
             : undefined
+
+        // Finished with attempts left and the window still open: Retake (its
+        // popup says the new submission replaces the previous one, marks
+        // included), with the submission one click away beneath it.
+        const allowedAttempts = getSubmissionAttempts(ex)
+        const usedAttempts = getTestSubmissions(ex, studentAnswers, method, subcategory)
+        if (isReview && usedAttempts < allowedAttempts && s.availability.canStart) {
+          return (
+            <div className="flex flex-col items-center justify-center gap-0.5">
+              <button type="button" onClick={(e) => handleStartClick(ex, e)} className={btnBase} style={secondary}>
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" /> Retake
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleGradeClick(ex, e)}
+                className="h-6 px-2 text-[12px] font-semibold rounded-control hover:bg-info-50 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-500/30"
+                style={{ color: '#175CD3' }}
+              >
+                {s.kind === 'graded' ? 'View feedback' : 'View submission'}
+              </button>
+            </div>
+          )
+        }
 
         if (s.actionKind === 'primary' && s.actionLabel) {
           // Continue — orange filled, only for resumable drafts (in-progress,
