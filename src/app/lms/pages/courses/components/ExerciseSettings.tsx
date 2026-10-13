@@ -3626,8 +3626,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
           <div className="es-card-b" style={{ ...SPEC_CARD_B, display: 'flex', flexDirection: 'column', gap: 0 }}>
             <div className={`${assignmentStyles.generalFields} es-subfields`}>
               <ConfigRow label="Attempt limit"
-                help="When ON, students can submit only a limited number of times. When OFF, they can attempt this exercise any number of times."
-                note={formData.mcqConfig.attemptLimitEnabled ? undefined : 'Students can attempt this exercise any number of times.'}>
+                help="When ON, students can submit up to the number of attempts set below. When OFF, they can submit this exercise once."
+                note={formData.mcqConfig.attemptLimitEnabled ? undefined : 'Students can submit this exercise once.'}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 40 }}>
                   <button type="button" role="switch" aria-checked={formData.mcqConfig.attemptLimitEnabled}
                     onClick={() => setFormData(prev => ({ ...prev, mcqConfig: { ...prev.mcqConfig, attemptLimitEnabled: !prev.mcqConfig.attemptLimitEnabled, submissionAttempts: !prev.mcqConfig.attemptLimitEnabled ? prev.mcqConfig.submissionAttempts : 1 } }))}
@@ -4077,8 +4077,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
 
         <div className={`${assignmentStyles.generalFields} es-subfields`}>
           <ConfigRow label="Attempt limit"
-            help="When ON, students can submit only a limited number of times. When OFF, they can attempt this exercise any number of times."
-            note={formData.othersConfig.attemptLimitEnabled ? undefined : 'Students can attempt this exercise any number of times.'}>
+            help="When ON, students can submit up to the number of attempts set below. When OFF, they can submit this exercise once."
+            note={formData.othersConfig.attemptLimitEnabled ? undefined : 'Students can submit this exercise once.'}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 40 }}>
               <button type="button" role="switch" aria-checked={formData.othersConfig.attemptLimitEnabled}
                 onClick={() => setFormData(prev => ({ ...prev, othersConfig: { ...prev.othersConfig, attemptLimitEnabled: !prev.othersConfig.attemptLimitEnabled, submissionAttempts: !prev.othersConfig.attemptLimitEnabled ? prev.othersConfig.submissionAttempts : 1 } }))}
@@ -4809,8 +4809,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
               it stays a single full-width card. */}
           <div className={`${assignmentStyles.generalFields} es-subfields`}>
             <ConfigRow label="Attempt limit"
-              help="When ON, students can submit only a limited number of times. When OFF, they can attempt this exercise any number of times."
-              note={formData.programmingConfig.attemptLimitEnabled ? undefined : 'Students can attempt this exercise any number of times.'}>
+              help="When ON, students can submit up to the number of attempts set below. When OFF, they can submit this exercise once."
+              note={formData.programmingConfig.attemptLimitEnabled ? undefined : 'Students can submit this exercise once.'}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 40 }}>
                 <button type="button" role="switch" aria-checked={formData.programmingConfig.attemptLimitEnabled}
                   onClick={() => setFormData(prev => ({ ...prev, programmingConfig: { ...prev.programmingConfig, attemptLimitEnabled: !prev.programmingConfig.attemptLimitEnabled, submissionAttempts: !prev.programmingConfig.attemptLimitEnabled ? (prev.programmingConfig.submissionAttempts > 1 ? prev.programmingConfig.submissionAttempts : 2) : 1 } }))}
