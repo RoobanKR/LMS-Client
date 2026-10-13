@@ -1804,7 +1804,8 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
 
         // Finished with attempts left and the window still open: Retake (its
         // popup says the new submission replaces the previous one, marks
-        // included). The attempt count shows in a tooltip on the button; a
+        // included). The attempt count shows in a tooltip LEFT of the button (the
+        // table edge clips anything to its right); a
         // graded assignment keeps its submission one click away beneath it.
         const allowedAttempts = getSubmissionAttempts(ex)
         const usedAttempts = getTestSubmissions(ex, studentAnswers, method, subcategory)
@@ -1820,7 +1821,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
                 <span
                   id={tipId}
                   role="tooltip"
-                  className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-[11.5px] font-medium text-white opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                  className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md px-2 py-1 text-[11.5px] font-medium text-white opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
                   style={{ background: '#101828' }}
                 >
                   Attempt {usedAttempts} of {allowedAttempts} used · {allowedAttempts - usedAttempts} left
