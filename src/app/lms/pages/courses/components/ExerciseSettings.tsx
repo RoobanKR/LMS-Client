@@ -5990,7 +5990,10 @@ const renderNotifications = useCallback(() => (
                     : getProgrammingTotalQuestions() + (formData.exerciseType === 'Combined' ? formData.mcqConfig.generalQuestionCount : 0)}
                 </dd>
                 <dt style={{ color: '#57606E' }}>Grading</dt><dd style={{ margin: 0, fontWeight: 600 }}>{formData.isGraded !== false ? 'Graded' : 'Non-graded'}</dd>
-                <dt style={{ color: '#57606E' }}>Question source</dt><dd style={{ margin: 0, fontWeight: 600, textTransform: 'capitalize' }}>{questionSource || '—'}</dd>
+                <dt style={{ color: '#57606E' }}>Question source</dt><dd style={{ margin: 0, fontWeight: 600 }}>{
+                  // Trainer-facing names: "scratch" is the hand-written source.
+                  ({ scratch: 'Manual', ai: 'AI', thirdParty: 'Third party', custom: 'Custom' } as Record<string, string>)[questionSource || ''] || questionSource || '—'
+                }</dd>
               </dl>
               <p style={{ margin: '14px 0 0', fontSize: 11.5, color: '#57606E', lineHeight: 1.5 }}>
                 Once saved, the assignment will be created and visible to students according to the schedule. You can still edit it afterwards.
@@ -6010,12 +6013,14 @@ const renderNotifications = useCallback(() => (
                 onClick={async () => { setConfirmSaveOpen(false); await performCompleteSave(); }}
                 disabled={isLoading}
                 style={{
+                  // Tick and label on one line.
+                  display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                   padding: '8px 16px', borderRadius: 6, border: '1px solid #D65A16',
                   background: '#EE6A22', color: '#fff', fontSize: 12.5, fontWeight: 700,
                   boxShadow: '0 2px 6px rgba(238, 106, 34, 0.35)',
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                 }}>
-                <Check size={13} style={{ verticalAlign: '-2px', marginRight: 6 }} />
+                {!isLoading && <Check size={13} style={{ flexShrink: 0 }} />}
                 {isLoading ? 'Saving…' : 'Confirm & save'}
               </button>
             </div>
