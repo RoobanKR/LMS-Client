@@ -164,14 +164,12 @@ function CourseFlowStepper({
 // The 2-part shape stays ['Batch', 'Phase'] either way: that format is written
 // only by the batch-first flow, so its parts really are batch-then-phase even
 // in a mapping that has since moved on.
-// `phases`: every phase a Placement Training course runs in. That course is ONE
-// record across its phases, so its path names only the phase whose record the
-// row stands for — the header would read "Phase: Phase I" for a course that
-// also runs Phase II and III. With phases given, they are all named instead.
+// `phases`: set for a Placement Training course row, which is ONE course across
+// all its phases. Its path names only the phase whose record the row stands
+// for, so the header read "Phase: Phase I" for a course that also runs Phase II
+// and III — such a course shows just its name; the phase is picked inside.
 const actionBreadcrumbsFor = (course: CourseGroup, phaseFirst: boolean, phases?: string[]) => {
-    if (phases && phases.length > 1) {
-        return [`Phases: ${phases.join(', ')}`, `Course: ${course.courseName}`]
-    }
+    if (phases && phases.length) return [`Course: ${course.courseName}`]
     const parts = course.path.split(PATH_SEP).map((p) => p.trim()).filter(Boolean)
     const labels = parts.length === 4
         ? ['Degree', 'Department', 'Section', 'Semester']
