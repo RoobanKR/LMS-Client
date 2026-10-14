@@ -2598,26 +2598,6 @@ export default function MultiFileCodeEditor({
             >
               {exerciseName}
             </strong>
-            {!isLinkQ && (
-              <button
-                type="button"
-                onClick={toggleDescription}
-                aria-pressed={descriptionShown}
-                title={descriptionShown ? "Hide the problem description" : "Show the problem description"}
-                style={toolBtn}
-              >
-                <FileText size={14} />
-                {descriptionShown ? "Hide description" : "Show description"}
-              </button>
-            )}
-            <span
-              className="max-md:hidden"
-              title={currentQuestion?.title || undefined}
-              style={{ fontSize: 12.5, color: UI.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, maxWidth: 340, marginLeft: 4 }}
-            >
-              Problem {Math.min(currentQuestionIndex + 1, questions.length || 1)} of {questions.length || 1}
-              {currentQuestion?.title ? <> · <span style={{ color: UI.navy, fontWeight: 600 }}>{currentQuestion.title}</span></> : null}
-            </span>
             {/* Notes / Score / Info — what the old left rail carried. */}
             <span aria-hidden="true" className="max-lg:hidden" style={{ width: 1, height: 20, background: UI.border, margin: "0 2px", flexShrink: 0 }} />
             {!isFull && (
@@ -2673,6 +2653,22 @@ export default function MultiFileCodeEditor({
                 {availableLanguages.map((lang) => <option key={lang} value={lang}>{LANGUAGE_CONFIG[lang].label}</option>)}
               </select>
 
+            </div>
+          )}
+
+          {/* Second row: Hide / Show description on its own, at the start. */}
+          {!isLinkQ && (
+            <div style={{ flexBasis: "100%", display: "flex" }}>
+              <button
+                type="button"
+                onClick={toggleDescription}
+                aria-pressed={descriptionShown}
+                title={descriptionShown ? "Hide the problem description" : "Show the problem description"}
+                style={toolBtn}
+              >
+                <FileText size={14} />
+                {descriptionShown ? "Hide description" : "Show description"}
+              </button>
             </div>
           )}
         </div>

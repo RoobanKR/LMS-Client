@@ -3936,26 +3936,6 @@ export default function CodeEditor({
                         >
                             {exercise?.exerciseInformation?.exerciseName || 'Exercise'}
                         </strong>
-                        {!wsIsLinkQ && (
-                            <button
-                                type="button"
-                                onClick={() => setShowQuestionPanel(v => !v)}
-                                aria-pressed={showQuestionPanel}
-                                title={showQuestionPanel ? 'Hide the problem description' : 'Show the problem description'}
-                                style={wsToolBtn}
-                            >
-                                <FileText size={14} />
-                                {showQuestionPanel ? 'Hide description' : 'Show description'}
-                            </button>
-                        )}
-                        <span
-                            className="max-md:hidden"
-                            title={problem?.title || undefined}
-                            style={{ fontSize: 12.5, color: WS.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, maxWidth: 340, marginLeft: 4 }}
-                        >
-                            Problem {Math.min(currentProblemIndex + 1, problems.length || 1)} of {problems.length || 1}
-                            {problem?.title ? <> · <span style={{ color: WS.navy, fontWeight: 600 }}>{problem.title}</span></> : null}
-                        </span>
                         <span aria-hidden="true" className="max-lg:hidden" style={{ width: 1, height: 20, background: WS.border, margin: '0 2px', flexShrink: 0 }} />
                         <button
                             type="button"
@@ -4161,6 +4141,22 @@ export default function CodeEditor({
                             <X size={14} />
                         </button>
                     </div>
+
+                    {/* Second row: Hide / Show description on its own, at the start. */}
+                    {!wsIsLinkQ && (
+                        <div style={{ flexBasis: '100%', display: 'flex' }}>
+                            <button
+                                type="button"
+                                onClick={() => setShowQuestionPanel(v => !v)}
+                                aria-pressed={showQuestionPanel}
+                                title={showQuestionPanel ? 'Hide the problem description' : 'Show the problem description'}
+                                style={wsToolBtn}
+                            >
+                                <FileText size={14} />
+                                {showQuestionPanel ? 'Hide description' : 'Show description'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                     {/* Back confirmation dialog */}
