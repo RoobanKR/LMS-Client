@@ -4046,8 +4046,9 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                 the assignment list.
                 "Review Submissions" no longer lives here — it was promoted to
                 its own "Review" column on the row (same gate), so reviewing
-                doesn't cost a menu click. */}
-            {exerciseComplete && (
+                doesn't cost a menu click.
+                A non-graded exercise has nothing to grade, so no Grade item. */}
+            {exerciseComplete && exercise.isGraded !== false && (
               <>
                 <DropdownMenuItem
                   onClick={() => {
@@ -4070,7 +4071,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
               </>
             )}
 
-            {/* Manage Exercise - Only show when exercise is complete */}
+            {/* Manage Questions - Only show when exercise is complete */}
             {exerciseComplete && (
               <>
                 <DropdownMenuItem
@@ -4078,7 +4079,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                   className="cursor-pointer text-xs gap-2"
                   style={{ color: '#1a1a2e', fontFamily: JKT.fontFamily }}>
                   <FileCode className="h-3.5 w-3.5" style={{ color: '#F27757' }} />
-                  Manage Exercise
+                  Manage Questions
                   <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                     style={{ background: 'rgba(242,119,87,0.1)', color: '#e0623f', border: '1px solid rgba(242,119,87,0.2)' }}>
                     {exercise.questions?.length ?? 0}
