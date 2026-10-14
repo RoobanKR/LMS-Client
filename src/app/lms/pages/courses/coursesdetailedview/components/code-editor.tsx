@@ -19,6 +19,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'
 import Script from 'next/script'
 import ExerciseInfoModals from './ExerciseInfoModals'
+import { CountdownPill } from './multi-file/CountdownPill'
 // Evaluation Method wiring — resolves the exercise's stored evaluationMethod
 // (with the per-tab legacy fallback), and calls Gemini for AI grading. Both
 // helpers are shared with the You_Do editor and multi-file editor so the
@@ -858,6 +859,8 @@ export default function CodeEditor({
     const [terminationReason, setTerminationReason] = useState("");
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [exerciseTimeLeft, setExerciseTimeLeft] = useState<number | null>(null);
+    // Time-up: submit and close. Points at the latest finishExercise (set below).
+    const autoFinishRef = useRef<() => void>(() => {});
     const [tabSwitchCount, setTabSwitchCount] = useState(0);
     const [showTerminal, setShowTerminal] = useState(false);
     const [terminalLogs, setTerminalLogs] = useState<LogEntry[]>([]);
@@ -1714,8 +1717,10 @@ export default function CodeEditor({
         setExerciseTimeLeft(totalSeconds);
         const timer = setInterval(() => {
             setExerciseTimeLeft(prev => {
-                if (prev === null || prev <= 0) {
+                if (prev === null) return prev;
+                if (prev <= 1) {
                     clearInterval(timer);
+                    autoFinishRef.current();
                     return 0;
                 }
                 return prev - 1;
@@ -3685,11 +3690,15 @@ export default function CodeEditor({
     // Finish — the whole-exercise submit (was "Submit Exercise" on the old
     // breadcrumb row): attempt-limit and all-questions gates, evaluate the
     // current question if it never was, mark the exercise submitted, close.
-    const finishExercise = async () => {
+    const finishExercise = async (opts?: { auto?: boolean }) => {
+        // Called from a button it receives the click event, never { auto }.
+        const auto = opts?.auto === true;
         // ── Attempt limit check ──
         if (exercise?.questionBehavior?.attemptLimitEnabled) {
             const max = exercise.questionBehavior.maxAttempts || 1;
             if (userAttempts >= max) {
+                // Time ran out with nothing left to submit - just leave.
+                if (auto) { if (onCloseExercise) onCloseExercise(); else if (onBack) onBack(); return; }
                 showToast({
                     type: 'error',
                     title: 'Limit Reached',
@@ -3700,8 +3709,8 @@ export default function CodeEditor({
             }
         }
 
-        // ── allQuestionsRequired gate ──
-        if (exercise?.questionBehavior?.allQuestionsRequired === true) {
+        // ── allQuestionsRequired gate ── (time-up submits whatever is there)
+        if (!auto && exercise?.questionBehavior?.allQuestionsRequired === true) {
             const missing: number[] = [];
             for (let i = 0; i < problems.length; i++) {
                 if (i !== currentProblemIndex && !solvedQuestions.has(i)) missing.push(i + 1);
@@ -3749,8 +3758,8 @@ export default function CodeEditor({
 
             showToast({
                 type: 'success',
-                title: 'Test Submitted',
-                message: 'Your test has been submitted successfully.',
+                title: auto ? 'Time is up' : 'Test Submitted',
+                message: auto ? 'Your work was submitted automatically.' : 'Your test has been submitted successfully.',
                 duration: 3000
             });
 
@@ -3773,6 +3782,9 @@ export default function CodeEditor({
             });
         }
     };
+    useEffect(() => {
+        autoFinishRef.current = () => { void finishExercise({ auto: true }); };
+    });
 
     return (
         <div
@@ -3906,7 +3918,7 @@ export default function CodeEditor({
                 <>
                 <div
                     className="flex items-center gap-x-3 gap-y-2 flex-wrap max-sm:px-3!"
-                    style={{ flexShrink: 0, padding: '8px 16px', minHeight: 56, background: WS.panel, borderBottom: `1px solid ${WS.border}` }}
+                    style={{ position: 'relative', flexShrink: 0, padding: '8px 16px', minHeight: 56, background: WS.panel, borderBottom: `1px solid ${WS.border}` }}
                 >
                     {/* Below lg the left group takes the first row and the code
                         actions wrap onto their own row underneath. */}
@@ -4006,30 +4018,10 @@ export default function CodeEditor({
                         )}
                     </div>
 
-                    {/* Time Left — the exercise's own countdown. */}
-                    {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (() => {
-                        const totalSecs = (exData?.exerciseInformation?.totalDuration || 0) * 60;
-                        const pct = totalSecs > 0 ? Math.max(0, (exerciseTimeLeft / totalSecs) * 100) : 0;
-                        const isDanger = exerciseTimeLeft < 60;
-                        const isWarning = exerciseTimeLeft < 300 && !isDanger;
-                        const tcol = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#F27757';
-                        return (
-                            <div style={{ minWidth: 130, flexShrink: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <Clock style={{ width: 12, height: 12, color: tcol }} />
-                                        <span style={{ fontSize: 11, color: '#9b9bae', fontWeight: 600, fontFamily: FONT }}>Time Left</span>
-                                    </div>
-                                    <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 800, color: tcol, animation: isDanger ? 'pulse 1s ease-in-out infinite' : 'none' }}>
-                                        {formatExerciseTime(exerciseTimeLeft)}
-                                    </span>
-                                </div>
-                                <div style={{ height: 4, borderRadius: 99, background: theme === 'dark' ? '#374151' : '#f4f4f7', overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', width: `${pct}%`, background: tcol, borderRadius: 99, transition: 'width 1s linear' }} />
-                                </div>
-                            </div>
-                        );
-                    })()}
+                    {/* Time Left — the exercise's own countdown; submits and closes at 00:00. */}
+                    {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (
+                        <CountdownPill seconds={exerciseTimeLeft} font={FONT} />
+                    )}
 
                     <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink">
                         {!wsIsLinkQ && (

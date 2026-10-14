@@ -23,6 +23,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react"
 import ExerciseInfoModals, { ExerciseInfoButtons } from "./ExerciseInfoModals"
+import { CountdownPill } from "./multi-file/CountdownPill"
 // Evaluation Method — Manual posts score:0 for the trainer to grade, Test Case
 // is judged server-side by the submit endpoint, AI is graded client-side.
 import { resolveEvaluationMethod } from "@/app/lms/pages/courses/coursesdetailedview/components/lib/resolveEvaluationMethod"
@@ -2122,7 +2123,12 @@ export default function MultiFileCodeEditor({
     const timer = setInterval(() => {
       setExerciseTimeLeft((prev) => {
         if (prev === null) return prev
-        if (prev <= 1) { clearInterval(timer); autoSubmitRef.current(); return 0 }
+        if (prev <= 1) {
+          clearInterval(timer)
+          toast("Time is up. Submitting your work…")
+          autoSubmitRef.current()
+          return 0
+        }
         return prev - 1
       })
     }, 1000)
@@ -2577,7 +2583,7 @@ export default function MultiFileCodeEditor({
           code (Run Code, Run tests, Visualize, language, Terminal). In
           exam mode the page's timer / bell sit between. */}
       {exercise && (
-        <div className="flex items-center gap-x-3 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: UI.panel, borderBottom: `1px solid ${UI.border}`, padding: "8px 16px", minHeight: 56 }}>
+        <div className="flex items-center gap-x-3 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ position: "relative", background: UI.panel, borderBottom: `1px solid ${UI.border}`, padding: "8px 16px", minHeight: 56 }}>
           {/* Below lg the left group takes the first row and the code
               actions wrap onto their own row underneath. */}
           <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1 max-lg:basis-full">
@@ -2634,6 +2640,10 @@ export default function MultiFileCodeEditor({
 
           {/* Exam mode: the page's timer / message bell. */}
           {exam?.headerSlot}
+
+          {/* The exercise's duration counting down (Exercise Settings); at
+              00:00 the work is submitted and the editor closes. */}
+          {!examMode && exerciseTimeLeft !== null && <CountdownPill seconds={exerciseTimeLeft} font={FONT} />}
 
           {!isLinkQ && (
             <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink">
