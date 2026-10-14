@@ -4089,14 +4089,15 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
               </>
             )}
 
-            {/* Continue Incomplete Exercise OR Edit Exercise based on completion status */}
+            {/* Continue Incomplete Exercise OR Edit based on completion status —
+                named for what the list holds: We Do assignments, You Do assessments. */}
             {exerciseComplete ? (
               <DropdownMenuItem
                 onClick={() => handleAction('edit', exercise)}
                 className="cursor-pointer text-xs gap-2"
                 style={{ color: '#1a1a2e', fontFamily: JKT.fontFamily }}>
                 <Edit3 className="h-3.5 w-3.5" style={{ color: '#fb923c' }} />
-                Edit Exercise
+                {activeTab === 'You_Do' ? 'Edit Assessment' : 'Edit Assignment'}
               </DropdownMenuItem>
             ) : (
               <DropdownMenuItem
@@ -4104,7 +4105,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                 className="cursor-pointer text-xs gap-2"
                 style={{ color: '#F27757', fontFamily: JKT.fontFamily }}>
                 <Edit3 className="h-3.5 w-3.5" style={{ color: '#F27757' }} />
-                Edit Exercise
+                {activeTab === 'You_Do' ? 'Edit Assessment' : 'Edit Assignment'}
               </DropdownMenuItem>
             )}
 
