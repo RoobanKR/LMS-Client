@@ -741,6 +741,8 @@ const InteractiveTerminal = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
+                    {/* Clear only when there is output to clear. */}
+                    {logs?.length > 0 && (
                     <button
                         onClick={onClear}
                         className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${theme === 'dark' ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'}`}
@@ -748,6 +750,7 @@ const InteractiveTerminal = ({
                     >
                         <Trash2 className="w-3.5 h-3.5" />
                     </button>
+                    )}
                     <button
                         onClick={() => setIsMaximized(!isMaximized)}
                         className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${theme === 'dark' ? 'text-slate-500 hover:text-indigo-400 hover:bg-slate-800' : 'text-gray-500 hover:text-orange-600 hover:bg-gray-200'}`}

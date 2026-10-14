@@ -319,16 +319,19 @@ export default function BottomPanel(props: BottomPanelProps) {
             </button>
           ) : (<>
           {isTerminal ? (
+            // Shown only when there is output to clear — an empty console
+            // has nothing for a trash icon to act on.
+            termLines.length > 0 && (
             <button
               type="button"
               onClick={onClearTerm}
-              disabled={termLines.length === 0}
               title="Clear console"
               aria-label="Clear console output"
-              style={{ ...smallBtn, ...(heading ? iconOnly : null), opacity: termLines.length === 0 ? 0.5 : 1 }}
+              style={{ ...smallBtn, ...(heading ? iconOnly : null) }}
             >
               <Trash2 size={heading ? 13 : 11} />{!heading && ' Clear'}
             </button>
+            )
           ) : (
             <button
               type="button"
