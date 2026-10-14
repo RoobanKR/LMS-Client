@@ -1,5 +1,6 @@
 "use client"
 
+import { skillList } from '@/lib/skillLabels';
 import { useState, useMemo, useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
 import {
@@ -718,7 +719,7 @@ function StartExercisePopup({
   // Difficulty (Beginner). Method + activity are already conveyed by the
   // pedagogy chip beside the assignment title, so they're dropped here.
   const languageLabel = languages.length
-    ? languages.map((l) => l.replace(/\b\w/g, (m) => m.toUpperCase())).join(', ')
+    ? skillList(languages)
     : ''
   const difficultyLabel = ex.exerciseInformation?.exerciseLevel
     ? String(ex.exerciseInformation.exerciseLevel).replace(/^./, (c: string) => c.toUpperCase())

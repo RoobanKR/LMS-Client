@@ -1,4 +1,5 @@
 "use client";
+import { skillLabel } from '@/lib/skillLabels';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Maximize2, X } from 'lucide-react';
 
@@ -398,7 +399,7 @@ export const CodeSetupSection: React.FC<CodeSetupSectionProps> = ({
             className="lms-input"
             style={{ maxWidth: 180, fontSize: 12 }}
           >
-            {langList.map(l => <option key={l} value={l}>{l}</option>)}
+            {langList.map(l => <option key={l} value={l}>{skillLabel(l)}</option>)}
           </select>
         )}
         {variant === 'sql' && (

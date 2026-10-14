@@ -1,3 +1,4 @@
+import { skillLabel } from '@/lib/skillLabels';
 import { getToken } from "@/lib/session";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -1693,7 +1694,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
         return extractPlainText(raw);
       })
       .filter((s: any) => typeof s === 'string' && s.length > 0);
-    const langLabel = (lang.charAt(0).toUpperCase() + lang.slice(1));
+    const langLabel = skillLabel(lang);
     const difficultyDisplay = currentQ.difficulty ? (currentQ.difficulty.charAt(0).toUpperCase() + currentQ.difficulty.slice(1)) : '';
 
     const goPrev = () => { if (currentIndex > 0) setCurrentIndex(currentIndex - 1); };
@@ -1743,7 +1744,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <select value={lang} onChange={(e) => setLang(e.target.value)}
               style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, border: `1px solid ${T2.border}`, borderRadius: 6, padding: '4px 8px', background: T2.bg, color: T2.textMain, cursor: 'pointer', outline: 'none' }}>
-              {availableLanguages.map(l => <option key={l} value={l.toLowerCase()}>{l}</option>)}
+              {availableLanguages.map(l => <option key={l} value={l.toLowerCase()}>{skillLabel(l)}</option>)}
             </select>
             <button onClick={onClose} title="Close"
               style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${T2.border}`, background: '#f8f8f8', color: T2.textSub, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2967,7 +2968,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
                 border: '1px solid #e5e5e5', borderRadius: 6, padding: '4px 8px',
                 background: '#ffffff', color: '#333', cursor: 'pointer', outline: 'none'
               }}>
-              {availableLanguages.map(l => <option key={l} value={l.toLowerCase()}>{l}</option>)}
+              {availableLanguages.map(l => <option key={l} value={l.toLowerCase()}>{skillLabel(l)}</option>)}
             </select>
           )}
           <button onClick={onClose}

@@ -16,6 +16,7 @@
 // validation, marks allocation, grading and saving run exactly as before.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { skillList } from '@/lib/skillLabels';
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { TEMPLATES, buildSeedDocument, templateSummary, type TemplateSpec } from './templates'
 import { parseCommand, COMMAND_EXAMPLES, type ParseResult } from './commandParser'
@@ -784,7 +785,7 @@ export default function CreateExerciseLauncher({
                                         <div>
                                             <label className="xcl-lbl" htmlFor="xcl-skill">Skill Set</label>
                                             <input id="xcl-skill" type="text" readOnly
-                                                value={languageList.join(', ') || 'Set on the course'}
+                                                value={skillList(languageList) || 'Set on the course'}
                                                 title="Configured on the course, not here" />
                                         </div>
                                     </div>

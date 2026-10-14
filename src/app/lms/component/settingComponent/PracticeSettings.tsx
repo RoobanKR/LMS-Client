@@ -1,3 +1,4 @@
+import { skillList } from '@/lib/skillLabels';
 import React, { useState } from 'react';
 import {
     ArrowLeft, ArrowRight, CheckCircle, X,
@@ -1068,7 +1069,7 @@ const PracticeSettings: React.FC<PracticeSettingsProps> = ({
                                         </div>
                                         <div className="col-span-2">
                                             <div className="text-[10px] text-gray-500 mb-0.5">Languages</div>
-                                            <div className="text-sm font-semibold text-gray-900">{practiceData.selectedLanguages.join(', ') || 'None selected'}</div>
+                                            <div className="text-sm font-semibold text-gray-900">{skillList(practiceData.selectedLanguages) || 'None selected'}</div>
                                         </div>
                                     </div>
                                 </div>

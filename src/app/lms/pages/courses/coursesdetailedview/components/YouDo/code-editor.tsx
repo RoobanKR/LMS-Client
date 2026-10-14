@@ -1,4 +1,5 @@
 "use client"
+import { skillList } from '@/lib/skillLabels';
 import { getToken } from "@/lib/session";
 import { useAttemptSession } from "./useAttemptSession";
 import { hostOf } from "@/lib/frameEmbed";
@@ -5534,7 +5535,7 @@ else:
                                     })()}
                                     <InfoRow label="Questions" value={`${exercise.questions?.length ?? 0}`} theme={theme} />
                                     {exercise.programmingSettings?.selectedLanguages?.length > 0 && (
-                                        <InfoRow label="Languages" value={exercise.programmingSettings.selectedLanguages.map((l: string) => l.charAt(0).toUpperCase() + l.slice(1)).join(', ')} theme={theme} />
+                                        <InfoRow label="Languages" value={skillList(exercise.programmingSettings.selectedLanguages)} theme={theme} />
                                     )}
                                     {exercise.availabilityPeriod?.startDate && (
                                         <InfoRow label="From" value={new Date(exercise.availabilityPeriod.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} theme={theme} />
@@ -5899,7 +5900,7 @@ else:
                             {exercise.programmingSettings?.selectedLanguages?.length > 0 && (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0f0f7' }}>
                                     <span style={{ fontSize: 12, fontWeight: 600, color: '#3a3a52', fontFamily: FONT }}>Languages</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{exercise.programmingSettings.selectedLanguages.map((l: string) => l.charAt(0).toUpperCase() + l.slice(1)).join(', ')}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1a2e', fontFamily: FONT }}>{skillList(exercise.programmingSettings.selectedLanguages)}</span>
                                 </div>
                             )}
                             {exercise.evaluationSettings && (

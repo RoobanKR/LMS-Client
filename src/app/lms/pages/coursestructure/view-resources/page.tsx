@@ -1,4 +1,5 @@
 "use client"
+import { skillList } from '@/lib/skillLabels';
 import { getToken, SESSION_KEYS } from "@/lib/session";
 import { usesLdShellRole } from "@/lib/dashboardRoutes";
 
@@ -666,7 +667,7 @@ function ExerciseFullDetail({
           <KV label="Selected Module" value={info.selectedModule} />
           <KV label="Selected Languages" value={
             Array.isArray(info.selectedLanguages) && info.selectedLanguages.length
-              ? info.selectedLanguages.join(', ')
+              ? skillList(info.selectedLanguages)
               : null
           } />
           <KV label="Created" value={fmtDate(ex.createdAt || detail.createdAt)} />
@@ -714,7 +715,7 @@ function ExerciseFullDetail({
             <KV label="Selected Module" value={progSettings.selectedModule} />
             <KV label="Selected Languages" value={
               Array.isArray(progSettings.selectedLanguages) && progSettings.selectedLanguages.length
-                ? progSettings.selectedLanguages.join(', ')
+                ? skillList(progSettings.selectedLanguages)
                 : null
             } />
           </dl>

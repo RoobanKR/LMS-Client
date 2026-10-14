@@ -1,4 +1,5 @@
 // ExerciseDetailsStep.tsx
+import { skillLabel } from '@/lib/skillLabels';
 import React, { useState, useRef, useEffect, ChangeEvent, useImperativeHandle, forwardRef } from "react";
 import {
   FileText,
@@ -1001,7 +1002,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                                   onError={(e) => { (e.target as any).style.display = 'none'; }}
                                 />
                               )}
-                              {lang.name}
+                              {skillLabel(lang.name)}
                             </span>
                           ))}
                         </div>
@@ -1108,7 +1109,7 @@ export const ExerciseDetailsStep = forwardRef<ExerciseDetailsStepRef, ExerciseDe
                                         onError={(e) => { (e.target as any).style.display = 'none'; }}
                                       />
                                     )}
-                                    {lang.name}
+                                    {skillLabel(lang.name)}
                                   </label>
                                 );
                               })}

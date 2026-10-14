@@ -24,6 +24,7 @@
  * everything entered instead.
  */
 
+import { skillList } from '@/lib/skillLabels';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1586,7 +1587,7 @@ export default function CreateExternalAssessmentModal({
                           ['Name', form.assessmentName || '—'],
                           ['Test type', TEST_TYPES.find((t) => t.value === form.testType)?.label],
                           ['Type', form.isSectionBased ? `Section based · ${form.sections.length} section(s)` : form.exerciseType],
-                          ['Skill set', form.selectedModule ? `${form.selectedModule}${form.selectedLanguages.length ? ` · ${form.selectedLanguages.join(', ')}` : ''}` : '—'],
+                          ['Skill set', form.selectedModule ? `${form.selectedModule}${form.selectedLanguages.length ? ` · ${skillList(form.selectedLanguages)}` : ''}` : '—'],
                           ['Duration', `${form.durationMinutes} minutes`],
                           ['Starts', form.startDate ? `${form.startDate} ${form.startTime || ''}`.trim() : 'Not set'],
                           ['Ends', form.endDate ? `${form.endDate} ${form.endTime || ''}`.trim() : 'Not set'],

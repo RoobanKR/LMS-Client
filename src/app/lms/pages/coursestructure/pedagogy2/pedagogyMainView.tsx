@@ -4,6 +4,7 @@
 // function — called {renderMainContent(deps)}, so React renders it exactly as before.
 
 "use client"
+import { skillLabel } from '@/lib/skillLabels';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import React from "react"
 import { motion, AnimatePresence } from "framer-motion";
@@ -1661,7 +1662,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
                                                                                                     <div className="flex flex-wrap gap-1 justify-center">
                                                                                                         {coreProgram.map((lang: string) => (
                                                                                                             <span key={lang} className="bg-[#FFE4D0] text-[#9A3F0A] rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center">
-                                                                                                                {lang}
+                                                                                                                {skillLabel(lang)}
                                                                                                             </span>
                                                                                                         ))}
                                                                                                     </div>
@@ -1673,7 +1674,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
                                                                                                     <div className="flex flex-wrap gap-1 justify-center">
                                                                                                         {frontend.map((lang: string) => (
                                                                                                             <span key={lang} className="bg-[#FFE4D0] text-[#9A3F0A] rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center">
-                                                                                                                {lang}
+                                                                                                                {skillLabel(lang)}
                                                                                                             </span>
                                                                                                         ))}
                                                                                                     </div>
@@ -1685,7 +1686,7 @@ export function renderMainContent(deps: PedagogyMainViewDeps) {
                                                                                                     <div className="flex flex-wrap gap-1 justify-center">
                                                                                                         {database.map((lang: string) => (
                                                                                                             <span key={lang} className="bg-green-100 text-green-800 rounded-md px-1.5 py-0.5 text-[13px] font-medium text-center">
-                                                                                                                {lang}
+                                                                                                                {skillLabel(lang)}
                                                                                                             </span>
                                                                                                         ))}
                                                                                                     </div>

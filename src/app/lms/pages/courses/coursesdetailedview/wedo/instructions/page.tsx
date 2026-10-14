@@ -1,4 +1,5 @@
 "use client";
+import { skillLabel } from '@/lib/skillLabels';
 import { getToken } from "@/lib/session";
  
 // ════════════════════════════════════════════════════════════════════════════
@@ -83,9 +84,7 @@ function pickTotalQuestions(ex: any): number {
 function pickLanguages(ex: any): string[] {
   const langs = ex?.programmingSettings?.selectedLanguages || ex?.exerciseInformation?.selectedLanguages || [];
   if (!Array.isArray(langs)) return [];
-  return langs.filter(Boolean).map((l: string) =>
-    String(l).toLowerCase() === "python" ? "Python 3.11" : String(l).replace(/^./, (c: string) => c.toUpperCase()),
-  );
+  return langs.filter(Boolean).map((l: string) => skillLabel(l));
 }
 function pickEvaluationLabel(ex: any): string {
   const m = (ex?.evaluationMethod?.method || ex?.evaluationMethod || "").toString().toLowerCase();

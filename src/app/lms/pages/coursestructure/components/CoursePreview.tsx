@@ -1,5 +1,6 @@
 "use client"
 
+import { skillLabel } from '@/lib/skillLabels';
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
@@ -346,7 +347,7 @@ export default function CoursePreview({ courseId, fallbackName, onEdit, onClose 
                                 {languages.map(({ group, items }) => (
                                     <div key={group} className="flex flex-wrap items-center gap-2">
                                         <span className="text-[12px] font-medium text-subtle w-20 flex-shrink-0">{group}</span>
-                                        {items.map((lang) => <Chip key={lang}>{lang}</Chip>)}
+                                        {items.map((lang) => <Chip key={lang}>{skillLabel(lang)}</Chip>)}
                                     </div>
                                 ))}
                             </div>

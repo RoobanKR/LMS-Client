@@ -1,3 +1,4 @@
+import { skillLabel } from '@/lib/skillLabels';
 import { SettingsHelp } from '../SettingsHelp';
 import React, { useEffect, useRef, useState } from 'react';
 import styles from '../AssignmentSettings.module.css';
@@ -346,7 +347,7 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
         {allLangs.length === 0 && <span className={styles.fieldNote}>No skills configured. Set them in Topic Settings.</span>}
         {allLangs.map(language => <span key={language.name} className={styles.skill}>
           {language.icon && <img src={language.icon} alt="" onError={event => { event.currentTarget.style.display = 'none'; }} />}
-          {language.name}
+          {skillLabel(language.name)}
         </span>)}
       </div>
     </FormRow>

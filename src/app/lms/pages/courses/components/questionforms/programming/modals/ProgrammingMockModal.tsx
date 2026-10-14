@@ -2,6 +2,7 @@
 // attempting this question. Runs solution against Piston directly (bypasses
 // the auth-gated server proxy) so the teacher can dry-run without polluting
 // the students' rate-limit. Extracted 2026-08-30.
+import { skillLabel } from '@/lib/skillLabels';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X, Check, ChevronLeft, ChevronRight, Code, Loader2, Play,
@@ -259,7 +260,7 @@ export const ProgrammingMockModal: React.FC<{
               background: '#ffffff', color: '#333', cursor: 'pointer', outline: 'none'
             }}>
             {selectedLanguages.length > 0
-              ? selectedLanguages.map(l => <option key={l} value={l.toLowerCase()}>{l}</option>)
+              ? selectedLanguages.map(l => <option key={l} value={l.toLowerCase()}>{skillLabel(l)}</option>)
               : ['Python', 'JavaScript', 'Java', 'C++'].map(l => <option key={l} value={l.toLowerCase()}>{l}</option>)}
           </select>
           <button onClick={onClose}

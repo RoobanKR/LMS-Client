@@ -20,6 +20,7 @@
  *     section with nothing to say does not render at all.
  */
 
+import { skillList } from '@/lib/skillLabels';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -330,7 +331,7 @@ export default function AssessmentDetailsModal({
                 <Field label="Level" value={titleCase(a.exerciseLevel)} />
                 {a.selectedModule && <Field label="Module" value={a.selectedModule} />}
                 {!!a.selectedLanguages?.length && (
-                  <Field label="Languages" value={a.selectedLanguages.join(', ')} />
+                  <Field label="Languages" value={skillList(a.selectedLanguages)} />
                 )}
                 {a.description && <Field label="Description" value={a.description} full />}
                 {a.instructions && <Field label="Instructions" value={a.instructions} full />}

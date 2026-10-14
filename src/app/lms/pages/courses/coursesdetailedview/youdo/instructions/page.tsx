@@ -1,4 +1,5 @@
 "use client";
+import { skillList } from '@/lib/skillLabels';
 import { getToken } from "@/lib/session";
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -764,7 +765,7 @@ function InstructionsContent() {
     if (languages.length > 0) {
       rows.push({
         key: "lang", icon: <Code2 size={16} />, label: languages.length === 1 ? "Language" : "Languages",
-        value: languages.join(", "),
+        value: skillList(languages),
       });
     }
     return rows;
@@ -779,7 +780,7 @@ function InstructionsContent() {
     if (info.exerciseLevel) rows.push({ label: "Difficulty level", value: titleCase(info.exerciseLevel) });
     if (info.testType) rows.push({ label: "Test type", value: `${titleCase(info.testType)} test` });
     rows.push({ label: "Grading", value: isGraded ? "Graded" : "Non-graded" });
-    if (languages.length > 0) rows.push({ label: languages.length === 1 ? "Language" : "Languages", value: languages.join(", ") });
+    if (languages.length > 0) rows.push({ label: languages.length === 1 ? "Language" : "Languages", value: skillList(languages) });
     if (totalQuestions > 0) rows.push({ label: "Questions", value: plural(totalQuestions, questionNoun) });
     if (duration > 0) rows.push({ label: "Duration", value: `${duration} min` });
     if (questionMode) rows.push({ label: "Question selection", value: questionMode.label });

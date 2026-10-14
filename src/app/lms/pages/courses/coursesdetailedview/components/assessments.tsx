@@ -1,5 +1,6 @@
 "use client"
 
+import { skillLabel } from '@/lib/skillLabels';
 import { useState, useMemo, useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
 import {
@@ -859,7 +860,7 @@ function StartExercisePopup({
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'flex-end' }}>
                 {languages.map(l => (
                   <span key={l} style={{ padding: '1px 5px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: '#fff7ed', color: '#f97316' }}>
-                    {l.toUpperCase()}
+                    {skillLabel(l)}
                   </span>
                 ))}
               </span>

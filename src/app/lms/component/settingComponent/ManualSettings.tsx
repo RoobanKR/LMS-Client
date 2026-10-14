@@ -1,3 +1,4 @@
+import { skillList } from '@/lib/skillLabels';
 import React, { useEffect, useState } from 'react';
 import {
     ArrowLeft, ArrowRight, CheckCircle, X,
@@ -1858,7 +1859,7 @@ const ManualSettings: React.FC<ManualSettingsProps> = ({
                                         </div>
                                         <div className="col-span-2">
                                             <div className="text-[10px] text-gray-500 mb-0.5">Languages</div>
-                                            <div className="text-sm font-semibold text-gray-900">{formData.selectedLanguages.join(', ') || 'None selected'}</div>
+                                            <div className="text-sm font-semibold text-gray-900">{skillList(formData.selectedLanguages) || 'None selected'}</div>
                                         </div>
                                     </div>
                                 </div>
