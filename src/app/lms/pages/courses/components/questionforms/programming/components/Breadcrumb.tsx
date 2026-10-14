@@ -32,11 +32,12 @@ const Crumb: React.FC<{
 }> = ({ text, tip, color = 'var(--lms-text-sec)', weight = 500, maxWidth }) => (
   <span
     className="lms-crumb"
-    data-tip={tip}
+    // Full name on hover - the crumb itself may be cut short with "…".
+    title={`${tip}: ${text}`}
     style={{
-      color, fontWeight: weight, verticalAlign: 'bottom',
-      display: 'inline-block',
-      ...(maxWidth ? { maxWidth, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {}),
+      color, fontWeight: weight,
+      display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      ...(maxWidth ? { maxWidth } : {}),
     }}
   >
     {text}
@@ -47,7 +48,7 @@ export const QuestionFormBreadcrumb: React.FC<{
   hierarchyData: any; tabType?: string; subcategory?: string; subcategoryLabel?: string;
   exerciseName?: string; actionLabel: string; questionLabel: string;
 }> = ({ hierarchyData, subcategoryLabel, exerciseName }) => {
-  const Sep = () => <li aria-hidden="true"><span className="lms-breadcrumb-sep">/</span></li>;
+  const Sep = () => <li aria-hidden="true" style={{ flexShrink: 0 }}><span className="lms-breadcrumb-sep">/</span></li>;
 
   // Build the crumb rail. Order = wide → narrow scope:
   //   Course / Module / Submodule / Topic / Subtopic / <Subcategory> / <Exercise>
@@ -65,14 +66,14 @@ export const QuestionFormBreadcrumb: React.FC<{
   if (subcategoryLabel)             rail.push({ text: capFirst(subcategoryLabel),            tip: 'Section',   maxWidth: 140 });
 
   return (
-    <nav aria-label="Breadcrumb" style={{ fontFamily: 'var(--lms-font)' }}>
-      {/* flex-nowrap keeps the whole rail on ONE line — the wrapper in
-          the parent header has overflow-x:auto so long rails scroll
-          horizontally instead of wrapping into a second row. */}
-      <ol className="flex items-center flex-nowrap whitespace-nowrap" style={{ minWidth: 'max-content' }}>
+    <nav aria-label="Breadcrumb" style={{ fontFamily: 'var(--lms-font)', minWidth: 0, overflow: 'hidden' }}>
+      {/* One line, never a scrollbar: when the rail is wider than the header,
+          the crumbs shrink with "…" (the hierarchy first, the exercise name
+          last) and hovering one shows its full name. */}
+      <ol className="flex items-center flex-nowrap whitespace-nowrap" style={{ minWidth: 0 }}>
         {rail.map((c, i) => (
           <React.Fragment key={i}>
-            <li>
+            <li style={{ minWidth: 28, flex: '0 3 auto', overflow: 'hidden' }}>
               <Crumb
                 text={c.text}
                 tip={c.tip}
@@ -87,16 +88,15 @@ export const QuestionFormBreadcrumb: React.FC<{
         {/* Final crumb: the exercise / assessment name, bold-orange as
             the "you are here" spotlight. No trailing separator. */}
         {exerciseName && (
-          <li>
+          <li style={{ minWidth: 60, flex: '0 1 auto', overflow: 'hidden' }}>
             <span
               className="lms-crumb"
-              data-tip="Assessment"
+              title={capFirst(exerciseName)}
               style={{
                 fontFamily: 'var(--lms-font)', fontSize: 12.5, fontWeight: 700,
                 color: 'var(--lms-orange)',
-                display: 'inline-block',
+                display: 'block',
                 maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                verticalAlign: 'bottom',
               }}
             >
               {capFirst(exerciseName)}

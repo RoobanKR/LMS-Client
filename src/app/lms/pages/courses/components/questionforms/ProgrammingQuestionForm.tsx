@@ -3035,10 +3035,9 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
       </button>
     )}
     {/* Breadcrumb wrapper — flex: 1 with min-width: 0 lets it shrink to fit
-        the header row; the inner <ol> scrolls horizontally if the rail is
-        wider than the viewport. Prevents the breadcrumb from wrapping into
-        the second line and pushing the header taller. */}
-    <div style={{ minWidth: 0, flex: 1, overflowX: 'auto', overflowY: 'visible' }} className="lms-sidebar-scroll">
+        the header row; the crumbs inside shorten with "…" rather than scroll,
+        so the rail stays one line with no scrollbar. */}
+    <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
       <QuestionFormBreadcrumb hierarchyData={hierarchyData} tabType={tabType} subcategory={subcategory} subcategoryLabel={subcategoryLabel} exerciseName={exerciseName} actionLabel={actionLabel} questionLabel={questionLabel} />
     </div>
   </div>
