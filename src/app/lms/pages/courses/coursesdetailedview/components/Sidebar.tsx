@@ -256,6 +256,83 @@ const TreeModuleRow: React.FC<{
   )
 }
 
+/* ─── Phase dropdown row ─────────────────────────────────────────────────────
+   A phased course (Placement Training) is built per phase — Course Structure
+   and the Program Calendar pick a phase first, then its modules. The syllabus
+   mirrors that: one dropdown per phase holding that phase's modules. */
+const PhaseRow: React.FC<{
+  label: string; count: number; isOpen: boolean; onToggle: () => void
+}> = ({ label, count, isOpen, onToggle }) => {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      aria-expanded={isOpen}
+      title={label}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        width: "calc(100% - 16px)", margin: "4px 8px 2px", padding: "7px 12px",
+        border: `1px solid ${C.borderSub}`, borderRadius: 10,
+        background: hover ? "#E9EBF0" : C.surface,
+        cursor: "pointer", userSelect: "none", textAlign: "left",
+        fontFamily: C.font, transition: "background 0.12s",
+      }}
+    >
+      <Layers size={13} strokeWidth={1.9} color={C.accent} style={{ flexShrink: 0 }} />
+      <span style={{
+        flex: 1, fontSize: 13.5, fontWeight: 600, color: C.text,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 11.5, color: C.textMuted, flexShrink: 0 }}>
+        {count} {count === 1 ? "module" : "modules"}
+      </span>
+      <span style={{ color: C.textMuted, display: "flex", flexShrink: 0 }}>
+        {isOpen ? <ChevronDown size={13} strokeWidth={2} /> : <ChevronRight size={13} strokeWidth={2} />}
+      </span>
+    </button>
+  )
+}
+
+/** "Phase II" → 2, "Phase 3" → 3; anything else sorts after, in arrival order. */
+const PHASE_ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 }
+const phaseOrdinal = (name: string): number => {
+  const m = name.trim().toLowerCase().match(/(\d+|[ivx]+)$/)
+  if (!m) return Infinity
+  return /\d/.test(m[1]) ? Number(m[1]) : (PHASE_ROMAN[m[1]] ?? Infinity)
+}
+
+/**
+ * The course's modules grouped by phase, in phase order — or null for a course
+ * that does not run in phases (no batch and no module names one), which keeps
+ * the flat list. A module's phase is its NAME; "" means it was built before
+ * phases and belongs to the first phase, as Course Structure shows it.
+ */
+function groupModulesByPhase(courseData: CourseData, modules: any[]): { name: string; modules: any[] }[] | null {
+  const names = new Map<string, string>() // lower-cased → first spelling seen
+  const add = (v: unknown) => {
+    const n = String(v ?? "").trim()
+    if (n && !names.has(n.toLowerCase())) names.set(n.toLowerCase(), n)
+  }
+  ;(courseData.batchAndParticipants || []).forEach((b: any) => add(b?.phase))
+  ;(courseData.modules || []).forEach((m: any) => add(m?.phase))
+  if (!names.size) return null
+
+  const groups = [...names.values()]
+    .map((name, i) => ({ name, i }))
+    .sort((a, b) => (phaseOrdinal(a.name) - phaseOrdinal(b.name)) || a.i - b.i)
+    .map(({ name }) => ({ name, modules: [] as any[] }))
+  for (const m of modules) {
+    const key = String(m?.phase ?? "").trim().toLowerCase()
+    ;(groups.find((g) => g.name.toLowerCase() === key) || groups[0]).modules.push(m)
+  }
+  return groups.filter((g) => g.modules.length)
+}
+
 /* ─── Leaf / subtopic row ────────────────────────────────────────────────── */
 const SubtopicRow: React.FC<{
   title: string; isSelected: boolean; isCurrentTopic?: boolean; onClick: () => void
@@ -577,6 +654,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   courseId, currentTopicId, topicProgress,
 }) => {
   const [pedagogyViews, setPedagogyViews] = useState<PedagogyView[]>([])
+  // Phase dropdowns the student opened / closed by hand; others follow the
+  // default (the phase holding the open or selected module, else the first).
+  const [phaseOpen, setPhaseOpen] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     fetchAllPedagogyViews().then(setPedagogyViews).catch(console.error)
@@ -604,6 +684,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ) ||
     m.topics?.some((t: any) => t.title.toLowerCase().includes(sidebarSearch.toLowerCase()))
   )
+
+  const phaseGroups = groupModulesByPhase(courseData, filtered)
+  const hasActive = (g: { modules: any[] }) =>
+    g.modules.some((m: any) => expandedModules.has(m._id) || selectedItem?.hierarchy?.[0] === m._id)
+  const anyPhaseActive = !!phaseGroups?.some(hasActive)
 
   // Recursive tree renderer — expandable when the node has children, file-leaf otherwise.
   const renderNode = (
@@ -690,7 +775,26 @@ ${FONT_INTER_IMPORT}          .sbd-scroll::-webkit-scrollbar{width:3px}
           already names it (matches the upload-resources sidebar). */}
       <SectionLabel label="Syllabus" />
       <div style={{ paddingTop: 2 }}>
-        {filtered.map((m: any) => renderNode(m, "module", [m._id], 0))}
+        {phaseGroups
+          ? phaseGroups.map((g, gi) => {
+              const open = sidebarSearch ? true : (phaseOpen[g.name] ?? (hasActive(g) || (!anyPhaseActive && gi === 0)))
+              return (
+                <div key={g.name} style={{ marginBottom: 4 }}>
+                  <PhaseRow
+                    label={g.name}
+                    count={g.modules.length}
+                    isOpen={open}
+                    onToggle={() => setPhaseOpen((p) => ({ ...p, [g.name]: !open }))}
+                  />
+                  <AnimCollapse open={open}>
+                    <div style={{ paddingTop: 2 }}>
+                      {g.modules.map((m: any) => renderNode(m, "module", [m._id], 0))}
+                    </div>
+                  </AnimCollapse>
+                </div>
+              )
+            })
+          : filtered.map((m: any) => renderNode(m, "module", [m._id], 0))}
       </div>
       <div style={{ height: 8 }} />
     </div>

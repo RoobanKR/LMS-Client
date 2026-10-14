@@ -30,7 +30,7 @@ export interface Pedagogy { I_Do?:Record<string,PedagogyItem>|string[]; We_Do?:R
 export interface SubTopic { _id:string; title:string; description:string; duration?:string; level?:string; subTopics?:SubTopic[]; pedagogy?:Pedagogy }
 export interface Topic    { _id:string; title:string; description:string; duration?:string; level?:string; subTopics?:SubTopic[]; pedagogy?:Pedagogy }
 export interface SubModule{ _id:string; title:string; description:string; topics?:Topic[]; pedagogy?:Pedagogy }
-export interface Module   { _id:string; title:string; description:string; subModules?:SubModule[]; topics?:Topic[]; pedagogy?:Pedagogy }
+export interface Module   { _id:string; title:string; description:string; subModules?:SubModule[]; topics?:Topic[]; pedagogy?:Pedagogy; /** Phase name ("Phase I"); "" = built before phases or an unphased course. */ phase?:string }
 
 /**
  * One resource type's row in Course Setup → Resource Type: whether it's on,
