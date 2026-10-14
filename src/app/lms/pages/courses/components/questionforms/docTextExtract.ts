@@ -121,6 +121,24 @@ function liftLevelColumns(xml: string): string {
   });
 }
 
+// Word writes 10^5 as "10" + a superscript "5". Read as plain text that is
+// "105", which turns "1 <= n <= 10^5" into "1 <= n <= 105". A superscript run
+// that is a number (or one letter, as in 2^n) gets its caret back; a
+// superscript ordinal ("1st", "grid[r][c]th") is left as it is.
+const RUN_RE = /<w:r(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g;
+const EXPONENT = /^\s*[-+\u2212]?(?:\d+|[a-z])\s*$/i;
+
+function markExponents(xml: string): string {
+  return xml.replace(RUN_RE, run => {
+    if (!/<w:vertAlign\s+w:val="superscript"/.test(run)) return run;
+    const text = (run.match(/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>/g) ?? [])
+      .map(t => t.replace(/<[^>]+>/g, ''))
+      .join('');
+    if (!EXPONENT.test(decodeXmlEntities(text))) return run;
+    return run.replace(/<w:t(?:\s[^>]*)?>/, m => `${m}^`);
+  });
+}
+
 function paragraphsToText(xml: string): string {
   const lines: string[] = [];
   const paraRe = /<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>|<w:p\s*\/>/g;
@@ -128,7 +146,9 @@ function paragraphsToText(xml: string): string {
   let para: RegExpExecArray | null;
   while ((para = paraRe.exec(xml)) !== null) {
     // Drop the properties blocks - they hold no text but do hold look-alike tags.
-    const body = (para[1] || '').replace(
+    // Exponents are marked first, while the run properties still say which
+    // runs are superscript.
+    const body = markExponents(para[1] || '').replace(
       /<w:(?:pPr|rPr|sectPr)(?:\s[^>]*)?>[\s\S]*?<\/w:(?:pPr|rPr|sectPr)>/g,
       '',
     );

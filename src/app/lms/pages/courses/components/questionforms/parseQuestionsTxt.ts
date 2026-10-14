@@ -24,7 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { extractDocumentText } from './docTextExtract';
-import { normalizeStdinInputWithFormat, normalizeStdinOutput } from './testCaseStdin';
+import { flattenArrayLines, normalizeStdinInputWithFormat, normalizeStdinOutput } from './testCaseStdin';
 
 export interface ParsedQuestionOption {
   id: string;
@@ -365,8 +365,19 @@ interface DocHeader {
   links?: string[];
 }
 
-/** A line that is nothing but a link. */
-const URL_LINE = /^(?:<)?(https?:\/\/[^\s<>]+?)(?:>)?[.,;]?$/i;
+/**
+ * A line that is nothing but a link - bare, or wrapped the way papers write it
+ * under the title: "[ https://leetcode.com/... ]", "(https://...)", "<https://...>",
+ * optionally labelled ("Link: https://..."). The URL is the first capture that
+ * matched; use `linkOf`.
+ */
+const URL_LINE = /^(?:(?:link|url|reference|ref|source|leetcode|problem\s*link)\s*[:\-\u2013]\s*)?(?:\[\s*(https?:\/\/[^\s<>]+?)\s*\]|\(\s*(https?:\/\/[^\s<>]+?)\s*\)|<\s*(https?:\/\/[^\s<>]+?)\s*>|(https?:\/\/[^\s<>]+?))[.,;]?$/i;
+
+/** The URL of a link-only line, else null. */
+const linkOf = (line: string): string | null => {
+  const m = line.match(URL_LINE);
+  return m ? (m[1] || m[2] || m[3] || m[4]) : null;
+};
 
 const HEADER_DIFF = /^(easy|medium|hard|beginner|intermediate|advanced|simple|moderate|difficult|expert)$/i;
 const HEADER_MARKS = /^(\d+(?:\.\d+)?)\s*(?:marks?|points?|pts?)$/i;
@@ -654,8 +665,8 @@ function parseDocChunk(header: DocHeader, rawBody: string[]): ParsedProgrammingQ
     }
 
     // A bare link (the LeetCode page) is a reference, not prose.
-    const url = line.match(URL_LINE);
-    if (url) { if (!links.includes(url[1])) links.push(url[1]); continue; }
+    const url = linkOf(line);
+    if (url) { if (!links.includes(url)) links.push(url); continue; }
 
     if (section === 'cases' && takeCaseMarker(line)) continue;
 
@@ -695,10 +706,13 @@ function parseDocChunk(header: DocHeader, rawBody: string[]): ParsedProgrammingQ
   // The Input Format says what the program reads, size lines included, so the
   // sample's "nums = [1,3,5,6], target = 5" is laid out by it ("4\n1 3 5 6\n5").
   const formatText = inputFormat.join(' ');
+  // "The next 'N' lines each contain A[i]" - an array sample is one value per line.
+  const valuePerLine = /\b(?:next|following)\s+\S+\s+lines?\s+each\b|\beach\s+of\s+the\s+next\b/i.test(formatText);
   const testCases: ParsedTestCase[] = cases
     .filter(c => c !== sampleCase)
     .map(c => ({
-      input: normalizeStdinInputWithFormat(c.input.join('\n'), formatText),
+      // A sample written as "5" / "[2,3,1,1,4]" is fed as "5" / "2 3 1 1 4".
+      input: flattenArrayLines(normalizeStdinInputWithFormat(c.input.join('\n'), formatText), valuePerLine),
       expectedOutput: normalizeStdinOutput(c.output.join('\n')),
       isSample: false,
       isHidden: c.hidden,
@@ -771,6 +785,11 @@ function splitDocChunks(lines: string[]): { header: DocHeader; body: string[] }[
     }));
   }
 
+  // A table paper ("Q. No. | Question Details | Level"): every row is one
+  // question, whether or not it writes "Problem Statement".
+  const rows = splitNumberedRows(lines);
+  if (rows.length) return rows;
+
   // No "Title | Difficulty | Marks" line — anchor on "Problem Statement" and
   // take the nearest non-blank line above it as the title.
   const stmtIdx: number[] = [];
@@ -790,8 +809,8 @@ function splitDocChunks(lines: string[]): { header: DocHeader; body: string[] }[
     for (; t >= 0; t--) {
       const l = lines[t].trim();
       if (!l) continue;
-      const u = l.match(URL_LINE);
-      if (u) { headerLinks[n].unshift(u[1]); continue; }
+      const u = linkOf(l);
+      if (u) { headerLinks[n].unshift(u); continue; }
       const d = l.match(DIFF_LABEL_LINE);
       if (!d) break;
       labelDiff[n] ??= d[1].toLowerCase();
@@ -821,6 +840,62 @@ function splitDocChunks(lines: string[]): { header: DocHeader; body: string[] }[
     },
     body: lines.slice(s, n + 1 < stmtIdx.length ? blockStart[n + 1] : lines.length),
   }));
+}
+
+/**
+ * The rows of a question table ("Q. No. | Question Details | Level"), one
+ * question each. docTextExtract ends every row with its "Difficulty: X" line
+ * (lifted from the Level column) and each row opens with its question number,
+ * so a row runs from number n to the n-th Difficulty line. The title is the
+ * row's first line that isn't a link; the rest, links included, is the body.
+ *
+ * Returns [] unless the paper has exactly that shape - numbers 1, 2, 3 ... each
+ * opening the row right after the previous row's Difficulty line, and every row
+ * holding more than its title - so a paper that writes "Level: Easy" under each
+ * title (not at the row's end) still goes to the Problem Statement splitter.
+ */
+const QNO_LINE = /^(\d+)\s*[.)]?$/;
+
+function splitNumberedRows(lines: string[]): { header: DocHeader; body: string[] }[] {
+  const ends: number[] = [];
+  lines.forEach((l, i) => { if (DIFF_LABEL_LINE.test(l.trim())) ends.push(i); });
+  if (!ends.length) return [];
+
+  const isNumber = (i: number, n: number): boolean => {
+    const m = (lines[i] ?? '').trim().match(QNO_LINE);
+    return !!m && parseInt(m[1], 10) === n;
+  };
+  const nextFilled = (i: number): number => {
+    while (i < lines.length && !lines[i].trim()) i++;
+    return i;
+  };
+  const isContent = (l: string): boolean => {
+    const t = l.trim();
+    return !!t && !DIFF_LABEL_LINE.test(t) && !linkOf(t);
+  };
+
+  const out: { header: DocHeader; body: string[] }[] = [];
+  let prevEnd = -1;
+  for (let k = 0; k < ends.length; k++) {
+    // Row 1 starts at the paper's first "1" line (after its preamble); every
+    // later row right after the previous row's Difficulty line.
+    const start = k === 0
+      ? lines.findIndex((_, i) => i < ends[0] && isNumber(i, 1))
+      : nextFilled(prevEnd + 1);
+    if (start < 0 || start >= ends[k] || !isNumber(start, k + 1)) return [];
+
+    const row = lines.slice(start + 1, ends[k] + 1);
+    const t = row.findIndex(isContent);
+    if (t < 0) return [];
+    const first = row[t].trim();
+    // A row that opens straight with "Problem Statement: ..." has no title line.
+    const titled = !matchDocSection(first);
+    const body = titled ? [...row.slice(0, t), ...row.slice(t + 1)] : row;
+    if (!body.some(isContent)) return [];
+    out.push({ header: { title: titled ? first : '' }, body });
+    prevEnd = ends[k];
+  }
+  return out;
 }
 
 /** Parse an assessment paper. Returns [] when the text isn't in that shape. */

@@ -200,6 +200,33 @@ export function normalizeStdinInput(raw: string): string {
 }
 
 /**
+ * A sample written as bare array literals, one per line - "5" then
+ * "[2,3,1,1,4]" - as the stdin a program reads: "5\n2 3 1 1 4". A 2-D array
+ * becomes one row per line. With `oneValuePerLine` (the Input Format says
+ * "the next N lines each contain ...") a flat array puts each value on its own
+ * line instead. Lines that aren't a whole [...] literal stay as written.
+ */
+export function flattenArrayLines(raw: string, oneValuePerLine = false): string {
+  const text = (raw ?? '').replace(/\r\n?/g, '\n').trim();
+  if (!text.includes('[')) return text;
+  const toLines = (node: LiteralNode): string[] =>
+    oneValuePerLine && node.kind === 'list' && node.items.every(it => it.kind === 'scalar')
+      ? node.items.map(it => (it as { value: string }).value)
+      : literalToLines(node);
+  // One literal spread over several lines (a grid written row by row).
+  if (text.startsWith('[')) {
+    const whole = parseLiteral(text, 0);
+    if (whole && skipWs(text, whole.next) >= text.length) return toLines(whole.node).join('\n');
+  }
+  return text.split('\n').map(line => {
+    const l = line.trim();
+    if (!l.startsWith('[')) return line;
+    const parsed = parseLiteral(l, 0);
+    return parsed && skipWs(l, parsed.next) >= l.length ? toLines(parsed.node).join('\n') : line;
+  }).join('\n');
+}
+
+/**
  * Test-case OUTPUT literal → the exact text the program is expected to print.
  * Arrays/strings are unwrapped the same way, and Python's `True`/`False` is
  * lowered to the literal every supported runtime actually prints — papers mix
