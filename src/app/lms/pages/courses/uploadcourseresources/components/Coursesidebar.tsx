@@ -21,6 +21,8 @@ import { getToken, clearAllStorage } from "@/lib/session";
 import { postLogout } from "@/app/lms/pages/logs/api/activityLog";
 import { logoutUser } from "@/apiServices/tokenVerify";
 
+import { groupByPhase } from "@/lib/phaseGroups";
+
 import type { CourseNode } from "./Types";
 
 /* ─── Constants ─────────────────────────────────────────────────────────────── */
@@ -237,6 +239,48 @@ const SectionLabel = ({ label }: { label: string }) => (
     {label}
   </div>
 );
+
+/* ─── Phase dropdown row ──────────────────────────────────────────────────────
+   A phased course (Placement Training) is built per phase — Course Structure
+   and the Program Calendar pick a phase first, then its modules. The syllabus
+   mirrors that: one dropdown per phase holding that phase's modules. */
+const PhaseRow: React.FC<{
+  label: string; count: number; isOpen: boolean; onToggle: () => void;
+}> = ({ label, count, isOpen, onToggle }) => {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      aria-expanded={isOpen}
+      title={label}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        width: "calc(100% - 16px)", margin: "4px 8px 2px", padding: "7px 10px",
+        border: "1px solid #E4E7EC", borderRadius: 10,
+        background: hover ? "#E9EBF0" : T.surface,
+        cursor: "pointer", userSelect: "none", textAlign: "left",
+        fontFamily: T.font, transition: "background .12s",
+      }}
+    >
+      <Layers size={13} strokeWidth={1.9} color={T.acc} style={{ flexShrink: 0 }} />
+      <span style={{
+        flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: T.text,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>
+        {count} {count === 1 ? "module" : "modules"}
+      </span>
+      <span style={{ color: T.textFaint, display: "flex", flexShrink: 0 }}>
+        {isOpen ? <ChevronDown size={13} strokeWidth={2} /> : <ChevronRight size={13} strokeWidth={2} />}
+      </span>
+    </button>
+  );
+};
 
 /* ─── Tree node ─────────────────────────────────────────────────────────────── */
 interface TreeNodeProps {
@@ -495,6 +539,21 @@ export const CourseSidebar: React.FC<Props> = ({
     return q ? buildMatches(courseData, q) : [];
   }, [courseData, searchQuery]);
 
+  // Phased course: one dropdown per phase holding its modules (the server's
+  // `phaseNames` are the batch phases, so a pre-phase module lands under the
+  // true first phase). null keeps the flat list for an unphased course.
+  const phaseGroups = useMemo(
+    () => groupByPhase(
+      roots,
+      (node) => node.originalData?.phase,
+      courseData[0]?.type === "course" ? courseData[0].originalData?.phaseNames || [] : [],
+    ),
+    [roots, courseData],
+  );
+  // Dropdowns opened / closed by hand; the rest follow the default — the phase
+  // holding the open or selected module, else the first phase.
+  const [phaseOpen, setPhaseOpen] = useState<Record<string, boolean>>({});
+
   if (isLoading) return <LoadingSidebar width={sidebarWidth} />;
 
   /* ── COLLAPSED ── */
@@ -746,7 +805,35 @@ export const CourseSidebar: React.FC<Props> = ({
           /* Tree */
           <div style={{ paddingTop: 6 }}>
             <SectionLabel label="Syllabus" />
-            {roots.map((node) => (
+            {phaseGroups ? (() => {
+              const hasActive = (items: CourseNode[]) => items.some((m) =>
+                expandedNodes.has(m.id) || m.id === selectedNode?.id || containsSelected(m, selectedNode?.id ?? null));
+              const anyActive = phaseGroups.some((g) => hasActive(g.items));
+              return phaseGroups.map((g, gi) => {
+                const open = phaseOpen[g.name] ?? (hasActive(g.items) || (!anyActive && gi === 0));
+                return (
+                  <div key={g.name} style={{ marginBottom: 4 }}>
+                    <PhaseRow
+                      label={g.name}
+                      count={g.items.length}
+                      isOpen={open}
+                      onToggle={() => setPhaseOpen((p) => ({ ...p, [g.name]: !open }))}
+                    />
+                    {open && g.items.map((node) => (
+                      <TreeNode
+                        key={node.id}
+                        node={node}
+                        depth={0}
+                        selectedNode={selectedNode}
+                        expandedNodes={expandedNodes}
+                        onNodeSelect={onNodeSelect}
+                        onToggleNode={onToggleNode}
+                      />
+                    ))}
+                  </div>
+                );
+              });
+            })() : roots.map((node) => (
               <TreeNode
                 key={node.id}
                 node={node}

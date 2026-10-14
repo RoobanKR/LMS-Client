@@ -12,6 +12,7 @@ import {
 import { FONT_PRIMARY, FONT_INTER_IMPORT } from "./types/constants"
 import { CourseData, SelectedItem, SelectedItemType, TopicProgressMap, TopicStatus } from "./types/types"
 import { fetchAllPedagogyViews } from "../../../../../../apiServices/pedagogyAndModuleAdd/pedagogy"
+import { groupByPhase } from "@/lib/phaseGroups"
 
 /* ─── Design Tokens ──────────────────────────────────────────────────────── */
 const C = {
@@ -296,41 +297,6 @@ const PhaseRow: React.FC<{
       </span>
     </button>
   )
-}
-
-/** "Phase II" → 2, "Phase 3" → 3; anything else sorts after, in arrival order. */
-const PHASE_ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 }
-const phaseOrdinal = (name: string): number => {
-  const m = name.trim().toLowerCase().match(/(\d+|[ivx]+)$/)
-  if (!m) return Infinity
-  return /\d/.test(m[1]) ? Number(m[1]) : (PHASE_ROMAN[m[1]] ?? Infinity)
-}
-
-/**
- * The course's modules grouped by phase, in phase order — or null for a course
- * that does not run in phases (no batch and no module names one), which keeps
- * the flat list. A module's phase is its NAME; "" means it was built before
- * phases and belongs to the first phase, as Course Structure shows it.
- */
-function groupModulesByPhase(courseData: CourseData, modules: any[]): { name: string; modules: any[] }[] | null {
-  const names = new Map<string, string>() // lower-cased → first spelling seen
-  const add = (v: unknown) => {
-    const n = String(v ?? "").trim()
-    if (n && !names.has(n.toLowerCase())) names.set(n.toLowerCase(), n)
-  }
-  ;(courseData.batchAndParticipants || []).forEach((b: any) => add(b?.phase))
-  ;(courseData.modules || []).forEach((m: any) => add(m?.phase))
-  if (!names.size) return null
-
-  const groups = [...names.values()]
-    .map((name, i) => ({ name, i }))
-    .sort((a, b) => (phaseOrdinal(a.name) - phaseOrdinal(b.name)) || a.i - b.i)
-    .map(({ name }) => ({ name, modules: [] as any[] }))
-  for (const m of modules) {
-    const key = String(m?.phase ?? "").trim().toLowerCase()
-    ;(groups.find((g) => g.name.toLowerCase() === key) || groups[0]).modules.push(m)
-  }
-  return groups.filter((g) => g.modules.length)
 }
 
 /* ─── Leaf / subtopic row ────────────────────────────────────────────────── */
@@ -685,9 +651,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     m.topics?.some((t: any) => t.title.toLowerCase().includes(sidebarSearch.toLowerCase()))
   )
 
-  const phaseGroups = groupModulesByPhase(courseData, filtered)
-  const hasActive = (g: { modules: any[] }) =>
-    g.modules.some((m: any) => expandedModules.has(m._id) || selectedItem?.hierarchy?.[0] === m._id)
+  // Phased course: one dropdown per phase (batch phases name the phases a
+  // module may not have yet); null keeps the flat list for unphased courses.
+  const phaseGroups = groupByPhase(filtered, (m: any) => m?.phase, [
+    ...(courseData.batchAndParticipants || []).map((b: any) => b?.phase),
+    ...courseData.modules.map((m: any) => m?.phase),
+  ])
+  const hasActive = (g: { items: any[] }) =>
+    g.items.some((m: any) => expandedModules.has(m._id) || selectedItem?.hierarchy?.[0] === m._id)
   const anyPhaseActive = !!phaseGroups?.some(hasActive)
 
   // Recursive tree renderer — expandable when the node has children, file-leaf otherwise.
@@ -782,13 +753,13 @@ ${FONT_INTER_IMPORT}          .sbd-scroll::-webkit-scrollbar{width:3px}
                 <div key={g.name} style={{ marginBottom: 4 }}>
                   <PhaseRow
                     label={g.name}
-                    count={g.modules.length}
+                    count={g.items.length}
                     isOpen={open}
                     onToggle={() => setPhaseOpen((p) => ({ ...p, [g.name]: !open }))}
                   />
                   <AnimCollapse open={open}>
                     <div style={{ paddingTop: 2 }}>
-                      {g.modules.map((m: any) => renderNode(m, "module", [m._id], 0))}
+                      {g.items.map((m: any) => renderNode(m, "module", [m._id], 0))}
                     </div>
                   </AnimCollapse>
                 </div>
