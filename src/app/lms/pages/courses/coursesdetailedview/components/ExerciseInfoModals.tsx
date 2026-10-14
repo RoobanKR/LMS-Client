@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { FileText, Award, X } from "lucide-react";
+import { skillList } from "@/lib/skillLabels";
 
 const T = {
   orange: '#F27757',
@@ -94,6 +95,128 @@ const DIFF_STYLE = {
   medium: { dot: '#d97706', bg: '#fffbeb', border: '#fde68a', text: '#92400e', badgeBg: '#fef3c7' },
   hard:   { dot: '#dc2626', bg: '#fff1f2', border: '#fecaca', text: '#991b1b', badgeBg: '#fee2e2' },
 } as const;
+
+// "14 Oct 2026, 9:00 AM" - the date AND the time; a deadline without its
+// time ("Available until 21 Oct 2026") leaves students guessing.
+const formatDateTime = (value: unknown): string | null => {
+  if (!value) return null;
+  const d = new Date(value as string);
+  if (Number.isNaN(d.getTime())) return null;
+  const date = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${date}, ${time}`;
+};
+
+const capitalise = (s: unknown): string => {
+  const v = String(s ?? "").trim();
+  return v ? v.charAt(0).toUpperCase() + v.slice(1) : "";
+};
+
+const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", margin: "16px 0 4px", fontFamily: FONT }}>
+    {children}
+  </p>
+);
+
+// Label left, value right; a long value wraps instead of being cut off.
+const InfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
+  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "8px 0", borderBottom: `1px solid ${T.borderLight}` }}>
+    <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub, fontFamily: FONT, flexShrink: 0 }}>{label}</span>
+    <span style={{ fontSize: 12, fontWeight: 600, color: T.textMain, fontFamily: FONT, textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>{value}</span>
+  </div>
+);
+
+const Chip: React.FC<{ children: React.ReactNode; tone?: "neutral" | "green" | "orange" }> = ({ children, tone = "neutral" }) => {
+  const c = tone === "green" ? { bg: "#f0fdf4", bd: "#bbf7d0", fg: "#15803d" }
+    : tone === "orange" ? { bg: T.orangeLight, bd: "rgba(242,119,87,0.25)", fg: "#c2410c" }
+    : { bg: T.pageBg, bd: T.border, fg: T.textSub };
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: c.bg, border: `1px solid ${c.bd}`, color: c.fg, fontFamily: FONT, whiteSpace: "nowrap" }}>
+      {children}
+    </span>
+  );
+};
+
+/**
+ * The body of the Exercise Info modal (We Do and You Do): the full name, what
+ * kind of work it is, how many questions of each difficulty, and the window it
+ * is open in - dates with their times.
+ */
+export const ExerciseDetailsContent: React.FC<{ exercise: any; totalMarks?: number }> = ({ exercise, totalMarks }) => {
+  const info = exercise?.exerciseInformation || {};
+  const questions: any[] = exercise?.questions || [];
+  const isGraded = exercise?.isGraded !== false;
+  const languages = skillList(exercise?.programmingSettings?.selectedLanguages || info.selectedLanguages);
+  const ap = exercise?.availabilityPeriod || {};
+  const opens = formatDateTime(ap.startDate);
+  const due = formatDateTime(ap.endDate);
+  const grace = ap.gracePeriodAllowed ? formatDateTime(ap.gracePeriodDate) : null;
+  const cutOff = ap.cutOffEnabled ? formatDateTime(ap.cutOffDate) : null;
+
+  // Questions of each difficulty, with their marks when the work is graded.
+  const levels = (["easy", "medium", "hard"] as const).map((d) => {
+    const qs = questions.filter((q) => String(q?.difficulty || "").toLowerCase() === d);
+    const marks = qs.reduce((s, q) => s + (Number(q?.score ?? q?.points ?? q?.mcqQuestionScore) || 0), 0);
+    return { d, count: qs.length, marks };
+  });
+  const hasLevels = levels.some((l) => l.count > 0);
+
+  return (
+    <>
+      {/* The full name - wraps, never cut off. */}
+      <div style={{ fontSize: 15, fontWeight: 700, color: T.textMain, lineHeight: 1.4, overflowWrap: "anywhere", fontFamily: FONT }}>
+        {info.exerciseName || "Exercise"}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+        {exercise?.exerciseType && <Chip>{capitalise(exercise.exerciseType)}</Chip>}
+        <Chip tone={isGraded ? "orange" : "green"}>{isGraded ? "Graded" : "Non-graded"}</Chip>
+        {info.exerciseLevel && <Chip>{capitalise(info.exerciseLevel)}</Chip>}
+      </div>
+
+      <SectionTitle>Details</SectionTitle>
+      <InfoRow label="Total questions" value={questions.length} />
+      {languages && <InfoRow label={languages.includes(",") ? "Languages" : "Language"} value={languages} />}
+      {info.totalDuration != null && Number(info.totalDuration) > 0 && <InfoRow label="Duration" value={`${info.totalDuration} min`} />}
+      {isGraded && totalMarks ? <InfoRow label="Total marks" value={totalMarks} /> : null}
+      {isGraded && exercise?.evaluationSettings?.passingScore != null && (
+        <InfoRow label="Passing score" value={`${exercise.evaluationSettings.passingScore}%`} />
+      )}
+
+      {hasLevels && (
+        <>
+          <SectionTitle>Questions by difficulty</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 6 }}>
+            {levels.map(({ d, count, marks }) => {
+              const ds = DIFF_STYLE[d];
+              return (
+                <div key={d} style={{ padding: "9px 10px", borderRadius: 10, background: ds.bg, border: `1px solid ${ds.border}`, textAlign: "center", opacity: count ? 1 : 0.6 }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: ds.text, fontFamily: FONT }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: ds.dot, display: "inline-block" }} />
+                    {capitalise(d)}
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: T.textMain, lineHeight: 1.3, fontFamily: FONT }}>{count}</div>
+                  <div style={{ fontSize: 10.5, color: ds.text, fontFamily: FONT }}>
+                    {count === 1 ? "question" : "questions"}{isGraded && marks > 0 ? ` · ${marks} marks` : ""}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {(opens || due || grace || cutOff) && (
+        <>
+          <SectionTitle>Availability</SectionTitle>
+          {opens && <InfoRow label="Available from" value={opens} />}
+          {due && <InfoRow label="Available until" value={due} />}
+          {grace && <InfoRow label="Grace period until" value={grace} />}
+          {cutOff && <InfoRow label="Late submission until" value={cutOff} />}
+        </>
+      )}
+    </>
+  );
+};
 
 const ExerciseInfoModals: React.FC<ExerciseInfoModalsProps> = ({
   exercise, showDetailsModal, setShowDetailsModal, showOverviewModal, setShowOverviewModal, solvedQuestions = new Set(),
@@ -275,24 +398,10 @@ const ExerciseInfoModals: React.FC<ExerciseInfoModalsProps> = ({
       {/* Exercise Info */}
       {showDetailsModal && (
         <Overlay onClose={() => setShowDetailsModal(false)}>
-          <ModalShell>
+          <ModalShell width={440}>
             <ModalHeader icon={<FileText size={13} style={{ color: T.textSub }} />} title="Exercise Info" onClose={() => setShowDetailsModal(false)} />
-            <div style={{ flex: 1, overflowY: "auto", padding: "4px 18px 12px" }}>
-              {exerciseInfo.exerciseName   && <Row label="Exercise Name"  value={exerciseInfo.exerciseName} />}
-              {exerciseInfo.exerciseLevel  && <Row label="Level"          value={exerciseInfo.exerciseLevel.charAt(0).toUpperCase() + exerciseInfo.exerciseLevel.slice(1)} />}
-              {exercise?.exerciseType      && <Row label="Exercise Type"  value={exercise.exerciseType} />}
-              <Row label="Total Questions" value={totalQ} />
-              {exerciseInfo.totalDuration != null && <Row label="Duration" value={`${exerciseInfo.totalDuration} min`} />}
-              {isGraded && totalMarks ? <Row label="Total Marks" value={totalMarks} /> : null}
-              {exercise?.evaluationSettings?.passingScore != null && (
-                <Row label="Passing Score" value={`${exercise.evaluationSettings.passingScore}%`} />
-              )}
-              {exercise?.availabilityPeriod?.startDate && (
-                <Row label="Available From" value={new Date(exercise.availabilityPeriod.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} />
-              )}
-              {exercise?.availabilityPeriod?.endDate && (
-                <Row label="Available Until" value={new Date(exercise.availabilityPeriod.endDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} />
-              )}
+            <div style={{ flex: 1, overflowY: "auto", padding: "14px 18px 14px" }}>
+              <ExerciseDetailsContent exercise={exercise} totalMarks={totalMarks} />
             </div>
             <ModalFooter onClose={() => setShowDetailsModal(false)} />
           </ModalShell>

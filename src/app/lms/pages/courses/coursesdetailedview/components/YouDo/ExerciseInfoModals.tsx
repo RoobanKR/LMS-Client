@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { FileText, Award, X } from "lucide-react";
+import { ExerciseDetailsContent } from "../ExerciseInfoModals";
 
 const T = {
   orange: '#F27757',
@@ -183,24 +184,10 @@ const ExerciseInfoModals: React.FC<ExerciseInfoModalsProps> = ({
       {/* Exercise Info */}
       {showDetailsModal && (
         <Overlay onClose={() => setShowDetailsModal(false)}>
-          <ModalShell>
+          <ModalShell width={440}>
             <ModalHeader icon={<FileText size={13} style={{ color: T.textSub }} />} title="Exercise Info" onClose={() => setShowDetailsModal(false)} />
-            <div style={{ flex: 1, overflowY: "auto", padding: "4px 18px 12px" }}>
-              {exerciseInfo.exerciseName   && <Row label="Exercise Name"  value={exerciseInfo.exerciseName} />}
-              {exerciseInfo.exerciseLevel  && <Row label="Level"          value={exerciseInfo.exerciseLevel.charAt(0).toUpperCase() + exerciseInfo.exerciseLevel.slice(1)} />}
-              {exercise?.exerciseType      && <Row label="Exercise Type"  value={exercise.exerciseType} />}
-              <Row label="Total Questions" value={totalQ} />
-              {exerciseInfo.totalDuration != null && <Row label="Duration" value={`${exerciseInfo.totalDuration} min`} />}
-              {isGraded && totalMarks ? <Row label="Total Marks" value={totalMarks} /> : null}
-              {exercise?.evaluationSettings?.passingScore != null && (
-                <Row label="Passing Score" value={`${exercise.evaluationSettings.passingScore}%`} />
-              )}
-              {exercise?.availabilityPeriod?.startDate && (
-                <Row label="Available From" value={new Date(exercise.availabilityPeriod.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} />
-              )}
-              {exercise?.availabilityPeriod?.endDate && (
-                <Row label="Available Until" value={new Date(exercise.availabilityPeriod.endDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} />
-              )}
+            <div style={{ flex: 1, overflowY: "auto", padding: "14px 18px 14px" }}>
+              <ExerciseDetailsContent exercise={exercise} totalMarks={totalMarks} />
             </div>
             <ModalFooter onClose={() => setShowDetailsModal(false)} />
           </ModalShell>
