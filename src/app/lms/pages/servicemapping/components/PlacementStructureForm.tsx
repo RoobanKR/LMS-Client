@@ -85,6 +85,10 @@ export type PlacementStructureFormProps = {
     phaseNames: string[]
     onSetPhaseCount: (count: number) => void
     onSetPhaseName: (index: number, value: string) => void
+    // Per phase (same index): hidden from the course sidebars — the student
+    // course page and Upload Resources — modules and all.
+    phaseHidden?: boolean[]
+    onSetPhaseHidden?: (index: number, hidden: boolean) => void
 
     // Training batches, read and written through the wizard's course store.
     courseApi: CourseApi
@@ -220,6 +224,8 @@ export default function PlacementStructureForm({
     phaseNames,
     onSetPhaseCount,
     onSetPhaseName,
+    phaseHidden = [],
+    onSetPhaseHidden,
     courseApi,
     fieldErrors,
     onClearFieldError,
@@ -399,13 +405,13 @@ export default function PlacementStructureForm({
                         const nameError = fieldErrors[`phase-${i}-0`]
                         return (
                             <section key={phaseSectionId(i)} className={structureCardCls}>
-                                <h3>
+                                <h3 className="flex items-center">
                                     <button
                                         type="button"
                                         onClick={toggleSection(phaseSectionId(i), i)}
                                         aria-expanded={expanded}
                                         className={cn(
-                                            'group flex w-full items-center gap-2.5 px-3 py-2 text-left outline-none',
+                                            'group flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left outline-none',
                                             'transition-colors hover:bg-info-50 focus-visible:ring-2 focus-visible:ring-info-500/30',
                                             expanded ? 'rounded-t-tile' : 'rounded-tile'
                                         )}
@@ -414,7 +420,26 @@ export default function PlacementStructureForm({
                                         <span className="text-lg font-semibold text-heading transition-colors group-hover:text-info-700">
                                             {phaseName || defaultPhaseName(i)}
                                         </span>
+                                        {phaseHidden[i] && (
+                                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-subtle">
+                                                Hidden
+                                            </span>
+                                        )}
                                     </button>
+                                    {onSetPhaseHidden && (
+                                        <label
+                                            className="mr-3 flex shrink-0 cursor-pointer items-center gap-1.5 text-sm font-medium text-subtle"
+                                            title="Hide this phase and its modules from the course sidebars (students' course page and Upload Resources)"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 cursor-pointer accent-info-600"
+                                                checked={Boolean(phaseHidden[i])}
+                                                onChange={(e) => onSetPhaseHidden(i, e.target.checked)}
+                                            />
+                                            Hide
+                                        </label>
+                                    )}
                                 </h3>
                                 {expanded && (
                                     <div className="px-3 pb-4 pt-2">

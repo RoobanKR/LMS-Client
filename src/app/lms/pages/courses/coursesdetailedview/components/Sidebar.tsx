@@ -654,9 +654,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Phased course: one dropdown per phase (batch phases name the phases a
   // module may not have yet); null keeps the flat list for unphased courses.
   const phaseGroups = groupByPhase(filtered, (m: any) => m?.phase, [
+    ...(courseData.phaseNames || []),
     ...(courseData.batchAndParticipants || []).map((b: any) => b?.phase),
     ...courseData.modules.map((m: any) => m?.phase),
-  ])
+  ], courseData.hiddenPhases || [])
   const hasActive = (g: { items: any[] }) =>
     g.items.some((m: any) => expandedModules.has(m._id) || selectedItem?.hierarchy?.[0] === m._id)
   const anyPhaseActive = !!phaseGroups?.some(hasActive)

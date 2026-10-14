@@ -547,6 +547,8 @@ export const CourseSidebar: React.FC<Props> = ({
       roots,
       (node) => node.originalData?.phase,
       courseData[0]?.type === "course" ? courseData[0].originalData?.phaseNames || [] : [],
+      // Phases Service Mapping hides ("Hide" box) are left out, modules and all.
+      courseData[0]?.type === "course" ? courseData[0].originalData?.hiddenPhases || [] : [],
     ),
     [roots, courseData],
   );

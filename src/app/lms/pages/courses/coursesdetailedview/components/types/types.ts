@@ -88,6 +88,10 @@ export interface CourseData {
     }>
     [key: string]: any
   }>
+  /** The course's phases in order (configured, then batch phases). */
+  phaseNames?: string[]
+  /** Phases Service Mapping hides from the course sidebars. */
+  hiddenPhases?: string[]
 }
 
 export type ResourceType = "video"|"pdf"|"ppt"|"zip"|"link"|"reference"|"page"|"image"|"word"|"txt"

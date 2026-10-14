@@ -167,6 +167,8 @@ export interface CoursePhase {
   _id?: string;
   name: string;
   order?: number;
+  /** Hidden from the course sidebars (student course page, Upload Resources). */
+  hidden?: boolean;
 }
 
 export interface TrainingBatch {

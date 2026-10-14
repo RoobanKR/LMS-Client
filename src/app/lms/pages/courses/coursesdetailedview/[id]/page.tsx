@@ -74,6 +74,7 @@ import { Loading } from "@/components/loading-ui/loading"
 import { useCourseDetailQuery } from "@/queries/courses"
 import { useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/queryKeys"
+import { groupByPhase } from "@/lib/phaseGroups"
 
 // You Do → Assessment subcategory key variants (handles legacy spellings).
 const ASSESSMENT_SUBCATEGORY_KEYS = new Set(["assessment", "assessments", "assesment", "assesments"])
@@ -917,7 +918,16 @@ const subcategories = useMemo(() => {
     }
     const payload = courseDetailQuery.data
     if (!payload) return
-    const info = (payload.data ?? payload) as CourseData
+    const raw = (payload.data ?? payload) as CourseData
+    // Phases Service Mapping hides ("Hide" box) leave the student's course page
+    // entirely — sidebar, first-open module and navigation alike.
+    const visiblePhases = raw?.hiddenPhases?.length && raw.modules
+      ? groupByPhase(raw.modules, (m) => m?.phase, [
+          ...(raw.phaseNames || []),
+          ...(raw.batchAndParticipants || []).map((b: any) => b?.phase),
+        ], raw.hiddenPhases)
+      : null
+    const info = visiblePhases ? { ...raw, modules: visiblePhases.flatMap((g) => g.items) } : raw
     setCourseData(info)
     const hasRestore = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('restoreNodeId')
     if (!hasRestore && !load('lms_student_selected_node_id')) {

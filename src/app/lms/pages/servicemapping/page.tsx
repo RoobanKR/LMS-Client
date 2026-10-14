@@ -831,6 +831,10 @@ function MapServiceWizard({
     // "Phase N" but stay editable; renaming never moves courses, because the
     // course store is keyed by INDEX ('ph<i>'), not by name.
     const [phaseNames, setPhaseNames] = useState<string[]>([])
+    // Per phase, same index as phaseNames: hidden from the course sidebars
+    // (student course page, Upload Resources) with all its modules. The phase
+    // stays configured everywhere else.
+    const [phaseHidden, setPhaseHidden] = useState<boolean[]>([])
     // ── The placement configuration's identity ───────────────────────────────
     // One course, one intake year, one semester, for the whole configuration.
     // The course used to be asked per phase (a phase's name doubled as its
@@ -1073,6 +1077,7 @@ function MapServiceWizard({
                 && !isDegreeProgramModel(models) && !isDIVModel(models)
             if (!loadedPlacement) {
                 setPhaseNames([])
+                setPhaseHidden([])
                 setSemesterCourses(byPath)
             } else {
                 const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
@@ -1105,6 +1110,10 @@ function MapServiceWizard({
                 // old masterData + courses on the way out, so this branch does
                 // not need to know which era the document is from.
                 const savedConfig = (editingMapping.courseConfigurations || [])[0]
+                // A phase's saved "Hide" box, by name — phase ids are re-minted on
+                // read for older mappings, names are what stays put.
+                const savedHidden = (name: string) => Boolean((savedConfig?.phases || [])
+                    .find((ph) => (ph?.name || '').trim().toLowerCase() === (name || '').trim().toLowerCase())?.hidden)
                 if (savedConfig) {
                     setConfigCourseName(savedConfig.courseName || '')
                     setConfigAcademicBatch(savedConfig.academicBatch || editingMapping.year || '')
@@ -1125,6 +1134,7 @@ function MapServiceWizard({
                     // and carries its own batches.
                     const phases = (md['Phase'] || []).filter(Boolean)
                     setPhaseNames([...phases])
+                    setPhaseHidden(phases.map(savedHidden))
                     if (phases.length) {
                         phases.forEach((p, i) => {
                             const saved = savedCourses.find((c) => eq(c.path || '', p))
@@ -1158,6 +1168,7 @@ function MapServiceWizard({
                     const allBatchNames = (rawCfgs.length ? rawCfgs.map((b) => b.name) : (md['Batch'] || []))
                         .map((n) => n.trim()).filter(Boolean)
                     setPhaseNames(phaseUnion)
+                    setPhaseHidden(phaseUnion.map(savedHidden))
                     if (phaseUnion.length) {
                         phaseUnion.forEach((p, i) => {
                             let course: MappedCourse | null = null
@@ -1219,6 +1230,7 @@ function MapServiceWizard({
             setBatchPhases([])
             setBatchPhasesEnabled([])
             setPhaseNames([])
+            setPhaseHidden([])
             setConfigCourseName('')
             // Defaults to the year the mapping is being created for; the picker
             // can move it, since an intake is not always the current year.
@@ -1329,6 +1341,7 @@ function MapServiceWizard({
         setBatchPhases([])
         setBatchPhasesEnabled([])
         setPhaseNames([])
+        setPhaseHidden([])
         setConfigCourseName('')
         setConfigSemester('')
         setNoPhaseCourseCount(1)
@@ -1555,6 +1568,8 @@ function MapServiceWizard({
             { length: count },
             (_, i) => prev[i] ?? `Phase ${PHASE_NUMERALS[i] || i + 1}`
         ))
+        // Positional like the names: a dropped phase takes its flag with it.
+        setPhaseHidden((prev) => prev.slice(0, count))
         // Course keys are positional, so shrinking drops the trailing phases'
         // courses the same way applyBatchCount cleans batch keys — left behind,
         // raising the count again would resurrect them inside what the user
@@ -1632,6 +1647,12 @@ function MapServiceWizard({
     // the slot, not the label.
     const setPhaseNameAt = (i: number, v: string) =>
         setPhaseNames((prev) => prev.map((p, idx) => (idx === i ? v : p)))
+    const setPhaseHiddenAt = (i: number, v: boolean) =>
+        setPhaseHidden((prev) => {
+            const next = [...prev]
+            next[i] = v
+            return next
+        })
 
 
     // Each active placement key must hold exactly ONE CourseEntry before its row
@@ -2626,6 +2647,7 @@ function MapServiceWizard({
                 phases: phaseNames.map((name, i) => ({
                     _id: `phase-${i}`,
                     name: (name || '').trim(),
+                    hidden: Boolean(phaseHidden[i]),
                 })),
                 trainingBatches: phaseNames.length
                     ? phaseNames.flatMap((_, i) => {
@@ -3410,6 +3432,8 @@ function MapServiceWizard({
                                                         phaseNames={phaseNames}
                                                         onSetPhaseCount={applyPhaseCount}
                                                         onSetPhaseName={setPhaseNameAt}
+                                                        phaseHidden={phaseHidden}
+                                                        onSetPhaseHidden={setPhaseHiddenAt}
                                                         courseApi={courseApi}
                                                         fieldErrors={fieldErrors}
                                                         onClearFieldError={clearFieldError}

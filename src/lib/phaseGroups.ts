@@ -24,12 +24,16 @@ export interface PhaseGroup<T> {
 /**
  * `items` grouped by phase, phases in order (I, II, III …), empty phases left
  * out. `knownPhases` adds phase names that may have no module yet (the course's
- * batch phases), so a pre-phase module still lands under the true first phase.
+ * configured / batch phases), so a pre-phase module still lands under the true
+ * first phase. `hiddenPhases` (Service Mapping's "Hide" box) are dropped with
+ * their items — after the grouping, so a hidden first phase also takes the
+ * pre-phase modules filed under it.
  */
 export function groupByPhase<T>(
   items: T[],
   phaseOf: (item: T) => unknown,
   knownPhases: unknown[] = [],
+  hiddenPhases: unknown[] = [],
 ): PhaseGroup<T>[] | null {
   const names = new Map<string, string>() // lower-cased → first spelling seen
   const add = (v: unknown) => {
@@ -37,6 +41,7 @@ export function groupByPhase<T>(
     if (n && !names.has(n.toLowerCase())) names.set(n.toLowerCase(), n)
   }
   knownPhases.forEach(add)
+  hiddenPhases.forEach(add)
   items.forEach((item) => add(phaseOf(item)))
   if (!names.size) return null
 
@@ -48,5 +53,6 @@ export function groupByPhase<T>(
     const key = String(phaseOf(item) ?? '').trim().toLowerCase()
     ;(groups.find((g) => g.name.toLowerCase() === key) || groups[0]).items.push(item)
   }
-  return groups.filter((g) => g.items.length)
+  const hidden = new Set(hiddenPhases.map((v) => String(v ?? '').trim().toLowerCase()))
+  return groups.filter((g) => g.items.length && !hidden.has(g.name.toLowerCase()))
 }
