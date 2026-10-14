@@ -3046,6 +3046,9 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   const router = useRouter();
   const sectionHref = useSectionHref();
   const { nodeId, nodeName, subcategory, subcategoryLabel, hierarchyData, activeTab, nodeType, courseId, configuredLanguages, isHeaderHidden = false, onShowHeader } = props;
+  // What this tab's list holds, for the empty state: We Do lists assignments,
+  // You Do lists assessments.
+  const emptyNoun = activeTab === 'You_Do' ? 'assessment' : activeTab === 'We_Do' ? 'assignment' : 'exercise';
 
   // React Query cache — used ONLY to survive an unmount/remount cycle. The
   // list itself still lives in local `exercises` state so the surrounding
@@ -4826,19 +4829,20 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
             </div>
           </>
         ) : (
-          /* ── Empty state ── */
+          /* ── Empty state ── named for what the tab holds: We Do lists
+             assignments, You Do lists assessments. */
           <div className="flex flex-col items-center justify-center text-center py-16 p-8">
             <div className="mb-4 p-5 rounded-2xl"
               style={{ background: 'rgba(242,119,87,0.06)', border: '1.5px dashed rgba(242,119,87,0.25)' }}>
               <FileCode size={32} style={{ color: 'rgba(242,119,87,0.4)' }} />
             </div>
             <h3 className="text-[14px] font-bold mb-1" style={{ color: '#1a1a2e', ...JKT }}>
-              {searchQuery ? 'No matching exercises' : 'No exercises yet'}
+              {searchQuery ? `No matching ${emptyNoun}s` : `No ${emptyNoun} created`}
             </h3>
             <p className="text-[12px] mb-5 max-w-xs leading-relaxed" style={{ color: '#8b8b9e', ...JKT }}>
               {searchQuery ? 'Try adjusting your search query.'
                 : !subcategory ? 'Please select a subcategory.'
-                  : `Create your first exercise for ${activeTab?.replace('_', ' ')}.`}
+                  : `Create your first ${emptyNoun} for ${activeTab?.replace('_', ' ')}.`}
             </p>
             {subcategory && !searchQuery && (
               <button onClick={handleNewExercise}
@@ -4846,7 +4850,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                 style={{ ...JKT, background: '#F27757', boxShadow: '0 2px 8px rgba(242,119,87,0.3)', cursor: 'pointer', border: 'none' }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#e0623f'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(242,119,87,0.4)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#F27757'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(242,119,87,0.3)'; }}>
-                <Plus size={14} /> Create Exercise
+                <Plus size={14} /> Create {emptyNoun.charAt(0).toUpperCase() + emptyNoun.slice(1)}
               </button>
             )}
           </div>
