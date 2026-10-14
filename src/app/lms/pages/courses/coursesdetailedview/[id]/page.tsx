@@ -184,6 +184,14 @@ const DETAIL_UI = {
 const detailTypeIcon = (type: string) =>
   type === 'module' ? Folder : type === 'submodule' ? Layers : type === 'topic' ? Hash : Bookmark
 
+// Desktop course sidebar: drag its right edge between these, or double-click
+// the edge to switch between the default and the wide width.
+const SIDEBAR_DEFAULT_WIDTH = 280
+const SIDEBAR_WIDE_WIDTH = 440
+const SIDEBAR_MIN_WIDTH = 220
+const SIDEBAR_MAX_WIDTH = 520
+const SIDEBAR_WIDTH_KEY = 'lms_student_sidebar_width'
+
 export default function LMSPage() {
   const params = useParams()
   const router = useRouter()
@@ -228,6 +236,47 @@ export default function LMSPage() {
   const [expandedSubModules, setExpandedSubModules] = useState<Set<string>>(new Set())
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Resizable like the trainer's syllabus sidebar, so long topic names fit.
+  // Starts at the default (server render) and picks up the remembered width.
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH)
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const desktopSidebarRef = useRef<HTMLDivElement>(null)
+  // Set once the student resizes, so the first (default-width) render never
+  // overwrites the remembered width before it has been read back.
+  const sidebarWidthTouched = useRef(false)
+  const clampSidebarWidth = (w: number) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(w)))
+  const resizeSidebar = (next: (w: number) => number) => {
+    sidebarWidthTouched.current = true
+    setSidebarWidth((w) => clampSidebarWidth(next(w)))
+  }
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+      if (saved >= SIDEBAR_MIN_WIDTH && saved <= SIDEBAR_MAX_WIDTH) setSidebarWidth(saved)
+    } catch { /* storage unavailable — keep the default */ }
+  }, [])
+  useEffect(() => {
+    if (!sidebarWidthTouched.current) return
+    try { localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth)) } catch { /* ignore */ }
+  }, [sidebarWidth])
+  useEffect(() => {
+    if (!isResizingSidebar) return
+    const left = desktopSidebarRef.current?.getBoundingClientRect().left ?? 0
+    const onMove = (e: MouseEvent) => resizeSidebar(() => e.clientX - left)
+    const onUp = () => setIsResizingSidebar(false)
+    const prevCursor = document.body.style.cursor
+    const prevSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = prevCursor
+      document.body.style.userSelect = prevSelect
+    }
+  }, [isResizingSidebar])
   // Below lg the course tree is an overlay drawer — start it closed there so
   // phones/tablets land on the content. Desktop keeps it open.
   useEffect(() => {
@@ -2410,10 +2459,11 @@ const getExercisesForActivity = (): any[] => {
         {/* Desktop sidebar — FLAT on the gray canvas (no card, no border),
             matching the upload-resources / floating-workspace shells. */}
         <div
-          className="desktop-sidebar flex flex-col relative flex-shrink-0 self-stretch overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
-          style={{ width: sidebarOpen ? 280 : 0, minWidth: 0 }}
+          ref={desktopSidebarRef}
+          className={`desktop-sidebar flex flex-col relative flex-shrink-0 self-stretch overflow-hidden ${isResizingSidebar ? '' : 'transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]'}`}
+          style={{ width: sidebarOpen ? sidebarWidth : 0, minWidth: 0 }}
         >
-          <div className="w-[280px] flex-1 min-h-0 flex flex-col relative">
+          <div className="flex-1 min-h-0 flex flex-col relative" style={{ width: sidebarWidth }}>
             {/* Course sidebar — image3 look, hierarchy only */}
             <CourseSidebar
               courseName={courseData?.courseName || "Course"}
@@ -2443,6 +2493,29 @@ const getExercisesForActivity = (): any[] => {
               )}
             </CourseSidebar>
           </div>
+          {/* Drag-resize handle — drag to widen / narrow, double-click to
+              switch between the default and the wide width, arrow keys too. */}
+          {sidebarOpen && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize sidebar"
+              aria-valuemin={SIDEBAR_MIN_WIDTH}
+              aria-valuemax={SIDEBAR_MAX_WIDTH}
+              aria-valuenow={sidebarWidth}
+              tabIndex={0}
+              title="Drag to resize · double-click to widen or reset"
+              onMouseDown={(e) => { e.preventDefault(); setIsResizingSidebar(true) }}
+              onDoubleClick={() => resizeSidebar((w) => (w > SIDEBAR_DEFAULT_WIDTH + 20 ? SIDEBAR_DEFAULT_WIDTH : SIDEBAR_WIDE_WIDTH))}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowLeft') { e.preventDefault(); resizeSidebar((w) => w - 20) }
+                if (e.key === 'ArrowRight') { e.preventDefault(); resizeSidebar((w) => w + 20) }
+              }}
+              className="group absolute right-0 top-0 z-20 flex h-full w-2 cursor-col-resize items-center justify-center outline-none"
+            >
+              <span className={`h-10 w-[3px] rounded-full transition-colors group-hover:bg-[#F97316] group-focus-visible:bg-[#F97316] ${isResizingSidebar ? 'bg-[#F97316]' : 'bg-[#E2E5EA]'}`} />
+            </div>
+          )}
         </div>
 
         {/* Sidebar open tab — appears flush on left edge when sidebar is closed */}
