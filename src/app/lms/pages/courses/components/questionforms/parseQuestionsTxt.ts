@@ -198,10 +198,21 @@ export interface ParsedProgrammingQuestion {
   /** True when the document itself stated the difficulty (vs the 'medium' default). */
   difficultyDeclared?: boolean;
   /** The paper's "Sample Input:" / "Sample Output:" — the worked example
-   *  shown with the question. Info only: it is NOT one of `testCases`, which
-   *  come from the paper's "Input:" / "Output:" pairs. */
+   *  shown with the question, and also run as the first of `testCases`. A
+   *  paper without one gets its first visible test case here instead. */
   sampleInput?: string;
   sampleOutput?: string;
+}
+
+/**
+ * Sample Input / Output for a question whose paper wrote none: its first
+ * visible test case (the one flagged as the sample), as the program reads and
+ * prints it. A paper's own sample is kept as written.
+ */
+function withSample(q: ParsedProgrammingQuestion): ParsedProgrammingQuestion {
+  if (q.sampleInput || q.sampleOutput) return q;
+  const tc = q.testCases.find(t => !t.isHidden) ?? q.testCases[0];
+  return tc ? { ...q, sampleInput: tc.input, sampleOutput: tc.expectedOutput } : q;
 }
 
 /**
@@ -315,14 +326,14 @@ function parseProgrammingBlocks(raw: string): ParsedProgrammingQuestion[] {
 
     if (!title && !description) continue;
 
-    out.push({
+    out.push(withSample({
       questionType: 'programming',
       title: title || 'Untitled Programming Question',
       description,
       difficulty: normalizeDifficulty(difficultyRaw),
       constraints,
       testCases: orderTestCases(testCases),
-    });
+    }));
   }
 
   return out;
@@ -699,17 +710,18 @@ function parseDocChunk(header: DocHeader, rawBody: string[]): ParsedProgrammingQ
   }
 
   // The paper's "Sample Input:" / "Sample Output:" is the worked example shown
-  // with the question — info, NOT a test case. The test cases are only the
-  // "Input:" / "Output:" pairs. (A second sample block stays a test case so
-  // nothing written in the paper is lost.)
+  // with the question, and it is ALSO run as a test case - the first, visible
+  // one, so it is the form's "Test Case 1 · Sample". (A second sample block is
+  // just one more test case.) A paper without a sample shows its first test
+  // case as the sample instead (withSample).
   const sampleCase = cases.find(c => c.sample);
+  if (sampleCase) sampleCase.hidden = false;
   // The Input Format says what the program reads, size lines included, so the
   // sample's "nums = [1,3,5,6], target = 5" is laid out by it ("4\n1 3 5 6\n5").
   const formatText = inputFormat.join(' ');
   // "The next 'N' lines each contain A[i]" - an array sample is one value per line.
   const valuePerLine = /\b(?:next|following)\s+\S+\s+lines?\s+each\b|\beach\s+of\s+the\s+next\b/i.test(formatText);
-  const testCases: ParsedTestCase[] = cases
-    .filter(c => c !== sampleCase)
+  const testCases: ParsedTestCase[] = (sampleCase ? [sampleCase, ...cases.filter(c => c !== sampleCase)] : cases)
     .map(c => ({
       // A sample written as "5" / "[2,3,1,1,4]" is fed as "5" / "2 3 1 1 4".
       input: flattenArrayLines(normalizeStdinInputWithFormat(c.input.join('\n'), formatText), valuePerLine),
@@ -740,7 +752,7 @@ function parseDocChunk(header: DocHeader, rawBody: string[]): ParsedProgrammingQ
     .map(c => c.trim())
     .filter(Boolean);
 
-  return {
+  return withSample({
     questionType: 'programming',
     // A PDF renders Word's auto-numbering as literal text ("1. Find Pivot Index").
     title: stripBullet(header.title) || 'Untitled Programming Question',
@@ -751,7 +763,7 @@ function parseDocChunk(header: DocHeader, rawBody: string[]): ParsedProgrammingQ
     testCases: orderTestCases(testCases),
     ...(header.marks !== undefined ? { marks: header.marks } : {}),
     ...(sampleInput || sampleOutput ? { sampleInput, sampleOutput } : {}),
-  };
+  });
 }
 
 /**

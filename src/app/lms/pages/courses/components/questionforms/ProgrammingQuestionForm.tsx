@@ -1529,8 +1529,8 @@ const handleBankSelectedQuestions = useCallback((selected: any[], sourceTag?: st
         sequence: tc.sequence || 0,
       }));
     }
-    // Sample Input / Output is the worked example shown with the question —
-    // info, never a test case (it rides along as sampleInput / sampleOutput).
+    // Sample Input / Output is the worked example shown with the question; a
+    // document import also runs it as Test Case 1 (it arrives in testCases).
 
     // If no test cases, create a default one
     if (testCasesList.length === 0) {
