@@ -164,7 +164,14 @@ function CourseFlowStepper({
 // The 2-part shape stays ['Batch', 'Phase'] either way: that format is written
 // only by the batch-first flow, so its parts really are batch-then-phase even
 // in a mapping that has since moved on.
-const actionBreadcrumbsFor = (course: CourseGroup, phaseFirst: boolean) => {
+// `phases`: every phase a Placement Training course runs in. That course is ONE
+// record across its phases, so its path names only the phase whose record the
+// row stands for — the header would read "Phase: Phase I" for a course that
+// also runs Phase II and III. With phases given, they are all named instead.
+const actionBreadcrumbsFor = (course: CourseGroup, phaseFirst: boolean, phases?: string[]) => {
+    if (phases && phases.length > 1) {
+        return [`Phases: ${phases.join(', ')}`, `Course: ${course.courseName}`]
+    }
     const parts = course.path.split(PATH_SEP).map((p) => p.trim()).filter(Boolean)
     const labels = parts.length === 4
         ? ['Degree', 'Department', 'Section', 'Semester']
@@ -603,7 +610,7 @@ function MappingSection({
     // two identical dialogs. A plain let, not a ref: it must reset on every
     // render pass, and it is only ever read at mount anyway.
     let autoOpenClaimed = false
-    const actionsFor = (course: CourseGroup) => {
+    const actionsFor = (course: CourseGroup, phases?: string[]) => {
         const status = statusFor(course.courseName, course.path)
         if (status) {
             const autoOpen = !autoOpenClaimed && Boolean(autoOpenActionsId) && autoOpenActionsId === status.id
@@ -615,7 +622,7 @@ function MappingSection({
                 status={status}
                 autoOpen={autoOpen}
                 onBeforeNavigate={() => rememberReopenIntent(status.id)}
-                breadcrumbs={actionBreadcrumbsFor(course, phaseTree.length > 0)}
+                breadcrumbs={actionBreadcrumbsFor(course, phaseTree.length > 0, phases)}
                 onView={() => onView(withBatches(course))}
                     onEdit={() => onSetup(withBatches(course))}
                     onStructure={() => onCourseStructure(status.id)}
@@ -642,8 +649,10 @@ function MappingSection({
     // tree can work them out from the course alone, but the batch tree cannot —
     // which of its placements is "this row" depends on the node rendering it — so
     // it passes the list in.
-    const CourseRow = ({ course, alsoIn, sections, batches, expandable, open, onToggle }: {
+    const CourseRow = ({ course, alsoIn, sections, batches, expandable, open, onToggle, phases }: {
         course: CourseGroup
+        /** Every phase this course runs in (Placement Training) — named in the actions header. */
+        phases?: string[]
         alsoIn?: string[]
         sections?: string[]
         batches?: string[]
@@ -736,7 +745,7 @@ function MappingSection({
                 {/* Action column */}
                 <div className="shrink-0 lg:w-[130px] flex lg:justify-end items-center gap-1.5">
                     <span className="lg:hidden text-2xs text-faint font-semibold uppercase">Action:</span>
-                    {actionsFor(course)}
+                    {actionsFor(course, phases)}
                 </div>
             </div>
         )
@@ -970,6 +979,7 @@ function MappingSection({
                                 row={(open, toggle) => (
                                     <CourseRow
                                         course={primary}
+                                        phases={entry.phases.map((p) => String(p.phase))}
                                         expandable
                                         open={open}
                                         onToggle={toggle}
