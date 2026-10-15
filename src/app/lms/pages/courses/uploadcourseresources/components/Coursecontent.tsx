@@ -3795,7 +3795,9 @@ if (activeSubcategory === "assesment") return <Assessment key={`you_do-${activeS
 // Data isolation is automatic — the backend filters by (section=You_Do, subcategory=self_work)
 // so nothing leaks to/from We Do > Assignments. Students will see these on the
 // detailed view via the existing pedagogy-method + activity flow (no extra wiring).
-if (activeSubcategory === "self_work") return (
+// You Do > Practice is a We Do assignment in all but name - same list,
+// same Exercise Settings, same questions.
+if (activeSubcategory === "self_work" || activeSubcategory === "practice") return (
   <ProblemSolving
     key={`${activeTab}-${activeSubcategory}-${activeBatchId || "shared"}`}
     {...youDoBaseProps}

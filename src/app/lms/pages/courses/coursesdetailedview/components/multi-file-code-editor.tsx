@@ -21,6 +21,7 @@
 //   • Submit     → POST /courses/answers/submit-multiple-files
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { isPractice as isPracticeActivity } from "@/lib/activityKind"
 import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react"
 import ExerciseInfoModals, { ExerciseInfoButtons } from "./ExerciseInfoModals"
 import { CountdownPill } from "./multi-file/CountdownPill"
@@ -387,8 +388,9 @@ export default function MultiFileCodeEditor({
   // assessment). Using the neutral "exercise" everywhere read as generic
   // and lost the pedagogy signal, so we resolve the noun from category.
   // I_Do (instructor demo) stays "exercise".
-  const activityNoun: 'assignment' | 'assessment' | 'exercise' =
-    category === 'We_Do' ? 'assignment'
+  const activityNoun: 'assignment' | 'assessment' | 'exercise' | 'practice' =
+    isPracticeActivity(category, subcategory) ? 'practice'
+    : category === 'We_Do' ? 'assignment'
     : category === 'You_Do' ? 'assessment'
     : 'exercise'
   const ActivityNoun = activityNoun.charAt(0).toUpperCase() + activityNoun.slice(1)
@@ -409,7 +411,7 @@ export default function MultiFileCodeEditor({
   useAssignmentPresence({
     assessmentId: exercise?._id ? String(exercise._id) : "",
     courseId, nodeId, nodeType,
-    enabled: !preview && category === "We_Do",
+    enabled: !preview && (category === "We_Do" || isPracticeActivity(category, subcategory)),
   })
 
   // The step-through visualizer: Python is traced in the browser with

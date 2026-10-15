@@ -3908,7 +3908,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
           queryFn: () => fetchTestYourSkillsQuestions(node.type, node.id),
           staleTime: 30 * 1000,
         });
-      } else if (activeTab === "We_Do" || (activeTab === "You_Do" && activeSubcategory === "self_work")) {
+      } else if (activeTab === "We_Do" || (activeTab === "You_Do" && (activeSubcategory === "self_work" || activeSubcategory === "practice"))) {
         // Warm page 1 of the server-paginated list, at the page size the
         // component will mount with (module-scope memory) and no filters —
         // exactly the key its first render computes, so it's a cache hit.

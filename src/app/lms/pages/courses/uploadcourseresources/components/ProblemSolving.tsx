@@ -1,3 +1,4 @@
+import { activityNoun, capitalizeNoun, isAssignmentStyle } from '@/lib/activityKind';
 import { skillLabel } from '@/lib/skillLabels';
 import { getToken } from "@/lib/session";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -3047,9 +3048,10 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
   const router = useRouter();
   const sectionHref = useSectionHref();
   const { nodeId, nodeName, subcategory, subcategoryLabel, hierarchyData, activeTab, nodeType, courseId, configuredLanguages, isHeaderHidden = false, onShowHeader } = props;
-  // What this tab's list holds, for the empty state: We Do lists assignments,
-  // You Do lists assessments.
-  const emptyNoun = activeTab === 'You_Do' ? 'assessment' : activeTab === 'We_Do' ? 'assignment' : 'exercise';
+  // What this list holds: We Do assignments, You Do > Practice "practice"
+  // (an assignment in all but name), other You Do lists assessments.
+  const emptyNoun = activityNoun(activeTab, subcategory);
+  const EmptyNoun = capitalizeNoun(emptyNoun);
 
   // React Query cache — used ONLY to survive an unmount/remount cycle. The
   // list itself still lives in local `exercises` state so the surrounding
@@ -4101,7 +4103,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                 className="cursor-pointer text-xs gap-2"
                 style={{ color: '#1a1a2e', fontFamily: JKT.fontFamily }}>
                 <Edit3 className="h-3.5 w-3.5" style={{ color: '#fb923c' }} />
-                {activeTab === 'You_Do' ? 'Edit Assessment' : 'Edit Assignment'}
+                {`Edit ${EmptyNoun}`}
               </DropdownMenuItem>
             ) : (
               <DropdownMenuItem
@@ -4109,7 +4111,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                 className="cursor-pointer text-xs gap-2"
                 style={{ color: '#F27757', fontFamily: JKT.fontFamily }}>
                 <Edit3 className="h-3.5 w-3.5" style={{ color: '#F27757' }} />
-                {activeTab === 'You_Do' ? 'Edit Assessment' : 'Edit Assignment'}
+                {`Edit ${EmptyNoun}`}
               </DropdownMenuItem>
             )}
 
@@ -4659,8 +4661,8 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                   <tr>
                     {[
                       { label: '#', align: 'left' as const, className: 'pl-4 pr-2' },
-                      { label: 'Assignment ID', align: 'left' as const, className: 'px-3' },
-                      { label: 'Assignment Name', align: 'left' as const, className: 'px-3' },
+                      { label: isAssignmentStyle(activeTab, subcategory) ? `${EmptyNoun} ID` : 'Assignment ID', align: 'left' as const, className: 'px-3' },
+                      { label: isAssignmentStyle(activeTab, subcategory) ? `${EmptyNoun} Name` : 'Assignment Name', align: 'left' as const, className: 'px-3' },
                       { label: 'Type', align: 'left' as const, className: 'px-3' },
                       { label: 'Created', align: 'left' as const, className: 'px-3' },
                       { label: 'Status', align: 'left' as const, className: 'px-3' },
@@ -4795,7 +4797,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                           <div className="flex items-center justify-center">
                             {getExerciseStatus(ex) === 'Completed'
                               && hasExerciseStarted(ex)
-                              && (activeTab === 'We_Do' || submissionStatusMap[ex._id]) ? (
+                              && (isAssignmentStyle(activeTab, subcategory) || submissionStatusMap[ex._id]) ? (
                               <button
                                 type="button"
                                 onClick={() => handleAction('review', ex)}
@@ -4851,7 +4853,7 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
                 style={{ ...JKT, background: '#F27757', boxShadow: '0 2px 8px rgba(242,119,87,0.3)', cursor: 'pointer', border: 'none' }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#e0623f'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(242,119,87,0.4)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#F27757'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(242,119,87,0.3)'; }}>
-                <Plus size={14} /> Create {emptyNoun.charAt(0).toUpperCase() + emptyNoun.slice(1)}
+                <Plus size={14} /> Create {EmptyNoun}
               </button>
             )}
           </div>

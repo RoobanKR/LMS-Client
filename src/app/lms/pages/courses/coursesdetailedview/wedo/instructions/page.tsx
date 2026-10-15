@@ -1,4 +1,5 @@
 "use client";
+import { isPractice } from "@/lib/activityKind";
 import { skillLabel } from '@/lib/skillLabels';
 import { getToken } from "@/lib/session";
  
@@ -207,6 +208,9 @@ function WedoInstructionsContent() {
  
   const [exercise, setExercise] = useState<any>(null);
   const [context, setContext] = useState<any>({});
+  // You Do > Practice uses this page as-is, under its own name.
+  const noun = isPractice(context?.method, context?.subcategory) ? "practice" : "assignment";
+  const Noun = noun === "practice" ? "Practice" : "Assignment";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -380,7 +384,7 @@ function WedoInstructionsContent() {
     const params = new URLSearchParams({
       courseId: cId, courseName: cName,
       exerciseId: exercise._id || exerciseId,
-      exerciseName: info.exerciseName || "Assignment",
+      exerciseName: info.exerciseName || Noun,
       subcategory: context?.subcategory || "",
       category: context?.category || "We_Do",
       questionCount: String(qs.length),
@@ -393,7 +397,8 @@ function WedoInstructionsContent() {
     // Programming is the exception with no top-level page at all — it is
     // youdo/programming or wedo/programming, and I Do shares the We Do one,
     // exactly as handleExerciseSelect routes it.
-    const prefix = context?.method === "you-do" ? "youdo/" : "";
+    // You Do > Practice is an assignment in all but name - We Do pages.
+    const prefix = context?.method === "you-do" && !isPractice(context?.method, context?.subcategory) ? "youdo/" : "";
     const path = route.path === "programming"
       ? `${prefix || "wedo/"}programming`
       : `${prefix}${route.path}`;
@@ -412,7 +417,7 @@ function WedoInstructionsContent() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, background: T.page }}>
         <div style={{ textAlign: "center", color: T.sub, padding: 24 }}>
-          <p style={{ fontSize: 14, marginBottom: 12 }}>{error || "Assignment not found."}</p>
+          <p style={{ fontSize: 14, marginBottom: 12 }}>{error || `${Noun} not found.`}</p>
           <button onClick={handleBack} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fff", color: T.text, cursor: "pointer", fontFamily: FONT }}>Go back</button>
         </div>
       </div>
@@ -448,7 +453,7 @@ function WedoInstructionsContent() {
           ))}
           <ChevronRight size={13} style={{ color: T.hint }} />
           <span title={info.exerciseName} style={{ color: T.o600, fontWeight: 600, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {info.exerciseName || "Assignment"}
+            {info.exerciseName || Noun}
           </span>
           <ChevronRight size={13} style={{ color: T.hint }} />
           <span aria-current="page" style={{ color: T.muted, fontWeight: 500 }}>Instructions</span>
@@ -471,7 +476,7 @@ function WedoInstructionsContent() {
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <h1 className="max-sm:!text-lg" style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.25, wordBreak: "break-word" }}>
-                    {info.exerciseName || "Assignment"}
+                    {info.exerciseName || Noun}
                   </h1>
                   <Chip>{isGraded ? "Graded" : "Practice"}</Chip>
                 </div>
@@ -490,7 +495,7 @@ function WedoInstructionsContent() {
                   {/* This page only serves We Do assignments; exerciseInformation.testType
                       is a You Do concept that the server defaults to "mock". */}
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <ClipboardCheck size={13} /> Assignment
+                    <ClipboardCheck size={13} /> {Noun}
                   </span>
                 </div>
               </div>
@@ -530,7 +535,7 @@ function WedoInstructionsContent() {
               <CardHead
                 icon={<ListChecks size={17} />}
                 title="Instructions for students"
-                note="Read the following instructions carefully before starting the assignment. Follow all guidelines to ensure a smooth and fair evaluation."
+                note={`Read the following instructions carefully before starting the ${noun}. Follow all guidelines to ensure a smooth and fair evaluation.`}
               />
               {instructions.items.length > 0 ? (
                 <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 11 }}>
@@ -567,7 +572,7 @@ function WedoInstructionsContent() {
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: T.o700, marginBottom: 3 }}>Important</div>
                   <p style={{ fontSize: 12.5, color: T.sub, margin: 0, lineHeight: 1.6 }}>
                     All answers must be submitted before the time expires. The timer starts only after you click
-                    &ldquo;Start assignment&rdquo; and cannot be paused.
+                    &ldquo;Start {noun}&rdquo; and cannot be paused.
                   </p>
                 </div>
               </div>
@@ -578,7 +583,7 @@ function WedoInstructionsContent() {
               <CardHead
                 icon={<Award size={17} />}
                 title="Marks &amp; evaluation"
-                note={isGraded ? marks.scoreNote : "This assignment is for practice — your work is not scored and does not affect your grade."}
+                note={isGraded ? marks.scoreNote : `This ${noun} is for practice — your work is not scored and does not affect your grade.`}
               />
  
               {isGraded && (
@@ -755,8 +760,8 @@ function WedoInstructionsContent() {
               <section style={{ ...CARD, padding: "20px 22px" }}>
                 <CardHead
                   icon={<SlidersHorizontal size={17} />}
-                  title="Assignment details"
-                  note="Everything your trainer configured for this assignment."
+                  title={`${Noun} details`}
+                  note={`Everything your trainer configured for this ${noun}.`}
                 />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "0 26px" }}>
                   {details.map((d) => (
@@ -855,7 +860,7 @@ function WedoInstructionsContent() {
                 {starting
                   ? <Loader2 size={16} className="animate-spin" />
                   : <Play size={16} style={{ fill: canStart ? "#fff" : "transparent" }} />}
-                {starting ? "Starting…" : "Start assignment"}
+                {starting ? "Starting…" : `Start ${noun}`}
               </button>
             </div>
  

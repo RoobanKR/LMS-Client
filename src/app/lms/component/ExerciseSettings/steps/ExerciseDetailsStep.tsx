@@ -187,6 +187,8 @@ interface ExerciseDetailsStepProps {
   isLockedForEdit: boolean;
   steps: Array<{ id: number; title: string }>;
   savedSteps: Set<string>;
+  /** "assignment" (We Do) or "practice" (You Do > Practice) - drives the labels. */
+  noun?: 'assignment' | 'practice';
 }
 
 export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
@@ -201,6 +203,7 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
   isLockedForEdit,
   steps,
   savedSteps,
+  noun = 'assignment',
 }) => {
   const isCombined = formData.exerciseType === 'Combined';
   const combinedTotal = formData.totalMarksMCQ + formData.totalMarksProgramming;
@@ -261,6 +264,8 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
   });
 
   const allStepsSaved = steps.length > 0 && steps.every(s => savedSteps.has(s.title));
+  const Noun = noun === 'practice' ? 'Practice' : 'Assignment';
+  const nouns = noun === 'practice' ? 'practice exercises' : 'assignments';
   const gradedLocked = allStepsSaved;
 
   const errorFor = (field: string) => touchedFields.has(field) ? validationErrors[field] : undefined;
@@ -269,11 +274,11 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
   });
 
   return <div className={styles.generalFields}>
-    <FormRow label="Assignment ID" htmlFor="exercise-id" help="Auto-generated unique identifier for this assignment">
+    <FormRow label={`${Noun} ID`} htmlFor="exercise-id" help={`Auto-generated unique identifier for this ${noun}`}>
       <input id="exercise-id" className={styles.shortInput} value={formData.exerciseId || ''} readOnly />
       <p className={styles.fieldNote}>Created automatically</p>
     </FormRow>
-    <FormRow label="Assignment name" required htmlFor="exercise-name"
+    <FormRow label={`${Noun} name`} required htmlFor="exercise-name"
       help="The name displayed to students in their dashboard" error={errorFor('exerciseName')}>
       <input id="exercise-name" className={styles.textInput} value={formData.exerciseName || ''}
         placeholder="e.g. Advanced Algorithms" aria-invalid={!!errorFor('exerciseName')}
@@ -288,15 +293,15 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
         onChange={(value: string) => setFormData((previous: any) => ({ ...previous, description: value }))}
         placeholder="Enter a brief description…" minHeight="150px" maxHeight="300px" showToolbar editable />
     </FormRow>
-    <FormRow label="Assignment type" required htmlFor="exercise-type"
-      help="Choose multiple choice, programming, combined, or a custom assignment" error={errorFor('exerciseType')}>
+    <FormRow label={`${Noun} type`} required htmlFor="exercise-type"
+      help={`Choose multiple choice, programming, combined, or a custom ${noun}`} error={errorFor('exerciseType')}>
       <FormSelect id="exercise-type" value={formData.exerciseType || ''} disabled={isLockedForEdit} width={280}
         options={[{ value: '', label: 'Select type' }, { value: 'MCQ', label: 'Multiple choice (MCQ)' },
           { value: 'Programming', label: 'Programming' }, { value: 'Combined', label: 'Combined' }, { value: 'Other', label: 'Other' }]}
         onChange={value => { handleSelectExerciseType(value as 'MCQ' | 'Programming' | 'Combined' | 'Other'); if (value) clearError('exerciseType'); }}
         onBlur={() => markTouched('exerciseType')} />
     </FormRow>
-    <FormRow label="Difficulty" required htmlFor="exercise-level" help="The challenge level of this assignment" error={errorFor('exerciseLevel')}>
+    <FormRow label="Difficulty" required htmlFor="exercise-level" help={`The challenge level of this ${noun}`} error={errorFor('exerciseLevel')}>
       <FormSelect id="exercise-level" value={formData.exerciseLevel || ''} width={200}
         options={[{ value: '', label: 'Select level' }, { value: 'beginner', label: 'Beginner' }, { value: 'intermediate', label: 'Intermediate' }, { value: 'expert', label: 'Expert' }]}
         onChange={value => { setFormData((previous: any) => ({ ...previous, exerciseLevel: value })); if (value) clearError('exerciseLevel'); }}
@@ -313,7 +318,7 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
         <span>minutes</span>
       </div>
     </FormRow>
-    <FormRow label="Grading" htmlFor="exercise-grading" help="Graded assignments record marks; non-graded assignments track completion">
+    <FormRow label="Grading" htmlFor="exercise-grading" help={`Graded ${nouns} record marks; non-graded ${nouns} track completion`}>
       <FormSelect id="exercise-grading" value={isGraded ? 'graded' : 'non-graded'} disabled={gradedLocked} width={190}
         options={[{ value: 'non-graded', label: 'Non-graded' }, { value: 'graded', label: 'Graded' }]}
         onChange={value => {
@@ -321,8 +326,8 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
           setFormData((previous: any) => ({ ...previous, isGraded: graded,
             ...(graded ? {} : { totalMarks: 0, totalMarksMCQ: 0, totalMarksProgramming: 0 }) }));
         }} />
-      {gradedLocked && <p className={styles.fieldNote}>Grading type cannot be changed after the assignment has been fully completed.</p>}
-      {!gradedLocked && !isGraded && <p className={styles.fieldNote}>Grade settings are hidden for non-graded assignments.</p>}
+      {gradedLocked && <p className={styles.fieldNote}>Grading type cannot be changed after the {noun} has been fully completed.</p>}
+      {!gradedLocked && !isGraded && <p className={styles.fieldNote}>Grade settings are hidden for non-graded {nouns}.</p>}
     </FormRow>
     {isGraded && <FormRow label={isCombined ? 'Marks (MCQ + Programming)' : 'Total marks'} required
       htmlFor={isCombined ? 'exercise-mcq-marks' : 'exercise-total-marks'}
@@ -375,7 +380,7 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
     <FormRow label="Instructions" help="Optional guidance shown on the student pre-start page" editor>
       <TipTapEditor value={formData.instructions || ''}
         onChange={(value: string) => setFormData((previous: any) => ({ ...previous, instructions: value }))}
-        placeholder="Enter assignment instructions…" minHeight="150px" maxHeight="300px" showToolbar editable />
+        placeholder={`Enter ${noun} instructions…`} minHeight="150px" maxHeight="300px" showToolbar editable />
     </FormRow>
   </div>;
 };

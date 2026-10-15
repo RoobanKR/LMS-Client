@@ -14,7 +14,7 @@ type PreviewProps = {
   onIssueClick?: (issue: string) => void;
   /** What is being set up — drives every label. Defaults to 'assignment'
    *  (We Do); the You Do assessment form passes 'assessment'. */
-  noun?: 'assignment' | 'assessment';
+  noun?: 'assignment' | 'assessment' | 'practice';
 };
 
 const sourceNames: Record<string, string> = { scratch: 'Manual', ai: 'AI automation', thirdParty: 'Other platform', custom: 'Combined sources' };

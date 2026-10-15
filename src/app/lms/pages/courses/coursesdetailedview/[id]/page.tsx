@@ -1,6 +1,7 @@
 // page.tsx - Complete with Progress Tracking
 "use client"
 
+import { isPractice } from "@/lib/activityKind"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import ReactDOM from "react-dom"
 import {
@@ -1651,8 +1652,10 @@ const getExercisesForActivity = (): any[] => {
     const cname = courseData?.courseName || ""
     const stored = { ...exercise, questions: qs, courseId, courseName: cname, context: { courseId, nodeId: selectedItem?.id, nodeTitle: selectedItem?.title, method: selectedMethod, activity: selectedActivity }, storedAt: new Date().toISOString() }
 
-    // You Do → route to youdo/* pages; We Do / I Do → existing pages
-    const prefix = selectedMethod === 'you-do' ? 'youdo/' : ''
+    // You Do → route to youdo/* pages; We Do / I Do → existing pages.
+    // You Do > Practice is an assignment in all but name - We Do pages too.
+    const practice = isPractice(selectedMethod, selectedActivity)
+    const prefix = selectedMethod === 'you-do' && !practice ? 'youdo/' : ''
 
     const nav = (path: string, key: string, extra: Record<string, string> = {}) => {
       localStorage.setItem(key, JSON.stringify(stored))
@@ -1666,7 +1669,7 @@ const getExercisesForActivity = (): any[] => {
     else if (exercise.exerciseType === "Other") nav('others', 'currentOthersExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Other Exercise', nodeId: selectedItem?.id || '', nodeName: selectedItem?.title || '', nodeType: selectedItem?.type || '', hierarchy: currentHierarchy.join(',') })
     else {
       // Programming / Core exercise
-      if (selectedMethod === 'you-do') {
+      if (selectedMethod === 'you-do' && !practice) {
         // You Do → route to youdo/programming page (uses YouDo CodeEditor)
         nav('programming', 'currentProgrammingExercise', {
           exerciseName: exercise.exerciseInformation?.exerciseName || 'Programming Exercise',
@@ -3153,8 +3156,9 @@ const getExercisesForActivity = (): any[] => {
                             studentAnswers: getStudentAnswers(),
                           }
 
-                          // We Do → regular exercises only
-                          if (selectedMethod === 'we-do') {
+                          // We Do → regular exercises only. You Do > Practice uses the
+                          // same assignment list (only its name differs).
+                          if (selectedMethod === 'we-do' || isPractice(selectedMethod, selectedActivity)) {
                             return (
                               <div className="exercises-portal-host flex-1 min-h-0 flex flex-col overflow-visible">
                                 <Exercises

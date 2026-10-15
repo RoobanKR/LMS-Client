@@ -1,4 +1,5 @@
 "use client"
+import { isPractice as isPracticeActivity } from '@/lib/activityKind'
 import { skillList } from '@/lib/skillLabels';
 import { getToken } from "@/lib/session";
 import { hostOf } from "@/lib/frameEmbed";
@@ -3685,7 +3686,7 @@ export default function CodeEditor({
     const wsLiveQ: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion;
     const wsIsLinkQ = !!(wsLiveQ?.isLinkQuestion && wsLiveQ?.questionLink);
     const wsListed = getFilteredAndSortedProblems();
-    const wsNoun = category === 'We_Do' ? 'Assignment' : category === 'You_Do' ? 'Assessment' : 'Exercise';
+    const wsNoun = isPracticeActivity(category, subcategory) ? 'Practice' : category === 'We_Do' ? 'Assignment' : category === 'You_Do' ? 'Assessment' : 'Exercise';
 
     // Finish — the whole-exercise submit (was "Submit Exercise" on the old
     // breadcrumb row): attempt-limit and all-questions gates, evaluate the

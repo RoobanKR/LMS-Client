@@ -1,5 +1,6 @@
 "use client"
 
+import { isPractice as isPracticeActivity } from '@/lib/activityKind'
 import { skillList } from '@/lib/skillLabels';
 import { useState, useMemo, useEffect, useRef } from "react"
 import ReactDOM from "react-dom"
@@ -670,19 +671,23 @@ interface PopupProps {
   // assessment, I_Do → exercise. The launcher already has it as `method`
   // (any casing / separator), so accept any string here and normalise below.
   method?: string
+  /** You Do > Practice reads "practice" instead of "assessment". */
+  subcategory?: string
 }
 
 function StartExercisePopup({
   exercise, onConfirm, onClose, availability,
-  hasAttempted, limitReached, testSubmissions, submissionAttempts, isRetake, breadcrumb, method,
+  hasAttempted, limitReached, testSubmissions, submissionAttempts, isRetake, breadcrumb, method, subcategory,
 }: PopupProps) {
   // Normalise pedagogy method → CTA noun. Accepts every casing/separator
   // the codebase uses (We_Do / we-do / wedo / "we do").
   const methodKey = (method || '').toLowerCase().replace(/[_\s-]+/g, '')
-  const activityNoun: 'assignment' | 'assessment' | 'exercise' =
-    methodKey === 'wedo' ? 'assignment'
+  const activityNoun: 'assignment' | 'assessment' | 'exercise' | 'practice' =
+    isPracticeActivity(method, subcategory) ? 'practice'
+    : methodKey === 'wedo' ? 'assignment'
     : methodKey === 'youdo' ? 'assessment'
     : 'exercise'
+  const OverviewNoun = activityNoun === 'practice' ? 'Practice' : 'Assignment'
   const ex = exercise as any
   const typeInfo = getExerciseTypeInfo(exercise)
   const totalQ = getTotalQuestions(exercise)
@@ -900,7 +905,7 @@ function StartExercisePopup({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close assignment details"
+            aria-label={`Close ${activityNoun} details`}
             className="sap-close"
             style={{
               width: 32, height: 32, borderRadius: '50%',
@@ -936,7 +941,7 @@ function StartExercisePopup({
               <header style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText style={{ width: 16, height: 16, color: '#FF641A' }} aria-hidden="true" />
                 <h3 style={{ fontSize: 14.5, fontWeight: 700, color: '#101828', margin: 0 }}>
-                  Assignment overview
+                  {OverviewNoun} overview
                 </h3>
               </header>
 
@@ -1228,6 +1233,9 @@ export default function Exercises({
   hierarchy = [], selectedItem = null, currentHierarchy = [],
   studentAnswers, isHeaderHidden = false, onShowHeader,
 }: ExercisesProps) {
+  // This list serves We Do assignments and You Do > Practice (same thing, other name).
+  const listNoun = isPracticeActivity(method, subcategory) ? 'practice' : 'assignment'
+  const ListNoun = listNoun === 'practice' ? 'Practice' : 'Assignment'
   const router = useRouter()
   const filterRef    = useRef<HTMLDivElement>(null)
   const cardRef      = useRef<HTMLDivElement>(null)
@@ -1506,7 +1514,8 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
   // the popup / resume dialog because they carry a confirmation payload
   // (reset progress / resume the draft) that only the modal exposes.
   const methodKey = (method || '').toLowerCase().replace(/[_\s-]+/g, '')
-  const isFreshWeDoStart = methodKey === 'wedo' && !isRetake
+  // You Do > Practice starts exactly like a We Do assignment.
+  const isFreshWeDoStart = (methodKey === 'wedo' || isPracticeActivity(method, subcategory)) && !isRetake
   if (isFreshWeDoStart) {
     if (hasResumableAttempt) {
       setResumeModalExercise(exercise)
@@ -1522,7 +1531,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
           nodeName: (selectedItem as any)?.title || '',
           nodeType: (selectedItem as any)?.type || '',
           method: method || 'we-do',
-          category: 'We_Do',
+          category: isPracticeActivity(method, subcategory) ? 'You_Do' : 'We_Do',
           subcategory: subcategory || '',
           hierarchy: (currentHierarchy && currentHierarchy.length > 0 ? currentHierarchy : hierarchy) || [],
         },
@@ -1657,7 +1666,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
     },
     {
       key: 'name',
-      label: 'Assignment Name',
+      label: `${ListNoun} Name`,
       sortKey: 'name',
       className: 'w-[17%] px-3 text-left align-middle text-[13.5px]',
       skeletonWidth: '80%',
@@ -1892,8 +1901,8 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
           // Icon disambiguates by shape (spec: no colour-only cues).
           const IconCmp = s.kind === 'upcoming' ? Clock : Lock
           const hover  = s.kind === 'upcoming'
-            ? 'This assignment is not yet open.'
-            : 'This assignment is closed. Contact your instructor if you need an extension.'
+            ? `This ${listNoun} is not yet open.`
+            : `This ${listNoun} is closed. Contact your instructor if you need an extension.`
           return (
             <div
               className="inline-flex items-center justify-center gap-1.5 h-9 text-[12.5px] font-semibold text-subtle whitespace-nowrap"
@@ -1969,6 +1978,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
           submissionAttempts={getSubmissionAttempts(popupExercise.exercise)}
           isRetake={popupExercise.isRetake}
           method={method}
+          subcategory={subcategory}
           breadcrumb={[
             ...(hierarchy.length > 0 ? hierarchy : currentHierarchy),
             method ? method.replace(/_/g, ' ') : undefined,
@@ -2018,7 +2028,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search assignments…"
+              placeholder={listNoun === 'practice' ? 'Search practice…' : 'Search assignments…'}
               className="w-full h-9 pl-8 pr-8 rounded-control border border-hairline-strong bg-surface text-[12.5px] text-body placeholder:text-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 transition-colors duration-150"
             />
             {searchQuery && (

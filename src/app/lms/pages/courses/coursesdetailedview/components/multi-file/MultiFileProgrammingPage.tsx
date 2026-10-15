@@ -46,7 +46,8 @@ export default function MultiFileProgrammingPage({ fixedCategory }: MultiFilePro
   const subcategory = searchParams.get("subcategory") || ""
   // URL category wins (so a refresh stays authoritative), but the route file's
   // fixedCategory is the safe default for that route.
-  const category = (searchParams.get("category") || fixedCategory) as "We_Do" | "I_Do"
+  // You Do > Practice opens this We Do page too, with category=You_Do.
+  const category = (searchParams.get("category") || fixedCategory) as "We_Do" | "I_Do" | "You_Do"
   const exerciseName = searchParams.get("exerciseName") || ""
   const urlCourseId = searchParams.get("courseId") || ""
   const urlCourseName = searchParams.get("courseName") || ""

@@ -1,3 +1,4 @@
+import { isPractice } from '@/lib/activityKind';
 import { getToken } from "@/lib/session";
 import React, { useEffect, useState, useCallback, useMemo, useRef, ChangeEvent } from 'react';
 import {
@@ -394,6 +395,10 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
   isEditing = false, tabType = 'We_Do', initialData, exercise_Id, configuredLanguages,
   lockConfigStrategy = false, onOpenQuestionAuthor, isSeeded = false, seedLabel,
 }) => {
+  // You Do > Practice uses this same modal; it differs only in its name.
+  const noun: 'assignment' | 'practice' = isPractice(tabType, subcategory) ? 'practice' : 'assignment';
+  const Noun = noun === 'practice' ? 'Practice' : 'Assignment';
+  const aNoun = noun === 'practice' ? 'a practice' : 'an assignment';
   // Editing OR seeded — both mean "there is a document to hydrate formData
   // from". Everything else about `isEditing` stays exactly as it was.
   const shouldHydrate = isEditing || isSeeded;
@@ -3001,10 +3006,10 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     setIsSavingStep(true);
     try {
       if (!formData.exerciseName?.trim()) {
-        setValidationErrors(prev => ({ ...prev, exerciseName: 'Enter an assignment name to save.' }));
+        setValidationErrors(prev => ({ ...prev, exerciseName: `Enter ${aNoun} name to save.` }));
         markAllTouched(['exerciseName']);
         setExpandedSteps(previous => new Set(previous).add(1));
-        toast.error('Enter an assignment name to save.');
+        toast.error(`Enter ${aNoun} name to save.`);
         return false;
       }
       const currentId = localExerciseId || (isEditing ? exercise_Id : null);
@@ -3222,7 +3227,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     const hasName = !!formData.exerciseName?.trim();
     if (!hasName) {
       const result = flagAllStepIssues();
-      toast.error('Enter an assignment name — highlighted below.', {
+      toast.error(`Enter ${aNoun} name — highlighted below.`, {
         position: 'top-right', duration: 3500, id: 'save-has-issues',
       });
       return false;
@@ -3275,7 +3280,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     // before we throw that work away.
     if (isEditing && formData.exerciseType && formData.exerciseType !== type) {
       setWarningModal({
-        title: 'Change assignment type?',
+        title: `Change ${noun} type?`,
         body: `Switching from "${formData.exerciseType}" to "${type}" will remove all attached questions and reset the question configuration for this exercise. This cannot be undone.`,
         confirmLabel: 'Change type',
         onConfirm: () => { applyExerciseTypeChange(type); },
@@ -3499,6 +3504,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       markTouched={markTouched}
       handleSelectExerciseType={handleSelectExerciseType}
       configuredLanguages={configuredLanguages}
+      noun={noun}
       isLockedForEdit={isLockedForEdit}
       steps={steps}
       savedSteps={savedSteps}
@@ -4932,7 +4938,7 @@ const renderNotifications = useCallback(() => (
         else if (formData.exerciseType === 'Other') typeConfig = renderOthersConfiguration();
         if (!typeConfig) return (
           <StepEmptyState>
-            Choose an <strong>Assignment type</strong> in the <strong>General</strong> section first —
+            Choose {aNoun.split(' ')[0]} <strong>{Noun} type</strong> in the <strong>General</strong> section first —
             the question settings shown here depend on it.
           </StepEmptyState>
         );
@@ -4955,7 +4961,7 @@ const renderNotifications = useCallback(() => (
       case 'Add Questions': {
         if (!formData.exerciseType) return (
           <StepEmptyState>
-            Choose an <strong>Assignment type</strong> in the <strong>General</strong> section first —
+            Choose {aNoun.split(' ')[0]} <strong>{Noun} type</strong> in the <strong>General</strong> section first —
             the available question sources depend on it.
           </StepEmptyState>
         );
@@ -5420,8 +5426,8 @@ const renderNotifications = useCallback(() => (
   const handleIssueJump = useCallback((issue: string) => {
     const lower = issue.toLowerCase();
     const stepTitle =
-      lower.includes('assignment type') || lower.includes('exercise type') ? 'Exercise Details'
-      : lower.includes('exercise name') || lower.includes('assignment name') ? 'Exercise Details'
+      lower.includes(`${noun} type`) || lower.includes('exercise type') ? 'Exercise Details'
+      : lower.includes('exercise name') || lower.includes(`${noun} name`) ? 'Exercise Details'
       : lower.includes('difficulty level') ? 'Exercise Details'
       : lower.includes('duration') ? 'Exercise Details'
       : lower.includes('module') || lower.includes('language') ? 'Exercise Details'
@@ -5480,7 +5486,7 @@ const renderNotifications = useCallback(() => (
     });
 
     const out: string[] = [];
-    if (!formData.exerciseType) out.push('Choose an assignment type to configure questions.');
+    if (!formData.exerciseType) out.push(`Choose ${aNoun} type to configure questions.`);
     out.push(...bucketed.details);
     if (needsConfigStrategy) out.push('Please select a Config Strategy in Question Configuration.');
     // "Set the total number of questions" only applies to General strategy —
@@ -5786,30 +5792,30 @@ const renderNotifications = useCallback(() => (
         role="dialog" aria-modal="true" aria-labelledby="assignment-settings-title"
         style={{ width: '100%', height: '100%', minHeight: 0, background: '#fff' }}>
           <header className={assignmentStyles.header}>
-            <button type="button" onClick={requestClose} aria-label="Back to assignments" className={assignmentStyles.backButton}>
+            <button type="button" onClick={requestClose} aria-label={`Back to the ${noun} list`} className={assignmentStyles.backButton}>
               <ArrowLeft size={16} strokeWidth={2.25} />
               <span>Back</span>
             </button>
-            <nav className={assignmentStyles.breadcrumbs} aria-label="Assignment location">
+            <nav className={assignmentStyles.breadcrumbs} aria-label={`${Noun} location`}>
               <Home size={13} aria-hidden="true" />
               {breadcrumbs.map((crumb, index) => <React.Fragment key={`${crumb.type}-${index}`}>
                 {index > 0 && <ChevronRight size={12} aria-hidden="true" />}
                 <span title={crumb.name}>{crumb.name}</span>
               </React.Fragment>)}
               <ChevronRight size={12} aria-hidden="true" />
-              <span aria-current="page">{isEditing ? 'Edit assignment' : 'New assignment'}</span>
+              <span aria-current="page">{isEditing ? `Edit ${noun}` : `New ${noun}`}</span>
             </nav>
             <h1 id="assignment-settings-title" style={{
               position: 'absolute', width: 1, height: 1, padding: 0, margin: -1,
               overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0,
             }}>
-              {isEditing ? 'Edit' : 'New'} {subcategory === 'assignment' ? 'Assignment' : 'Exercise'}
+              {isEditing ? 'Edit' : 'New'} {noun === 'practice' ? 'Practice' : subcategory === 'assignment' ? 'Assignment' : 'Exercise'}
             </h1>
           </header>
           <div className={assignmentStyles.workspace}>
-          <main className={`es-acc-scroll ${assignmentStyles.editorPane}`} aria-label="Assignment settings">
+          <main className={`es-acc-scroll ${assignmentStyles.editorPane}`} aria-label={`${Noun} settings`}>
           <div className={assignmentStyles.accordionToolbar}>
-            <span>Assignment settings</span>
+            <span>{Noun} settings</span>
             <div>
               {/* One control at a time: Collapse all once every section is open, Expand all otherwise. */}
               {steps.every(step => expandedSteps.has(step.id))
@@ -5817,7 +5823,7 @@ const renderNotifications = useCallback(() => (
                 : <button type="button" onClick={() => setExpandedSteps(new Set(steps.map(step => step.id)))}>Expand all</button>}
             </div>
           </div>
-          {isLocked && <p className={assignmentStyles.lockedNote}>This assignment has been submitted and is now read-only.</p>}
+          {isLocked && <p className={assignmentStyles.lockedNote}>This {noun} has been submitted and is now read-only.</p>}
           {steps.map(step => {
             const isOpen = expandedSteps.has(step.id);
             const meta = STEP_META[step.title];
@@ -5861,14 +5867,14 @@ const renderNotifications = useCallback(() => (
             );
           })}
         </main>
-        <SettingsPreview issues={previewIssues} onIssueClick={handleIssueJump} allocatedMarks={calculateAllocatedMarks()} formData={formData} questionSource={questionSource} customSources={customSources}
+        <SettingsPreview noun={noun} issues={previewIssues} onIssueClick={handleIssueJump} allocatedMarks={calculateAllocatedMarks()} formData={formData} questionSource={questionSource} customSources={customSources}
           questionCount={formData.exerciseType === 'MCQ' ? formData.mcqConfig.generalQuestionCount
             : formData.exerciseType === 'Other' ? getOthersTotalQuestions()
             : getProgrammingTotalQuestions() + (formData.exerciseType === 'Combined' ? formData.mcqConfig.generalQuestionCount : 0)}
           location={hierarchyData.topicName || hierarchyData.moduleName || hierarchyData.courseName || nodeName} />
         </div>
         <footer className={assignmentStyles.footer}>
-          <span className={assignmentStyles.draftHint}>Only the assignment name is needed to save progress.</span>
+          <span className={assignmentStyles.draftHint}>Only the {noun} name is needed to save progress.</span>
           <span className={assignmentStyles.saveLabel}>
             {isLocked ? 'Submitted' : `Editing: ${STEP_META[currentStepTitle]?.title || currentStepTitle}`}
           </span>
@@ -5964,7 +5970,7 @@ const renderNotifications = useCallback(() => (
               <CircleAlert size={20} style={{ color: '#EE6A22' }} />
               <div>
                 <h2 id="confirm-save-title" style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#263746' }}>Review before saving</h2>
-                <p style={{ margin: 0, fontSize: 12, color: '#57606E' }}>Confirm the details below to create this assignment.</p>
+                <p style={{ margin: 0, fontSize: 12, color: '#57606E' }}>Confirm the details below to create this {noun}.</p>
               </div>
             </div>
             <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
@@ -5996,7 +6002,7 @@ const renderNotifications = useCallback(() => (
                 }</dd>
               </dl>
               <p style={{ margin: '14px 0 0', fontSize: 11.5, color: '#57606E', lineHeight: 1.5 }}>
-                Once saved, the assignment will be created and visible to students according to the schedule. You can still edit it afterwards.
+                Once saved, the {noun} will be created and visible to students according to the schedule. You can still edit it afterwards.
               </p>
             </div>
             <div style={{
