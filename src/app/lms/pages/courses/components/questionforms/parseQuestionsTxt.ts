@@ -399,9 +399,15 @@ const HEADER_MARKS = /^(\d+(?:\.\d+)?)\s*(?:marks?|points?|pts?)$/i;
 const DIFF_LABEL_LINE =
   /^(?:difficulty(?:\s*level)?|level|complexity\s*level)\s*[:.\-–—]?\s*(easy|medium|hard|beginner|intermediate|advanced|simple|moderate|difficult|expert)\s*\.?$/i;
 
+/** A row of a data table, as docTextExtract writes it: "| C1 | 5 |". */
+const TABLE_ROW = /^\|.*\|$/;
+const isTableRow = (s: string): boolean => TABLE_ROW.test(s.trim());
+
 /** "Find Pivot Index | Easy | 10 Marks" → title + difficulty + marks, order-insensitive. */
 function parseDocHeader(line: string): DocHeader | null {
   if (!line.includes('|')) return null;
+  // A table row ("| Item | Easy |") is data, never a question header.
+  if (isTableRow(line)) return null;
   const parts = line.split('|').map(p => p.trim()).filter(Boolean);
   if (parts.length < 2) return null;
 
@@ -468,19 +474,21 @@ const stripBullet = (s: string): string => s.replace(BULLET_RE, '').trim();
 // line, so a paragraph or a bullet arrives pre-chopped. These re-join it. Both
 // are no-ops on .docx/.txt input, where the lines are already whole.
 
-/** A bulleted item runs until the next bullet. */
+/** A bulleted item runs until the next bullet. A table row is never joined. */
 function joinBulletWrapped(lines: string[]): string[] {
   return lines.reduce<string[]>((out, l) => {
-    if (out.length && isBulleted(out[out.length - 1]) && !isBulleted(l)) out[out.length - 1] += ` ${l}`;
+    if (out.length && isBulleted(out[out.length - 1]) && !isBulleted(l)
+      && !isTableRow(l) && !isTableRow(out[out.length - 1])) out[out.length - 1] += ` ${l}`;
     else out.push(l);
     return out;
   }, []);
 }
 
-/** A prose line that doesn't finish a sentence continues on the next one. */
+/** A prose line that doesn't finish a sentence continues on the next one. A table row is never joined. */
 function joinProseWrapped(lines: string[]): string[] {
   return lines.reduce<string[]>((out, l) => {
-    if (out.length && !/[.!?:;]$/.test(out[out.length - 1])) out[out.length - 1] += ` ${l}`;
+    if (out.length && !/[.!?:;]$/.test(out[out.length - 1])
+      && !isTableRow(l) && !isTableRow(out[out.length - 1])) out[out.length - 1] += ` ${l}`;
     else out.push(l);
     return out;
   }, []);
@@ -503,6 +511,32 @@ function matchDocSection(line: string): DocSectionHit | null {
 
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Inline styles, so the table has its borders wherever the description is
+// shown (the question form's editor, the student editors) - the app's base CSS
+// strips table borders.
+const TH = 'border:1px solid #d0d5dd;padding:6px 12px;background:#f2f4f7;font-weight:600;text-align:left;';
+const TD = 'border:1px solid #d0d5dd;padding:6px 12px;text-align:left;';
+
+/** "Required Tasks" / "Cost Matrix": up to four capitalised words, no closing punctuation. */
+const isSubHeading = (line: string): boolean => {
+  const t = line.trim();
+  const words = t.split(/\s+/);
+  return t.length > 0 && t.length <= 40 && words.length <= 4 && !/[.!?:;,]$/.test(t)
+    && words.every(w => /^[A-Z0-9(]/.test(w)) && !isTableRow(t);
+};
+
+/** "| a | b |" rows → an HTML table, the first row as its header. */
+function tableHtml(rows: string[]): string {
+  const cells = (row: string) => row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => escapeHtml(c.trim()));
+  const [head, ...body] = rows.map(cells);
+  const width = Math.max(...[head, ...body].map(r => r.length));
+  const pad = (r: string[]) => [...r, ...Array(Math.max(0, width - r.length)).fill('')];
+  return `<table style="border-collapse:collapse;margin:8px 0;font-size:13px;">`
+    + `<thead><tr>${pad(head).map(c => `<th style="${TH}">${c}</th>`).join('')}</tr></thead>`
+    + `<tbody>${body.map(r => `<tr>${pad(r).map(c => `<td style="${TD}">${c}</td>`).join('')}</tr>`).join('')}</tbody>`
+    + `</table>`;
+}
 
 /**
  * The Problem Description is stored as an HTML content block (the editor is a
@@ -527,7 +561,24 @@ function buildDescriptionHtml(d: {
   links?: string[];
 }): string {
   const out: string[] = [];
-  const para = (lines: string[]) => joinProseWrapped(lines).map(l => `<p>${escapeHtml(l)}</p>`).join('');
+  // Paragraphs, with each run of table rows rebuilt as a real table.
+  const para = (lines: string[]) => {
+    const html: string[] = [];
+    let text: string[] = [];
+    let rows: string[] = [];
+    const flushText = () => { html.push(...joinProseWrapped(text).map(l => `<p>${escapeHtml(l)}</p>`)); text = []; };
+    const flushRows = () => { if (rows.length) html.push(tableHtml(rows)); rows = []; };
+    for (const l of lines) {
+      if (isTableRow(l)) { flushText(); rows.push(l); continue; }
+      flushRows();
+      // A short Title Case line ("Required Tasks", "Cost Matrix") is a heading
+      // of its own, not the start of the sentence below it.
+      if (isSubHeading(l)) { flushText(); html.push(`<p><b>${escapeHtml(l.trim())}</b></p>`); continue; }
+      text.push(l);
+    }
+    flushText(); flushRows();
+    return html.join('');
+  };
   const list = (lines: string[]) =>
     `<ul>${joinBulletWrapped(lines).map(l => `<li>${escapeHtml(stripBullet(l))}</li>`).join('')}</ul>`;
   const lines: Partial<Record<DocSection, string[]>> = {
@@ -547,9 +598,10 @@ function buildDescriptionHtml(d: {
     if (!body.length) continue;
     const label = SECTION_LABEL[s] ?? '';
     if (s === 'statement' && !d.statementLabeled) { out.push(para(body)); continue; }
-    const isFormat = s === 'inputFormat' || s === 'outputFormat';
+    const hasTable = body.some(isTableRow);
+    const isFormat = (s === 'inputFormat' || s === 'outputFormat') && !hasTable;
     const joined = isFormat ? joinBulletWrapped(body) : joinProseWrapped(body);
-    if (joined.length === 1) {
+    if (joined.length === 1 && !hasTable) {
       out.push(`<p><b>${label}:</b> ${escapeHtml(isFormat ? stripBullet(joined[0]) : joined[0])}</p>`);
     } else {
       out.push(`<p><b>${label}</b></p>`, isFormat ? list(body) : para(body));

@@ -71,7 +71,81 @@ const decodeXmlEntities = (s: string): string =>
  * next `</w:t>` swallows a screenful of raw XML into the text.
  */
 export function docxXmlToText(xml: string): string {
-  return paragraphsToText(liftLevelColumns(xml));
+  return paragraphsToText(liftLevelColumns(dataTablesToRows(xml)));
+}
+
+// ── Data tables ──────────────────────────────────────────────────────────────
+// A question can carry a table of its own - container weights, a cost matrix.
+// Read paragraph by paragraph, every cell of it would become a line of its own
+// ("Container", "Weight (kg)", "C1", "5", ...). Such a table is written as pipe
+// rows instead, one per table row ("| Container | Weight (kg) |"), which the
+// question parser turns back into a real table.
+//
+// Which tables are data: one nested inside another table's cell (the question
+// table holds the question; this is a table IN the question), and a top-level
+// table that doesn't look like a question table - one whose header names no
+// question / level column and whose cells are short (one paragraph each). A
+// question table is left to read as before.
+const QUESTION_TABLE_HEADER = /\b(?:q\.?\s*no|question|problem|statement|options?|answer|level|difficulty|marks?)\b/i;
+
+/** [start, end) of every <w:tbl> in the XML, with its nesting depth (0 = top level). */
+function locateTables(xml: string): { start: number; end: number; depth: number }[] {
+  const out: { start: number; end: number; depth: number }[] = [];
+  const stack: number[] = [];
+  const re = /<w:tbl(?=[\s>])|<\/w:tbl>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    if (m[0] === '</w:tbl>') {
+      const start = stack.pop();
+      if (start !== undefined) out.push({ start, end: m.index + m[0].length, depth: stack.length });
+    } else {
+      stack.push(m.index);
+    }
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+
+const escapeXmlText = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** One table as pipe-row paragraphs; a cell's own line breaks become spaces. */
+function tableToRowParagraphs(tbl: string): string {
+  return (tbl.match(TR_RE) ?? []).map(row => {
+    const cells = rowCells(row).map(c =>
+      paragraphsToText(c.xml).replace(/\s+/g, ' ').trim().replace(/\|/g, '/'));
+    return `<w:p><w:r><w:t xml:space="preserve">${escapeXmlText(`| ${cells.join(' | ')} |`)}</w:t></w:r></w:p>`;
+  }).join('');
+}
+
+function isDataTable(tbl: string, depth: number): boolean {
+  if (depth > 0) return true;
+  const rows: string[] = tbl.match(TR_RE) ?? [];
+  if (rows.length < 2) return false;
+  const header = rowCells(rows[0] ?? '').map(c => paragraphsToText(c.xml).replace(/\s+/g, ' ').trim());
+  if (header.some(h => QUESTION_TABLE_HEADER.test(h))) return false;
+  // Every cell short: at most one non-empty paragraph.
+  return rows.every(r => rowCells(r).every(c =>
+    paragraphsToText(c.xml).split('\n').filter(l => l.trim()).length <= 1));
+}
+
+function dataTablesToRows(xml: string): string {
+  const tables = locateTables(xml);
+  // The outermost data tables only - a table inside one is read as its text.
+  const chosen: { start: number; end: number }[] = [];
+  for (const t of tables) {
+    if (chosen.some(c => t.start >= c.start && t.end <= c.end)) continue;
+    const tbl = xml.slice(t.start, t.end);
+    // A table holding a deeper table is a layout table at depth 0 (e.g. the
+    // question table): it stays, and its inner tables are checked on their own.
+    if (t.depth === 0 && locateTables(tbl).length > 1) continue;
+    if (isDataTable(tbl, t.depth)) chosen.push(t);
+  }
+  let out = xml;
+  for (const t of chosen.sort((a, b) => b.start - a.start)) {
+    const tbl = out.slice(t.start, t.end);
+    // An inner table sits inside a cell - its replacement must stay paragraphs.
+    out = out.slice(0, t.start) + tableToRowParagraphs(tbl) + out.slice(t.end);
+  }
+  return out;
 }
 
 // A question paper laid out as a table ("Q. No. | Question Detail | Level")
