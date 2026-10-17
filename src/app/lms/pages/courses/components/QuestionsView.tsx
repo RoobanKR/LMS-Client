@@ -418,17 +418,28 @@ useEffect(() => {
       return (typeof t === 'string' ? t : '') || 'Untitled MCQ';
     }
     return q.title || q.questionTitle || 'Untitled Question';
-  };  const getDesc  = (q: Question) => {
+  };
+  // One line of plain text for the list: block tags become spaces (so
+  // "</p><p>" doesn't glue two sentences) and a leading "Problem Statement"
+  // label - the whole description IS the problem statement - is left out.
+  const previewText = (html: string) => (html || '')
+    .replace(/<\/(p|div|li|h[1-6]|tr)>|<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/^\s*problem\s*statement\s*:?\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const getDesc  = (q: Question) => {
     if (q.questionType === 'mcq') return q.mcqQuestionDescription || '';
     if (q.description) {
-      if (typeof q.description === 'string') return q.description.replace(/<[^>]*>/g, '').substring(0, 120);
+      if (typeof q.description === 'string') return previewText(q.description).substring(0, 120);
       // Pure array format: [{ type:'text', value:'...' }, ...]
       if (Array.isArray(q.description)) {
         const text = (q.description as any[]).filter(b => b.type === 'text').map(b => b.value || '').join(' ').replace(/<[^>]*>/g, '').trim();
         return text.substring(0, 120) || 'No description provided';
       }
       // Legacy object format: { text: '...', contentBlocks: [...] }
-      if (typeof (q.description as any).text === 'string') return (q.description as any).text.replace(/<[^>]*>/g, '').substring(0, 120);
+      if (typeof (q.description as any).text === 'string') return previewText((q.description as any).text).substring(0, 120);
     }
     return 'No description provided';
   };

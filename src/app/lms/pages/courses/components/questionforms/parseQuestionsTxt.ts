@@ -597,7 +597,9 @@ function buildDescriptionHtml(d: {
     const body = lines[s] ?? [];
     if (!body.length) continue;
     const label = SECTION_LABEL[s] ?? '';
-    if (s === 'statement' && !d.statementLabeled) { out.push(para(body)); continue; }
+    // The description IS the problem statement, so it carries no
+    // "Problem Statement" heading even when the paper wrote one.
+    if (s === 'statement') { out.push(para(body)); continue; }
     const hasTable = body.some(isTableRow);
     const isFormat = (s === 'inputFormat' || s === 'outputFormat') && !hasTable;
     const joined = isFormat ? joinBulletWrapped(body) : joinProseWrapped(body);
