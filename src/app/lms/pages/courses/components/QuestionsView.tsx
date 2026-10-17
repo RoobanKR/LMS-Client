@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus, RefreshCw,
   ArrowLeft, Eye,
-  Search, Filter, Code2,
+  Search, Filter, Code2, ChevronDown,
   MoreVertical, Edit3,
   Loader,
   X, Database, AlertTriangle,
@@ -52,6 +52,38 @@ import DocQuestionPicker from "./questionforms/DocQuestionPicker";
 const JKT: React.CSSProperties = {
   fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, sans-serif",
 };
+
+/** "Source: All ▾" - a labelled filter dropdown for the toolbar. */
+function FilterSelect<V extends string>({ label, value, options, onChange }: {
+  label: string; value: V; options: { value: V; label: string }[]; onChange: (v: V) => void;
+}) {
+  const active = value !== 'all';
+  const current = options.find(o => o.value === value)?.label ?? '';
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" title={`Filter by ${label.toLowerCase()}`}
+          className="h-8 sm:h-7 px-2.5 rounded-lg flex items-center gap-1.5 text-[12px] whitespace-nowrap flex-shrink-0 transition-all"
+          style={{ ...JKT, cursor: 'pointer', color: '#1a1a2e',
+            border: `1.5px solid ${active ? 'rgba(242,119,87,0.45)' : '#e4e4ed'}`,
+            background: active ? 'rgba(242,119,87,0.06)' : '#fafafa' }}>
+          <span style={{ color: '#8b8b9e' }}>{label}:</span>
+          <span style={{ fontWeight: 600, color: active ? '#e0623f' : '#1a1a2e' }}>{current}</span>
+          <ChevronDown size={12} style={{ color: '#8b8b9e' }} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44" style={{ ...JKT, border: '1px solid #e4e4ed', boxShadow: '0 8px 24px rgba(26,26,46,0.12)' }}>
+        {options.map(o => (
+          <DropdownMenuItem key={o.value} className="text-xs" onClick={() => onChange(o.value)}
+            style={{ color: o.value === value ? '#F27757' : '#1a1a2e', fontWeight: o.value === value ? 600 : 400, cursor: 'pointer' }}>
+            {o.label}
+            {o.value === value && <CheckCircle size={10} className="ml-auto" style={{ color: '#F27757' }} />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -140,6 +172,11 @@ const Questions: React.FC<QuestionsProps> = ({
   const [searchTerm, setSearchTerm]             = useState('');
   const [filterDifficulty, setFilterDifficulty] = useState<'all'|'easy'|'medium'|'hard'>('all');
   const [filterType, setFilterType]             = useState<'all'|'mcq'|'programming'|'frontend'|'database'>('all');
+  const [filterSource, setFilterSource]         = useState<'all'|'manual'|'ai'|'bank'|'thirdParty'>('all');
+  // Questions ticked for a bulk delete (ids).
+  const [selectedIds, setSelectedIds]           = useState<Set<string>>(new Set());
+  const [showBulkDelete, setShowBulkDelete]     = useState(false);
+  const [bulkDeleting, setBulkDeleting]         = useState(false);
   const [includeInactive, setIncludeInactive]   = useState(false);
   const [hoveredRow, setHoveredRow]             = useState<string | null>(null);
 
@@ -340,6 +377,12 @@ useEffect(() => {
 
   // ── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => { if (!quickAddMode) fetchQuestions(); }, [exercise._id, includeInactive, quickAddMode]);
+  useEffect(() => {
+    setSelectedIds(prev => {
+      const next = new Set([...prev].filter(id => questions.some(q => q._id === id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [questions]);
   useEffect(() => () => { setEditingQuestion(null); setShowEditQuestionModal(false); }, []);
   useEffect(() => {
     setEditingQuestion(null); setShowEditQuestionModal(false);
@@ -435,14 +478,16 @@ const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQue
     ai:         { label: 'AI',             color: '#6366f1', bg: 'rgba(99,102,241,0.08)',  border: '#c7d2fe' },
     thirdParty: { label: 'Other Platform', color: '#0d9488', bg: 'rgba(13,148,136,0.08)',  border: '#99f6e4' },
   };
-  const SourceBadge = ({ source }: { source?: string | null }) => {
+  const sourceKeyOf = (source?: string | null): 'manual' | 'ai' | 'bank' | 'thirdParty' | null => {
     const s = (source ?? '').toString();
-    if (!s) return null;
-    const key = s === 'ai' ? 'ai'
+    return s === 'ai' ? 'ai'
       : s.startsWith('thirdParty') ? 'thirdParty'
       : s === 'scratch-bank' ? 'bank'
       : s.startsWith('scratch') ? 'manual'
       : null;
+  };
+  const SourceBadge = ({ source }: { source?: string | null }) => {
+    const key = sourceKeyOf(source);
     if (!key) return null;
     const c = SRC_CFG[key];
     return (
@@ -692,6 +737,29 @@ const handleAction = async (type: string, q: Question) => {
     }
   };
 
+  // Delete every ticked question, one after another (each delete rewrites the
+  // exercise, so they are not fired in parallel), then reload the list.
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setBulkDeleting(true);
+    const pm: Record<string, string> = { module: 'modules', submodule: 'submodules', topic: 'topics', subtopic: 'subtopics' };
+    let deleted = 0;
+    for (const id of ids) {
+      try {
+        await questionApi.deleteQuestion(pm[nodeType.toLowerCase()] as any, nodeId, exercise._id, id, tabType, subcategory);
+        deleted++;
+      } catch { /* counted below */ }
+    }
+    const failed = ids.length - deleted;
+    setSelectedIds(new Set());
+    setShowBulkDelete(false);
+    setBulkDeleting(false);
+    await fetchQuestions();
+    if (failed) toast.error(`${deleted} deleted, ${failed} could not be deleted`, { id: 'bulk-delete' });
+    else toast.success(`${deleted} question${deleted === 1 ? '' : 's'} deleted`, { id: 'bulk-delete' });
+  };
+
   // Refresh full exercise data (e.g. after edit-exercise settings are changed from inside the form)
   const refreshFullExData = useCallback(async () => {
     try {
@@ -894,8 +962,10 @@ const handleAction = async (type: string, q: Question) => {
     const t = getTitle(q).toLowerCase(), d = getDesc(q).toLowerCase(), diff = getDiff(q);
     return (!searchTerm || t.includes(searchTerm.toLowerCase()) || d.includes(searchTerm.toLowerCase()))
       && (filterDifficulty === 'all' || diff === filterDifficulty)
-      && (filterType === 'all' || q.questionType === filterType);
+      && (filterType === 'all' || q.questionType === filterType)
+      && (filterSource === 'all' || sourceKeyOf((q as any).source) === filterSource);
   });
+  const anyFilter = filterDifficulty !== 'all' || filterType !== 'all' || filterSource !== 'all';
 
   const itemsPerPage = autoItemsPerPage;
   const totalPages   = Math.max(1, Math.ceil(filteredQs.length / itemsPerPage));
@@ -1469,28 +1539,6 @@ const addBtnDisabled = isAddingQuestions || (() => {
   </div>
 
   <div className="flex items-center gap-1.5 flex-shrink-0 ml-3 max-sm:ml-0 max-sm:w-full max-sm:justify-end">
-    {/* Search */}
-    <div className="relative max-sm:flex-1 max-sm:min-w-0">
-      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#bcbccc' }} />
-      <input placeholder="Search questions…" value={searchTerm}
-        onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-        className="pl-7 pr-7 h-8 sm:h-7 w-full sm:w-52 text-[12px] rounded-lg outline-none transition-all"
-        style={{ ...JKT, background: '#fafafa', border: '1.5px solid #e4e4ed', color: '#1a1a2e', cursor: 'text' }}
-        onFocus={e => { e.currentTarget.style.borderColor = '#F27757'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(242,119,87,0.1)'; e.currentTarget.style.background = '#fff'; }}
-        onBlur={e => { e.currentTarget.style.borderColor = '#e4e4ed'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = '#fafafa'; }} />
-      {searchTerm && (
-        <button onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
-          style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: '#bcbccc', cursor: 'pointer', lineHeight: 0, border: 'none', background: 'none', padding: 0 }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#F27757')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#bcbccc')}
-          title="Clear search">
-          <X size={11} />
-        </button>
-      )}
-    </div>
-
-    <div className="h-4 w-px" style={{ background: '#e4e4ed' }} />
-
     {/* Refresh */}
     <button onClick={fetchQuestions} disabled={loadingQuestions || isAddingQuestions}
       title="Refresh questions"
@@ -1500,54 +1548,6 @@ const addBtnDisabled = isAddingQuestions || (() => {
       onMouseLeave={e => { e.currentTarget.style.color = '#8b8b9e'; e.currentTarget.style.background = 'transparent'; }}>
       <RefreshCw size={13} className={loadingQuestions ? 'animate-spin' : ''} style={{ color: loadingQuestions ? '#F27757' : undefined }} />
     </button>
-
-    {/* Filter */}
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button title="Filter questions"
-          className="h-8 w-8 sm:h-7 sm:w-7 flex-shrink-0 rounded-lg flex items-center justify-center transition-all"
-          style={{
-            color: (filterDifficulty !== 'all' || filterType !== 'all') ? '#F27757' : '#8b8b9e',
-            background: (filterDifficulty !== 'all' || filterType !== 'all') ? 'rgba(242,119,87,0.08)' : 'transparent',
-            border: (filterDifficulty !== 'all' || filterType !== 'all') ? '1px solid rgba(242,119,87,0.2)' : '1px solid transparent',
-            cursor: 'pointer',
-          }}>
-          <Filter size={13} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48" style={{ ...JKT, border: '1px solid #e4e4ed', boxShadow: '0 8px 24px rgba(26,26,46,0.12)' }}>
-        <DropdownMenuLabel className="text-[10px] uppercase tracking-wide" style={{ color: '#8b8b9e' }}>Difficulty</DropdownMenuLabel>
-        {(['all', 'easy', 'medium', 'hard'] as const).map(d => (
-          <DropdownMenuItem key={d} className="text-xs" style={{ color: filterDifficulty === d ? '#F27757' : '#1a1a2e', fontWeight: filterDifficulty === d ? '600' : '400', cursor: 'pointer' }}
-            onClick={() => { setFilterDifficulty(d); setCurrentPage(1); }}>
-            {d === 'all' ? 'All Difficulties' : d.charAt(0).toUpperCase() + d.slice(1)}
-            {filterDifficulty === d && <CheckCircle size={10} className="ml-auto" style={{ color: '#F27757' }} />}
-          </DropdownMenuItem>
-        ))}
-        {isCombined && (
-          <>
-            <DropdownMenuSeparator style={{ background: '#e4e4ed' }} />
-            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide" style={{ color: '#8b8b9e' }}>Type</DropdownMenuLabel>
-            {(['all', 'mcq', 'programming', 'frontend', 'database'] as const).map(t => (
-              <DropdownMenuItem key={t} className="text-xs" style={{ color: filterType === t ? '#F27757' : '#1a1a2e', fontWeight: filterType === t ? '600' : '400', cursor: 'pointer' }}
-                onClick={() => { setFilterType(t); setCurrentPage(1); }}>
-                {t === 'all' ? 'All Types' : t.charAt(0).toUpperCase() + t.slice(1)}
-                {filterType === t && <CheckCircle size={10} className="ml-auto" style={{ color: '#F27757' }} />}
-              </DropdownMenuItem>
-            ))}
-          </>
-        )}
-        {(filterDifficulty !== 'all' || filterType !== 'all') && (
-          <>
-            <DropdownMenuSeparator style={{ background: '#e4e4ed' }} />
-            <DropdownMenuItem className="text-xs text-rose-500" style={{ cursor: 'pointer' }}
-              onClick={() => { setFilterDifficulty('all'); setFilterType('all'); setCurrentPage(1); }}>
-              <X size={11} className="mr-1.5" /> Clear Filters
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
 
     {/* ── Add Question button + Slot tooltip ── */}
     <div className="relative flex-shrink-0"
@@ -1731,7 +1731,64 @@ const addBtnDisabled = isAddingQuestions || (() => {
   </div>
 </div>
       {/* ══ Active filters bar ══ */}
-      {(filterDifficulty !== 'all' || filterType !== 'all' || searchTerm) && (
+      {/* ── Toolbar: search, filters, and the ticked-questions actions ── */}
+      <div className="flex-none flex flex-wrap items-center gap-2 px-3 sm:px-4 py-2 bg-white" style={{ borderBottom: '1px solid #eef0f4' }}>
+        <div className="relative flex-1 min-w-[200px] max-w-[460px]">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#bcbccc' }} />
+          <input placeholder="Search questions…" value={searchTerm}
+            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            className="pl-7 pr-7 h-8 sm:h-7 w-full text-[12px] rounded-lg outline-none transition-all"
+            style={{ ...JKT, background: '#fafafa', border: '1.5px solid #e4e4ed', color: '#1a1a2e', cursor: 'text' }}
+            onFocus={e => { e.currentTarget.style.borderColor = '#F27757'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(242,119,87,0.1)'; e.currentTarget.style.background = '#fff'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = '#e4e4ed'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = '#fafafa'; }} />
+          {searchTerm && (
+            <button onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+              style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: '#bcbccc', cursor: 'pointer', lineHeight: 0, border: 'none', background: 'none', padding: 0 }}
+              title="Clear search">
+              <X size={11} />
+            </button>
+          )}
+        </div>
+        <FilterSelect label="Source" value={filterSource}
+          options={[{ value: 'all', label: 'All' }, { value: 'manual', label: 'Manual' }, { value: 'ai', label: 'AI' },
+            { value: 'bank', label: 'Bank' }, { value: 'thirdParty', label: 'Other Platform' }]}
+          onChange={v => { setFilterSource(v); setCurrentPage(1); }} />
+        <FilterSelect label="Difficulty" value={filterDifficulty}
+          options={[{ value: 'all', label: 'All' }, { value: 'easy', label: 'Easy' }, { value: 'medium', label: 'Medium' }, { value: 'hard', label: 'Hard' }]}
+          onChange={v => { setFilterDifficulty(v); setCurrentPage(1); }} />
+        {isCombined && (
+          <FilterSelect label="Type" value={filterType}
+            options={[{ value: 'all', label: 'All' }, { value: 'mcq', label: 'MCQ' }, { value: 'programming', label: 'Programming' },
+              { value: 'frontend', label: 'Frontend' }, { value: 'database', label: 'Database' }]}
+            onChange={v => { setFilterType(v); setCurrentPage(1); }} />
+        )}
+        {anyFilter && (
+          <button type="button" onClick={() => { setFilterSource('all'); setFilterDifficulty('all'); setFilterType('all'); setCurrentPage(1); }}
+            className="h-8 sm:h-7 px-2 text-[11px] rounded-lg flex items-center gap-1"
+            style={{ ...JKT, color: '#e0623f', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+            <X size={11} /> Clear filters
+          </button>
+        )}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-[11.5px] font-semibold" style={{ ...JKT, color: '#1a1a2e' }}>{selectedIds.size} selected</span>
+            <button type="button" onClick={() => setSelectedIds(new Set())}
+              className="h-8 sm:h-7 px-2.5 text-[11.5px] rounded-lg"
+              style={{ ...JKT, color: '#6b6b7e', background: '#fff', border: '1.5px solid #e4e4ed', cursor: 'pointer' }}>
+              Clear
+            </button>
+            <button type="button" onClick={() => setShowBulkDelete(true)}
+              className="h-8 sm:h-7 px-3 text-[11.5px] font-semibold rounded-lg flex items-center gap-1.5 text-white"
+              style={{ ...JKT, background: '#ef4444', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#dc2626')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#ef4444')}>
+              <Trash2 size={12} /> Delete selected
+            </button>
+          </div>
+        )}
+      </div>
+
+      {(anyFilter || searchTerm) && (
         <div className="flex-none flex flex-wrap items-center gap-2 px-3 sm:px-4 py-1.5"
           style={{ background: 'rgba(242,119,87,0.05)', borderBottom: '1px solid rgba(242,119,87,0.15)' }}>
           <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#F27757' }}>Filters:</span>
@@ -1751,6 +1808,13 @@ const addBtnDisabled = isAddingQuestions || (() => {
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(242,119,87,0.18)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'rgba(242,119,87,0.1)')}>
               {filterDifficulty} <X size={9} />
+            </button>
+          )}
+          {filterSource !== 'all' && (
+            <button onClick={() => setFilterSource('all')}
+              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition-all"
+              style={{ background: 'rgba(242,119,87,0.1)', color: '#F27757', border: '1px solid rgba(242,119,87,0.2)', cursor: 'pointer' }}>
+              {SRC_CFG[filterSource]?.label ?? filterSource} <X size={9} />
             </button>
           )}
           {filterType !== 'all' && (
@@ -1783,10 +1847,24 @@ const addBtnDisabled = isAddingQuestions || (() => {
             {/* ── thead ── */}
             <thead>
               <tr style={{ background: '#fafbfc', borderBottom: '1px solid #eef0f4' }}>
+                <th className="w-10 pl-4 pr-1 py-2.5 text-left">
+                  <input type="checkbox" aria-label="Select all questions on this page"
+                    className="h-3.5 w-3.5 cursor-pointer accent-[#F27757] align-middle"
+                    checked={pagedQs.length > 0 && pagedQs.every(q => selectedIds.has(q._id))}
+                    ref={el => { if (el) el.indeterminate = pagedQs.some(q => selectedIds.has(q._id)) && !pagedQs.every(q => selectedIds.has(q._id)); }}
+                    onChange={e => {
+                      const on = e.target.checked;
+                      setSelectedIds(prev => {
+                        const next = new Set(prev);
+                        pagedQs.forEach(q => { if (on) next.add(q._id); else next.delete(q._id); });
+                        return next;
+                      });
+                    }} />
+                </th>
                 {[
                   // Every column but Question has a fixed width, so the
                   // question title takes all the room that is left.
-                  { label: '#',          cls: 'w-12 pl-4 pr-2' },
+                  { label: '#',          cls: 'w-10 px-2' },
                   { label: 'Question',   cls: 'px-3' },
                   ...(showMcqCol ? [{ label: 'Options', cls: 'w-[24%] px-3' }] : []),
                   ...((isCombined || isPureOthers) ? [{ label: 'Type', cls: 'w-24 px-3' }] : []),
@@ -1821,7 +1899,9 @@ const addBtnDisabled = isAddingQuestions || (() => {
                   <tr key={q._id}
                     style={{
                       borderBottom: '1px solid #f0f0f5',
-                      background: isHovered
+                      background: selectedIds.has(q._id)
+                        ? 'rgba(242,119,87,0.07)'
+                        : isHovered
                         ? 'linear-gradient(90deg, rgba(242,119,87,0.06) 0%, rgba(242,119,87,0.03) 100%)'
                         : '#ffffff',
                       transition: 'background 0.15s ease, box-shadow 0.15s ease',
@@ -1831,8 +1911,23 @@ const addBtnDisabled = isAddingQuestions || (() => {
                     onMouseEnter={() => setHoveredRow(q._id)}
                     onMouseLeave={() => setHoveredRow(null)}>
 
+                    {/* Tick for a bulk delete */}
+                    <td className="pl-4 pr-1 py-2.5 align-middle">
+                      <input type="checkbox" aria-label={`Select question ${rowNum}`}
+                        className="h-3.5 w-3.5 cursor-pointer accent-[#F27757] align-middle"
+                        checked={selectedIds.has(q._id)}
+                        onChange={e => {
+                          const on = e.target.checked;
+                          setSelectedIds(prev => {
+                            const next = new Set(prev);
+                            if (on) next.add(q._id); else next.delete(q._id);
+                            return next;
+                          });
+                        }} />
+                    </td>
+
                     {/* # */}
-                    <td className="pl-4 pr-2 py-2.5 align-middle">
+                    <td className="px-2 py-2.5 align-middle">
                       {rowNum === 1 && currentPage === 1 ? (
                         <span className="inline-flex items-center gap-0.5 text-[11px] font-mono font-bold" style={{ color: '#F27757' }}>
                           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#F27757' }} />
@@ -1943,14 +2038,14 @@ const addBtnDisabled = isAddingQuestions || (() => {
               <Code2 size={32} style={{ color: 'rgba(242,119,87,0.4)' }} />
             </div>
             <h3 className="text-[14px] font-bold mb-1" style={{ color: '#1a1a2e' }}>
-              {searchTerm || filterDifficulty !== 'all' || filterType !== 'all' ? 'No matching questions' : 'No questions yet'}
+              {searchTerm || anyFilter ? 'No matching questions' : 'No questions yet'}
             </h3>
             <p className="text-[12px] mb-5 max-w-xs leading-relaxed" style={{ color: '#8b8b9e' }}>
-              {searchTerm || filterDifficulty !== 'all' || filterType !== 'all'
+              {searchTerm || anyFilter
                 ? 'Try adjusting your search or clearing filters.'
                 : 'Get started by adding your first question to this exercise.'}
             </p>
-            {!addBtnDisabled && !searchTerm && filterDifficulty === 'all' && filterType === 'all' && (
+            {!addBtnDisabled && !searchTerm && !anyFilter && (
               <button
                 // Empty-state now routes through the same source-aware handler
                 // as the header "+" button, so `questionSource` decides whether
@@ -2370,6 +2465,47 @@ const addBtnDisabled = isAddingQuestions || (() => {
       {previewQuestion && (
         <QuestionPreview question={previewQuestion} allQuestions={filteredQs}
           onClose={() => setPreviewQuestion(null)} onNavigate={q => setPreviewQuestion(q)} />
+      )}
+
+      {/* ── Bulk delete: Yes / No ── */}
+      {showBulkDelete && selectedIds.size > 0 && (
+        <>
+          <Backdrop zIndex={60} />
+          <div className="fixed inset-0 z-[61] flex items-center justify-center p-4" style={{ pointerEvents: 'none' }}>
+            <div role="alertdialog" aria-modal="true" aria-labelledby="bulk-delete-title"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+              style={{ ...JKT, border: '1px solid #e4e4ed', pointerEvents: 'auto', boxShadow: '0 20px 60px rgba(26,26,46,0.18)' }}>
+              <div className="flex items-center gap-3 p-4" style={{ borderBottom: '1px solid #fee2e2', background: 'linear-gradient(135deg,#fff5f5,#fff)' }}>
+                <div className="p-2 bg-red-100 rounded-xl"><Trash2 className="h-4 w-4 text-red-600" /></div>
+                <div>
+                  <h3 id="bulk-delete-title" className="text-[13px] font-bold" style={{ color: '#1a1a2e' }}>
+                    Delete {selectedIds.size} question{selectedIds.size === 1 ? '' : 's'}?
+                  </h3>
+                  <p className="text-[11px]" style={{ color: '#8b8b9e' }}>This action cannot be undone</p>
+                </div>
+              </div>
+              <div className="p-4">
+                <ul className="space-y-1 max-h-40 overflow-auto">
+                  {questions.filter(q => selectedIds.has(q._id)).map(q => (
+                    <li key={q._id} className="text-[12px] truncate" style={{ color: '#1a1a2e' }}>• {stripHtml(getTitle(q))}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex gap-2 px-4 pb-4">
+                <button onClick={() => setShowBulkDelete(false)} disabled={bulkDeleting}
+                  className="flex-1 py-2 text-[12px] rounded-xl transition-all disabled:opacity-50"
+                  style={{ ...JKT, border: '1.5px solid #e4e4ed', color: '#6b6b7e', background: '#fff', cursor: 'pointer' }}>
+                  No
+                </button>
+                <button onClick={handleBulkDelete} disabled={bulkDeleting}
+                  className="flex-1 py-2 text-[12px] font-semibold text-white rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-70 transition-all"
+                  style={{ ...JKT, background: '#ef4444', cursor: bulkDeleting ? 'not-allowed' : 'pointer' }}>
+                  {bulkDeleting ? <><Loader className="h-3 w-3 animate-spin" />Deleting…</> : <><Trash2 className="h-3 w-3" />Yes, delete</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── Delete Modal ── */}
