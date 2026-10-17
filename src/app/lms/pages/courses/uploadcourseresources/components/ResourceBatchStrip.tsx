@@ -441,9 +441,8 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
             </>
           ) : (
             <>
-              One set of {tabLabel} resources serves every batch — upload once and all{" "}
-              {ctx.batches.length} batches see it. There is no batch to choose here, so the
-              selector is disabled.
+              One set of {tabLabel} activities serves every batch — add them once and all{" "}
+              {ctx.batches.length} batches see them. There is no batch to choose here.
               {batchwiseNames ? <> Batch-wise on this course: {batchwiseNames}.</> : null}
             </>
           )}
@@ -452,13 +451,13 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
     </span>
   );
 
-  // Badge reads INTO the control next to it as one sentence:
-  // "I Do resources for batch → [Batch I]", or, when the section is common,
-  // "We Do resources for → [All batches]". Tab name is dynamic (whichever of
-  // I Do / We Do / You Do the course config marks batch-wise).
+  // Batch-wise, the badge reads INTO the picker next to it as one sentence:
+  // "I Do activities for batch → [Batch I]". A common section says so on its
+  // own: "We Do activities are common to all batches". Tab name is dynamic
+  // (whichever of I Do / We Do / You Do the course config marks batch-wise).
   const label = (
     <span
-      className="hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] font-bold whitespace-nowrap"
+      className={`${tabIsBatchWise ? "hidden sm:inline-flex" : "inline-flex"} items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] font-bold whitespace-nowrap`}
       style={
         tabIsBatchWise
           ? { background: T.orangeLight, color: T.orangeDark, border: `1px solid ${T.orange}35` }
@@ -466,36 +465,19 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
       }
     >
       <Layers size={12} />
-      {tabLabel} resources for {tabIsBatchWise ? "batch" : "every batch"}
+      {tabIsBatchWise ? `${tabLabel} activities for batch` : `${tabLabel} activities are common to all batches`}
     </span>
   );
 
-  // ── Shared section: same row, inert control ───────────────────────────────
-  // Everyone (staff and students alike) sees the batch selector fixed on
-  // "All batches" — there is nothing to pick, and the disabled state plus the
-  // ⓘ say so rather than leaving a blank corner.
+  // ── Shared section: one plain notice ─────────────────────────────────────
+  // Everyone (staff and students alike) reads "We Do activities are common to
+  // all batches", with the ⓘ explaining why - there is nothing to pick, so no
+  // batch control is shown.
   if (!tabIsBatchWise) {
     return (
       <div className="relative flex items-center gap-2">
         {info}
         {label}
-        <span
-          className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold whitespace-nowrap max-w-[150px] sm:max-w-[220px]"
-          aria-disabled="true"
-          title={`${tabLabel} is common — every batch sees the same resources, so there is no batch to select`}
-          style={{
-            background: T.pageBg,
-            border: `1.5px solid ${T.border}`,
-            borderRadius: 8,
-            color: T.textMuted,
-            padding: "5px 10px",
-            cursor: "not-allowed",
-          }}
-        >
-          <Users size={12} style={{ flexShrink: 0 }} />
-          <span className="truncate">All batches</span>
-          <ChevronDown size={13} style={{ color: T.textMuted, flexShrink: 0, opacity: 0.5 }} />
-        </span>
       </div>
     );
   }
