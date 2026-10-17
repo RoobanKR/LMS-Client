@@ -1211,7 +1211,9 @@ const bankSelectionQuota = (() => {
 })();
 
 const isPureOthers = !isCombined && exercise.exerciseType?.toLowerCase() === 'other';
-  const isExerciseGraded = fullExData?.isGraded !== false;
+  // The list's own exercise already says graded / non-graded - use it until
+  // the fresh copy arrives, so a non-graded list never flashes a Marks column.
+  const isExerciseGraded = (fullExData?.isGraded ?? (exercise as any)?.isGraded) !== false;
   const progGenFull = isProgGeneralFull();
   const mcqDisabled = isMcqAddDisabled();
   const progSlot    = getProgSlotInfo();
@@ -1782,13 +1784,16 @@ const addBtnDisabled = isAddingQuestions || (() => {
             <thead>
               <tr style={{ background: '#fafbfc', borderBottom: '1px solid #eef0f4' }}>
                 {[
-                  { label: '#',          cls: 'w-10 pl-4 pr-2' },
-                  { label: 'Question',   cls: 'w-[28%] px-3' },
-                  ...(showMcqCol ? [{ label: 'Options', cls: 'w-[22%] px-3' }] : []),
-                  ...((isCombined || isPureOthers) ? [{ label: 'Type', cls: 'w-20 px-3' }] : []),
-                  { label: 'Difficulty', cls: 'w-20 px-3' },
-                  ...(isExerciseGraded ? [{ label: 'Marks', cls: 'w-16 px-3 text-center' }] : []),
-                  { label: 'Actions',    cls: 'w-14 px-3 text-center' },
+                  // Every column but Question has a fixed width, so the
+                  // question title takes all the room that is left.
+                  { label: '#',          cls: 'w-12 pl-4 pr-2' },
+                  { label: 'Question',   cls: 'px-3' },
+                  ...(showMcqCol ? [{ label: 'Options', cls: 'w-[24%] px-3' }] : []),
+                  ...((isCombined || isPureOthers) ? [{ label: 'Type', cls: 'w-24 px-3' }] : []),
+                  { label: 'Source',     cls: 'w-32 px-3' },
+                  { label: 'Difficulty', cls: 'w-28 px-3' },
+                  ...(isExerciseGraded ? [{ label: 'Marks', cls: 'w-20 px-3 text-center' }] : []),
+                  { label: 'Actions',    cls: 'w-20 px-3 text-center' },
                 ].map(h => (
                   <th key={h.label}
                     className={`py-2.5 text-left select-none ${h.cls}`}
@@ -1843,12 +1848,9 @@ const addBtnDisabled = isAddingQuestions || (() => {
                     {/* Title + desc */}
                     <td className="px-3 py-2.5 align-middle min-w-0" style={{ cursor: 'default' }}>
                       <div className="flex flex-col justify-center">
-                        <span className="flex items-center gap-1.5 min-w-0">
                         <span className="text-[12px] font-semibold truncate block" title={stripHtml(title)}
                           style={{ color: isHovered ? '#e0623f' : '#1a1a2e', transition: 'color 0.15s' }}>
-                          <span>{typeof title === 'string' ? title.replace(/<[^>]*>/g, '') : title}</span>
-                        </span>
-                        <SourceBadge source={(q as any).source} />
+                          {typeof title === 'string' ? title.replace(/<[^>]*>/g, '') : title}
                         </span>
                         <span className="text-[10px] truncate block mt-0.5" style={{ color: '#8b8b9e' }}>
                           {stripHtml(desc)}
@@ -1884,6 +1886,10 @@ const addBtnDisabled = isAddingQuestions || (() => {
                     {(isCombined || isPureOthers) && (
                       <td className="px-3 py-2.5 align-middle"><TypeBadge type={q.questionType} /></td>
                     )}
+                    <td className="px-3 py-2.5 align-middle">
+                      <SourceBadge source={(q as any).source} />
+                      {!(q as any).source && <span className="text-[10px]" style={{ color: '#e4e4ed' }}>—</span>}
+                    </td>
                     <td className="px-3 py-2.5 align-middle"><DiffBadge level={diff} /></td>
 
                     {isExerciseGraded && (
