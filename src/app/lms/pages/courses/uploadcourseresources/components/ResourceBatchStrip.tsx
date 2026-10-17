@@ -432,18 +432,21 @@ export const BatchScopeBar: React.FC<ResourceBatchStripProps & { courseId: strin
           }}
         >
           <b style={{ display: "block", color: T.textMain, marginBottom: 3 }}>
-            {tabLabel} is {tabIsBatchWise ? "batch-wise" : "common to all batches"}
+            {tabIsBatchWise ? `${tabLabel} is separate for each batch` : `${tabLabel} is the same for every batch`}
           </b>
           {tabIsBatchWise ? (
             <>
-              Each batch has its own set of {tabLabel} resources. Pick a batch to view and
-              upload that batch&rsquo;s resources — uploads go only to the selected batch.
+              Each batch has its own {tabLabel} activities. Choose a batch to see and add its
+              activities. Anything you add goes only to the batch you selected.
             </>
           ) : (
             <>
-              One set of {tabLabel} activities serves every batch — add them once and all{" "}
-              {ctx.batches.length} batches see them. There is no batch to choose here.
-              {batchwiseNames ? <> Batch-wise on this course: {batchwiseNames}.</> : null}
+              Anything you add under {tabLabel} is shown to students of{" "}
+              {ctx.batches.length === 1 ? "the batch" : ctx.batches.length === 2 ? "both batches" : `all ${ctx.batches.length} batches`}.
+              Add it once; you don&rsquo;t need to add it again for each batch.
+              {batchwiseNames
+                ? <> On this course, only {batchwiseNames} {batchwiseNames.includes(",") ? "are" : "is"} separate for each batch.</>
+                : null}
             </>
           )}
         </span>
