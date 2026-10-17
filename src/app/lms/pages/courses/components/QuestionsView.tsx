@@ -1788,50 +1788,6 @@ const addBtnDisabled = isAddingQuestions || (() => {
         )}
       </div>
 
-      {(anyFilter || searchTerm) && (
-        <div className="flex-none flex flex-wrap items-center gap-2 px-3 sm:px-4 py-1.5"
-          style={{ background: 'rgba(242,119,87,0.05)', borderBottom: '1px solid rgba(242,119,87,0.15)' }}>
-          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#F27757' }}>Filters:</span>
-          {searchTerm && (
-            <button onClick={() => setSearchTerm('')}
-              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition-all"
-              style={{ background: 'rgba(242,119,87,0.1)', color: '#F27757', border: '1px solid rgba(242,119,87,0.2)', cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(242,119,87,0.18)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(242,119,87,0.1)')}>
-              "{searchTerm}" <X size={9} />
-            </button>
-          )}
-          {filterDifficulty !== 'all' && (
-            <button onClick={() => setFilterDifficulty('all')}
-              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full capitalize transition-all"
-              style={{ background: 'rgba(242,119,87,0.1)', color: '#F27757', border: '1px solid rgba(242,119,87,0.2)', cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(242,119,87,0.18)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(242,119,87,0.1)')}>
-              {filterDifficulty} <X size={9} />
-            </button>
-          )}
-          {filterSource !== 'all' && (
-            <button onClick={() => setFilterSource('all')}
-              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition-all"
-              style={{ background: 'rgba(242,119,87,0.1)', color: '#F27757', border: '1px solid rgba(242,119,87,0.2)', cursor: 'pointer' }}>
-              {SRC_CFG[filterSource]?.label ?? filterSource} <X size={9} />
-            </button>
-          )}
-          {filterType !== 'all' && (
-            <button onClick={() => setFilterType('all')}
-              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full capitalize transition-all"
-              style={{ background: 'rgba(242,119,87,0.1)', color: '#F27757', border: '1px solid rgba(242,119,87,0.2)', cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(242,119,87,0.18)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(242,119,87,0.1)')}>
-              {filterType} <X size={9} />
-            </button>
-          )}
-          <span className="text-[10px] ml-auto" style={{ color: '#F27757' }}>
-            {filteredQs.length} result{filteredQs.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-      )}
-
       {/* ══ Table area ══════════════════════════════════════════════════════ */}
 <div ref={tableContainerRef} className="flex-1 min-h-0 bg-white overflow-auto">
         {loadingQuestions ? (
