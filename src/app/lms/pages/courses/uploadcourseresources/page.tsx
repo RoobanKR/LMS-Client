@@ -477,18 +477,20 @@ const useParentSection = () => {
 
 const BreadcrumbBar = ({
   breadcrumbs,
+  right,
 }: {
   breadcrumbs: Array<{ id: string; type: string; label: string; onClick?: () => void }>;
+  /** Shown at the row's right corner (the batch scope + notification bell). */
+  right?: React.ReactNode;
 }) => {
   const router = useRouter();
   const parent = useParentSection();
 
-  if (!breadcrumbs || breadcrumbs.length === 0) return null;
-
   const allowedTypes = ["dashboard", "courses", "course"];
-  const filteredCrumbs = breadcrumbs.filter(crumb => allowedTypes.includes(crumb.type));
+  const filteredCrumbs = (breadcrumbs || []).filter(crumb => allowedTypes.includes(crumb.type));
 
-  if (filteredCrumbs.length === 0) return null;
+  // The row also carries the batch scope + bell, so it stays while those do.
+  if (filteredCrumbs.length === 0 && !right) return null;
 
   // Each shell's own Dashboard: the trainer rail links /dashboard, the admin
   // rail (which owns the Course Management route) /admindashboard.
@@ -611,6 +613,7 @@ const BreadcrumbBar = ({
           );
         })}
       </nav>
+      {right && <div className="ml-auto flex items-center flex-shrink-0 pl-3">{right}</div>}
     </div>
   );
 };
@@ -4430,7 +4433,25 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
               background: T.bg,
               gap: 0,
             }}>
-              <BreadcrumbBar breadcrumbs={breadcrumbs} />
+              {/* The batch scope ("We Do resources for every batch · All
+                  batches", or the batch picker) and the bell sit in this
+                  first row's right corner. */}
+              <BreadcrumbBar
+                breadcrumbs={breadcrumbs}
+                right={
+                  <div className="flex items-center" style={{ gap: 10 }}>
+                    <BatchScopeBar
+                      ctx={resourceBatchCtx}
+                      activeTab={activeTab}
+                      activeBatchId={activeBatchId}
+                      onSelectBatch={handleSelectBatch}
+                      canSwitchBatch={parentSection.canSwitchBatch}
+                      courseId={courseId || ""}
+                    />
+                    <NotificationBell />
+                  </div>
+                }
+              />
 
               {/* ── Course content — zero top gap. The batch picker rides the
                     I Do / We Do / You Do tab row (CourseContent's tabBarRight),
@@ -4483,22 +4504,8 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
                     courseStructureName={courseStructureResponse?.data?.courseName || ""}
                     configuredLanguages={configuredLanguages}
                     activeBatchId={activeBatchId}
-                    tabBarRight={
-                      /* Batch picker + bell share the tab row's right corner
-                         (the shell's floating bell is hidden on this page so
-                         nothing straddles the row divider). */
-                      <div className="flex items-center" style={{ gap: 10, padding: "4px 0" }}>
-                        <BatchScopeBar
-                          ctx={resourceBatchCtx}
-                          activeTab={activeTab}
-                          activeBatchId={activeBatchId}
-                          onSelectBatch={handleSelectBatch}
-                          canSwitchBatch={parentSection.canSwitchBatch}
-                          courseId={courseId || ""}
-                        />
-                        <NotificationBell />
-                      </div>
-                    }
+                    /* Batch scope + bell moved up to the breadcrumb row's
+                       right corner (BreadcrumbBar `right`). */
 
                     onTabChange={(tab) => { setActiveTabPersistent(tab); setActiveSubcategoryPersistent(""); updateURL({ activeTab: tab, activeSubcategory: "" }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
                     onSubcategoryChange={(sub, comp) => { setActiveSubcategoryPersistent(sub); updateURL({ activeSubcategory: sub }); updateNavState({ currentFolderPath: [], currentFolderId: null }); }}
