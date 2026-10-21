@@ -1657,9 +1657,18 @@ const getExercisesForActivity = (): any[] => {
     const practice = isPractice(selectedMethod, selectedActivity)
     const prefix = selectedMethod === 'you-do' && !practice ? 'youdo/' : ''
 
+    // Every exercise opens in a NEW TAB - Start, Continue and Retake alike - so
+    // the course list stays where the student left it. The exercise travels in
+    // localStorage (shared with the new tab); the course data already carries
+    // it whole, so nothing is fetched first and the tab opens at once.
+    const openTab = (url: string) => {
+      const w = window.open(url, '_blank')
+      if (w) w.opener = null
+      else router.push(url) // popup blocked - open it here instead
+    }
     const nav = (path: string, key: string, extra: Record<string, string> = {}) => {
       localStorage.setItem(key, JSON.stringify(stored))
-      router.push(`/lms/pages/courses/coursesdetailedview/${prefix}${path}?${new URLSearchParams({ courseId, courseName: cname, exerciseId: eid || '', subcategory: selectedActivity || '', category: catP, questionCount: qs.length.toString(), ...extra })}`)
+      openTab(`/lms/pages/courses/coursesdetailedview/${prefix}${path}?${new URLSearchParams({ courseId, courseName: cname, exerciseId: eid || '', subcategory: selectedActivity || '', category: catP, questionCount: qs.length.toString(), ...extra })}`)
     }
 
     if (exercise.exerciseType === "Combined") nav('combined', 'currentCombinedExercise', { exerciseName: exercise.exerciseInformation?.exerciseName || 'Combined Exercise', nodeId: selectedItem?.id || '', nodeName: selectedItem?.title || '', nodeType: selectedItem?.type || '', hierarchy: currentHierarchy.join(',') })
@@ -1670,7 +1679,7 @@ const getExercisesForActivity = (): any[] => {
     else {
       // Programming / Core exercise
       if (selectedMethod === 'you-do' && !practice) {
-        // You Do → route to youdo/programming page (uses YouDo CodeEditor)
+        // You Do → youdo/programming (the YouDo editor: exam session, proctoring)
         nav('programming', 'currentProgrammingExercise', {
           exerciseName: exercise.exerciseInformation?.exerciseName || 'Programming Exercise',
           nodeId: selectedItem?.id || '',
@@ -1679,69 +1688,25 @@ const getExercisesForActivity = (): any[] => {
           hierarchy: currentHierarchy.join(','),
         })
       } else {
-        // We Do / I Do programming.
-        //
-        // MULTI-FILE → route to a dedicated reload-safe URL (mirrors the You Do
-        // /youdo/programming pattern). Refresh on that page restores files from
-        // the draft and keeps the same exercise/question open.
-        //
-        // Single-file → keep the existing inline overlay behaviour.
-        setExerciseResetProgress(options?.resetProgress ?? false)
-        const isMultiFile = exercise?.questionConfiguration?.programmingQuestionConfiguration?.compilerFileMode === 'multiple'
-        if (isMultiFile) {
-          const routePrefix = selectedMethod === 'i-do' ? 'ido/' : 'wedo/'
-          // Fetch the full exercise document so the stashed blob has totalMarks,
-          // settings, etc. — same as the inline path used to.
-          let stash: any = { ...exercise, questions: qs, courseId, courseName: cname, context: { courseId, nodeId: selectedItem?.id, nodeTitle: selectedItem?.title, method: selectedMethod, activity: selectedActivity }, storedAt: new Date().toISOString() }
-          try {
-            const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
-            const res = await fetch(`https://lmsserver-yeve.onrender.com/exercise/${exercise._id}`, {
-              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-            })
-            if (res.ok) {
-              const data = await res.json()
-              const full = data.data || data.exercise || data
-              if (full?._id) stash = { ...full, questions: qs, courseId, courseName: cname, context: stash.context, storedAt: stash.storedAt }
-            }
-          } catch { /* fall through with the partial exercise */ }
-
-          localStorage.setItem('currentProgrammingExercise', JSON.stringify(stash))
-          router.push(
-            `/lms/pages/courses/coursesdetailedview/${routePrefix}programming?` +
-            new URLSearchParams({
-              courseId,
-              courseName: cname,
-              exerciseId: eid || '',
-              exerciseName: exercise.exerciseInformation?.exerciseName || 'Programming Exercise',
-              subcategory: selectedActivity || '',
-              category: catP,
-              nodeId: selectedItem?.id || '',
-              nodeName: selectedItem?.title || '',
-              nodeType: selectedItem?.type || '',
-              hierarchy: currentHierarchy.join(','),
-            }).toString()
-          )
-          return
-        }
-
-        // Single-file (existing inline path) — fetch full document and render inline.
-        try {
-          const token = localStorage.getItem('smartcliff_token') || localStorage.getItem('token') || ''
-          const res = await fetch(`https://lmsserver-yeve.onrender.com/exercise/${exercise._id}`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-          })
-          if (res.ok) {
-            const data = await res.json()
-            const full = data.data || data.exercise || data
-            if (full?._id) {
-              setSelectedExercise({ ...full, questions: qs })
-              return
-            }
-          }
-        } catch {
-          // Fall through to use the partial exercise object
-        }
-        setSelectedExercise(exercise)
+        // We Do / I Do (and You Do > Practice) → the same editor page Start
+        // opens, single- or multi-file, so Continue lands where Start did.
+        const routePrefix = selectedMethod === 'i-do' ? 'ido/' : 'wedo/'
+        localStorage.setItem('currentProgrammingExercise', JSON.stringify(stored))
+        openTab(
+          `/lms/pages/courses/coursesdetailedview/${routePrefix}programming?` +
+          new URLSearchParams({
+            courseId,
+            courseName: cname,
+            exerciseId: eid || '',
+            exerciseName: exercise.exerciseInformation?.exerciseName || 'Programming Exercise',
+            subcategory: selectedActivity || '',
+            category: catP,
+            nodeId: selectedItem?.id || '',
+            nodeName: selectedItem?.title || '',
+            nodeType: selectedItem?.type || '',
+            hierarchy: currentHierarchy.join(','),
+          }).toString()
+        )
       }
     }
   }

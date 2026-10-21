@@ -1573,7 +1573,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
     if (!popupExercise) return
     if (popupExercise.isRetake) {
       setIsStartingExercise(true)
-      onExerciseSelect(popupExercise.exercise, { resetProgress: true })
+      Promise.resolve(onExerciseSelect(popupExercise.exercise, { resetProgress: true })).finally(() => setIsStartingExercise(false))
     } else {
       // Server + local sanity check: if a resumable attempt appeared
       // between the click that opened this popup and the click on
@@ -1589,7 +1589,7 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
         return
       }
       setIsStartingExercise(true)
-      onExerciseSelect(popupExercise.exercise)
+      Promise.resolve(onExerciseSelect(popupExercise.exercise)).finally(() => setIsStartingExercise(false))
     }
     setPopupExercise(null)
   }
@@ -1597,7 +1597,8 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
   const handleConfirmResume = (resetProgress: boolean) => {
     if (!resumeModalExercise) return
     setIsStartingExercise(true)
-    onExerciseSelect(resumeModalExercise, { resetProgress })
+    // The exercise opens in a new tab - this tab's "opening…" overlay clears.
+    Promise.resolve(onExerciseSelect(resumeModalExercise, { resetProgress })).finally(() => setIsStartingExercise(false))
     setResumeModalExercise(null)
   }
 

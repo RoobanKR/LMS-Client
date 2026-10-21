@@ -1,4 +1,5 @@
 "use client";
+import { ToolbarSelect } from '../ToolbarSelect';
 import { getToken } from "@/lib/session";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -1542,29 +1543,25 @@ export default function Assessment({
           </div>
 
           {/* Filters — the same bordered selects as We Do › Assignments. */}
-          <select
+          <ToolbarSelect
+            ariaLabel="Filter by test type"
+            minWidth={130}
             value={filterTestType}
-            onChange={e => setFilterTestType(e.target.value)}
-            aria-label="Filter by test type"
-            className={`h-8 rounded-control border border-hairline-strong bg-surface px-2.5 text-xs font-medium text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 transition-colors duration-150 ${filterTestType ? 'border-brand bg-brand-wash text-brand-strong' : ''}`}
-            style={{ minWidth: 130 }}
-          >
-            <option value="">All Test Types</option>
-            <option value="mock">Mock</option>
-            <option value="final">Final</option>
-            <option value="practice">Practice</option>
-          </select>
-          <select
+            onChange={setFilterTestType}
+            options={[
+              { value: '', label: 'All Test Types' },
+              { value: 'mock', label: 'Mock' },
+              { value: 'final', label: 'Final' },
+              { value: 'practice', label: 'Practice' },
+            ]}
+          />
+          <ToolbarSelect
+            ariaLabel="Filter by status"
+            minWidth={110}
             value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-            aria-label="Filter by status"
-            className={`h-8 rounded-control border border-hairline-strong bg-surface px-2.5 text-xs font-medium text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 transition-colors duration-150 ${filterStatus ? 'border-brand bg-brand-wash text-brand-strong' : ''}`}
-            style={{ minWidth: 110 }}
-          >
-            {STATUS_FILTER_OPTIONS.map(opt => (
-              <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+            onChange={setFilterStatus}
+            options={STATUS_FILTER_OPTIONS}
+          />
 
           {/* Secondary cluster — pushed right */}
           <div className="ml-auto flex items-center gap-1.5 flex-wrap">

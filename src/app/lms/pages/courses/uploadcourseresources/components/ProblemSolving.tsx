@@ -1,3 +1,4 @@
+import { ToolbarSelect } from './ToolbarSelect';
 import { activityNoun, capitalizeNoun, isAssignmentStyle } from '@/lib/activityKind';
 import { skillLabel } from '@/lib/skillLabels';
 import { getToken } from "@/lib/session";
@@ -4470,29 +4471,30 @@ const ProblemSolving: React.FC<ProblemSolvingProps> = (props) => {
         </div>
 
         {/* Type filter select — CM's secondary control shape */}
-        <select
+        <ToolbarSelect
+          ariaLabel="Filter by type"
           value={exerciseTypeFilter ?? ''}
-          onChange={e => setExerciseTypeFilter(e.target.value || null)}
-          className={`h-8 rounded-control border border-hairline-strong bg-surface px-2.5 text-xs font-medium text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 transition-colors duration-150 ${exerciseTypeFilter ? 'border-brand bg-brand-wash text-brand-strong' : ''}`}
-          style={{ minWidth: 120 }}
-        >
-          <option value="">All Types</option>
-          <option value="MCQ">MCQ</option>
-          <option value="Programming">Programming</option>
-          <option value="Combined">Combined</option>
-        </select>
+          onChange={v => setExerciseTypeFilter(v || null)}
+          options={[
+            { value: '', label: 'All Types' },
+            { value: 'MCQ', label: 'MCQ' },
+            { value: 'Programming', label: 'Programming' },
+            { value: 'Combined', label: 'Combined' },
+          ]}
+        />
 
         {/* Status filter select */}
-        <select
+        <ToolbarSelect
+          ariaLabel="Filter by status"
+          minWidth={110}
           value={statusFilter ?? ''}
-          onChange={e => setStatusFilter(e.target.value || null)}
-          className={`h-8 rounded-control border border-hairline-strong bg-surface px-2.5 text-xs font-medium text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 transition-colors duration-150 ${statusFilter ? 'border-brand bg-brand-wash text-brand-strong' : ''}`}
-          style={{ minWidth: 110 }}
-        >
-          <option value="">All Status</option>
-          <option value="Completed">Completed</option>
-          <option value="Incomplete">Incomplete</option>
-        </select>
+          onChange={v => setStatusFilter(v || null)}
+          options={[
+            { value: '', label: 'All Status' },
+            { value: 'Completed', label: 'Completed' },
+            { value: 'Incomplete', label: 'Incomplete' },
+          ]}
+        />
 
         {/* Secondary-action cluster pushed right — icon-and-label pills on
             the same h-8 shape as the toolbar controls. */}
