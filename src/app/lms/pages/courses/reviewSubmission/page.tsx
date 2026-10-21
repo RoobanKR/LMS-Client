@@ -3482,6 +3482,85 @@ builtins.input = _async_input
     return cat === 'You_Do' ? 'testcase' : 'manual';
   }, [selectedExercise]);
 
+  // ── The submission as the student left it ────────────────────────────────
+  // The Terminal shows what the student's program printed - saved with the
+  // answer at submit time (the student's last run, or one run the server made
+  // with the sample input) - and Test Result the stored grading. The trainer
+  // reviews it without running the code again.
+  useEffect(() => {
+    const sq: any = submissionQuestion;
+    const ro: any = sq?.runOutput;
+    const logs: LogEntry[] = [];
+    const add = (type: string, content: string) =>
+      logs.push({ id: `ro${logs.length}`, type: type as LogEntry['type'], content, timestamp: 0 });
+    if (ro && Array.isArray(ro.lines) && ro.lines.length) {
+      const when = ro.ranAt
+        ? new Date(ro.ranAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' })
+        : '';
+      add('system', ro.source === 'auto'
+        ? `Output of the submitted code, run once with the sample input${when ? ` · ${when}` : ''}`
+        : `Output of the student's last run before submitting${when ? ` · ${when}` : ''}`);
+      if (ro.stale) add('info', 'The code was changed after this run, so this output may not match the submitted code.');
+      if (ro.source === 'auto' && ro.stdin) {
+        add('system', 'Input:');
+        String(ro.stdin).split('\n').forEach((l: string) => add('stdin', l));
+        add('system', 'Output:');
+      }
+      // A live console sends output in pieces; join them back into lines.
+      let buf: { kind: string; text: string } | null = null;
+      const flush = () => {
+        if (!buf) return;
+        const parts = buf.text.split('\n');
+        parts.forEach((l, i) => { if (i < parts.length - 1 || l) add(buf!.kind, l); });
+        buf = null;
+      };
+      for (const l of ro.lines) {
+        if (l?.inline) {
+          if (buf && buf.kind === l.kind) buf.text += String(l.text ?? '');
+          else { flush(); buf = { kind: l.kind, text: String(l.text ?? '') }; }
+        } else { flush(); add(l?.kind || 'stdout', String(l?.text ?? '')); }
+      }
+      flush();
+      if (ro.truncated) add('info', '… output trimmed.');
+    } else if (sq) {
+      add('info', 'No program output was saved with this submission.');
+    }
+    setTerminalLogs(logs);
+
+    // Stored grading → Test Result (hidden cases shown in full to the trainer).
+    const bd: any = sq?.evaluationBreakdown;
+    const qTcs: any[] = (selectedQuestion as any)?.testCases || [];
+    const maxMarks = Number((selectedQuestion as any)?.score ?? (selectedQuestion as any)?.points ?? 0) || null;
+    if (bd?.method === 'testcase' && bd.testcase) {
+      const cases = (Array.isArray(bd.testcase.cases) ? bd.testcase.cases : []).map((c: any) => {
+        const src = qTcs[c?.index ?? 0] || {};
+        return {
+          index: c?.index ?? 0, hidden: !!c?.hidden, passed: !!c?.passed, unlocked: true,
+          input: c?.input || String(src.input ?? ''),
+          expectedOutput: c?.expectedOutput || String(src.expectedOutput ?? ''),
+          actualOutput: c?.actualOutput ?? '', runtimeMs: null, errorMessage: c?.errorMessage,
+        };
+      });
+      const passed = typeof bd.testcase.passed === 'number' ? bd.testcase.passed : cases.filter((c: any) => c.passed).length;
+      const total = typeof bd.testcase.total === 'number' ? bd.testcase.total : cases.length;
+      setTestResult({
+        status: passed === total && total > 0 ? 'accepted' : passed === 0 ? 'wrong-answer' : 'partial',
+        cases, passedCount: passed, totalCount: total,
+        score: Number(sq?.score) || 0, maxMarks,
+      } as any);
+    } else if (bd?.method === 'ai' && bd.ai) {
+      setTestResult(buildAiTestResultState({
+        ai: { ...bd.ai, testCases: (bd.ai.testCases || []).map((tc: any) => ({ ...tc, hidden: false })) },
+        score: Number(sq?.score) || 0,
+        maxMarks,
+      }));
+    } else {
+      setTestResult(null);
+    }
+    setSelectedCaseIndex(0);
+    setBottomTab(bd && (bd.method === 'testcase' || bd.method === 'ai') && evalMethod !== 'manual' ? 'test-result' : 'terminal');
+  }, [submissionQuestion, selectedQuestion, evalMethod]);
+
   // Stop a live run when the trainer moves to another question / student or
   // leaves the page — its output must not land in the next one's terminal.
   useEffect(() => () => {
@@ -4490,10 +4569,10 @@ builtins.input = _async_input
                   language={runLanguage}
                   languages={exerciseLanguages}
                   onLanguageChange={setRunLanguage}
-                  onRun={runConsoleCode}
-                  onRunTests={evalMethod !== 'manual' ? runConsoleTests : undefined}
+                  // The submission is shown as submitted - its output and
+                  // grading were stored with it, so nothing is run here.
+                  readOnly
                   runningTests={isRunningTests}
-                  onReset={resetConsoleCode}
                   running={isExecuting}
                   descriptionHtml={problemHtml}
                   constraints={consoleConstraints}
@@ -4529,10 +4608,8 @@ builtins.input = _async_input
                         onTabChange={setBottomTab}
                         // Manual: nothing is evaluated, so no Test Result tab.
                         mode={evalMethod === 'manual' ? 'terminal' : 'both'}
-                        liveTerminal={liveRunning}
-                        onStopRun={stopLiveConsole}
-                        onRetrySubmit={runConsoleTests}
-                        isSubmitting={isRunningTests}
+                        liveTerminal={false}
+                        isSubmitting={false}
                         testResult={testResult}
                         termLines={termLines}
                         running={isExecuting}

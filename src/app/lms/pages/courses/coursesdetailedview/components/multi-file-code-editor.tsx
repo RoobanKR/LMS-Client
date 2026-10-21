@@ -893,6 +893,13 @@ export default function MultiFileCodeEditor({
   }, [exercise?._id, currentQuestion?._id])
 
   const currentCodeSig = useMemo(() => codeSignature(files), [files])
+  // The code a Run started from - a later submit sends that run's output
+  // with the answer, flagged stale when the code changed afterwards.
+  const codeSigRef = useRef(currentCodeSig)
+  codeSigRef.current = currentCodeSig
+  const lastRunSigRef = useRef<string | null>(null)
+  const lastRunAtRef = useRef<string | null>(null)
+  const markRunStart = () => { lastRunSigRef.current = codeSigRef.current; lastRunAtRef.current = new Date().toISOString() }
   const submittedSig = currentQuestion?._id ? submittedSigs[String(currentQuestion._id)] : undefined
   // The code on screen is exactly what was last submitted — resubmitting it
   // would only store and grade the same answer again.
@@ -1205,6 +1212,7 @@ export default function MultiFileCodeEditor({
     const myRun = ++runSeqRef.current
     const stopRequested = () => stoppedRunRef.current >= myRun
     const terminalMode = isInteractiveTerminalSupported()
+    markRunStart()
     log("system", `$ Run ${basename(entry.path)} (Python · ${terminalMode ? "live console" : "input via popup"})`)
 
     // Capture the generation. Cold-load Pyodide can take several seconds
@@ -1371,6 +1379,7 @@ export default function MultiFileCodeEditor({
     setAwaitingInput(false)
     setInputPrompt("")
     inputPromptRef.current = ""
+    markRunStart()
     log("system", `$ Run ${basename(entry.path)} (${label} · live console)`)
 
     // Same generation guard as the other runs: a question switch mid-run
@@ -1815,6 +1824,25 @@ export default function MultiFileCodeEditor({
     }
     // method === "manual" → score stays 0, no breakdown.
 
+    // The last Run's console output (from its "$ Run" line to its end), kept
+    // with the answer so the trainer's review shows what the program printed.
+    const runOutput = (() => {
+      let start = -1
+      for (let i = termLines.length - 1; i >= 0; i--) {
+        if (termLines[i].kind === "system" && termLines[i].text.startsWith("$ Run ")) { start = i; break }
+      }
+      if (start < 0 || !lastRunSigRef.current) return null
+      const rest = termLines.slice(start)
+      const endAt = rest.findIndex((l) => /^(Process (finished|exited)|Execution stopped)/.test(l.text))
+      const lines = (endAt >= 0 ? rest.slice(0, endAt + 1) : rest)
+        .filter((l) => !/^(Question \d+ saved\.|Exercise submitted\.|Saved: |Deleted: )/.test(l.text))
+        .slice(0, 500)
+        .map((l) => ({ kind: l.kind, text: l.text, ...(l.inline ? { inline: true } : {}) }))
+      return lines.length
+        ? { lines, stale: lastRunSigRef.current !== currentCodeSig, ranAt: lastRunAtRef.current }
+        : null
+    })()
+
     const payload = {
       courseId, exerciseId, questionId,
       questionTitle: currentQuestion?.title || `Question ${currentQuestionIndex + 1}`,
@@ -1836,6 +1864,7 @@ export default function MultiFileCodeEditor({
       // submissions don't stamp an empty object onto the answer.
       ...(evaluationBreakdown ? { evaluationBreakdown } : {}),
       ...(opts?.meta ? { submitType: opts.meta.submitType, autoSubmitReason: opts.meta.autoSubmitReason || "" } : {}),
+      ...(runOutput ? { runOutput } : {}),
     }
     // AI dry run — the score already exists locally, so the POST would be a
     // pure write. Skip it: Run tests must leave no stored answer behind.

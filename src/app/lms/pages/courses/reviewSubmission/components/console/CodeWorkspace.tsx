@@ -32,13 +32,16 @@ interface CodeWorkspaceProps {
   /** Maps a console language key to a Monaco language id. */
   toMonacoLanguage: (language: string) => string;
 
-  onRun: () => void;
+  /** Omitted on review: the stored output is shown instead of a re-run. */
+  onRun?: () => void;
   /** Run tests — runs the question's test cases (or the AI grader) into the
    *  Test Result tab. Passed only for an auto-evaluated exercise. Nothing is
    *  saved: review never submits, only the student does. */
   onRunTests?: () => void;
   runningTests?: boolean;
-  onReset: () => void;
+  onReset?: () => void;
+  /** The submitted code, shown as it was submitted. */
+  readOnly?: boolean;
   running: boolean;
 
   projectName: string;
@@ -94,6 +97,7 @@ export default function CodeWorkspace({
   onRunTests,
   runningTests = false,
   onReset,
+  readOnly = false,
   running,
   projectName,
   descriptionHtml,
@@ -162,6 +166,7 @@ export default function CodeWorkspace({
                       Reset the toolbar carried, just moved inline. Handlers,
                       disabled state, and running spinner are unchanged. */}
                   <div className="flex shrink-0 items-center gap-1.5 self-center pl-1.5 sm:gap-2 sm:pl-0">
+                    {onRun && (
                     <button
                       type="button"
                       onClick={onRun}
@@ -175,6 +180,7 @@ export default function CodeWorkspace({
                       )}
                       {running ? "Running…" : "Run Code"}
                     </button>
+                    )}
                     {onRunTests && (
                       <button
                         type="button"
@@ -191,6 +197,7 @@ export default function CodeWorkspace({
                         {runningTests ? "Running tests…" : "Run tests"}
                       </button>
                     )}
+                    {onReset && (
                     <button
                       type="button"
                       onClick={onReset}
@@ -199,6 +206,7 @@ export default function CodeWorkspace({
                       <RotateCcw className="h-[13px] w-[13px]" />
                       Reset
                     </button>
+                    )}
                   </div>
                 </div>
 
@@ -210,7 +218,7 @@ export default function CodeWorkspace({
                     value={activeFile.content}
                     language={toMonacoLanguage(activeFile.language)}
                     height="100%"
-                    readOnly={false}
+                    readOnly={readOnly}
                     onChange={(v) => onFileContentChange(activeFile.path, v)}
                     expanded={expanded}
                     onToggleExpand={onToggleExpand}

@@ -2055,6 +2055,12 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
   };
 
   /** validate() for a flow entry that is NOT loaded in the editor. */
+  // Test cases are required when the exercise is graded by running them -
+  // Execution type Automation (testcase) or AI Based. A Manual exercise is
+  // graded by the trainer, so its questions may have none. (No method stored
+  // = legacy, treated as testcase, as the Run Test Cases button does.)
+  const testCasesRequired = (exerciseData as any)?.fullExerciseData?.evaluationMethod?.method !== 'manual';
+
   const validateFlowQuestion = (q: FlowQuestion): Record<string, string> => {
     const e: Record<string, string> = {};
     if (q.isLinkQuestion === true) {
@@ -2068,13 +2074,13 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
     if (q.startingExperience === 'custom' && isStringSolutionEmpty(q.starterCode || '')) {
       e.starterCode = 'Starter code is required in Custom starter mode';
     }
-    if (!(q.constraints || []).some((c: string) => (c || '').trim())) e.constraints = 'At least one constraint is required';
+    // Constraints are optional.
     const qTcs: any[] = q.testCases || [];
     if (q.executionType === 'function') {
       if (!(q.functionContract?.functionName || '').trim()) e.functionName = 'Function name is required';
       const hasValidFnTc = qTcs.some(tc => (tc.expectedOutput || '').toString().trim() || Object.values(tc.functionInputs || {}).some((v: any) => (v || '').toString().trim()));
-      if (!hasValidFnTc) e.testcases = 'At least one function test case with an expected return is required';
-    } else if (!qTcs.some(tc => (tc.input || '').toString().trim() && (tc.expectedOutput || '').toString().trim())) {
+      if (testCasesRequired && !hasValidFnTc) e.testcases = 'At least one function test case with an expected return is required';
+    } else if (testCasesRequired && !qTcs.some(tc => (tc.input || '').toString().trim() && (tc.expectedOutput || '').toString().trim())) {
       e.testcases = 'At least one test case with input & output is required';
     }
     const d = (q.difficulty as Diff) || currentDiff;
@@ -2579,15 +2585,15 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
     if (startingExperience === 'custom' && isStringSolutionEmpty(starterCode)) {
       e.starterCode = 'Starter code is required in Custom starter mode';
     }
-    if (!constraints.some(c => c.trim())) e.constraints = 'At least one constraint is required';
+    // Constraints are optional.
     if (executionType === 'function') {
       if (!functionContract.functionName.trim()) e.functionName = 'Function name is required';
       // Function-mode test cases must supply an expected return; parameter
       // input fields are allowed to be empty (represents the default value).
       const hasValidFnTc = tcs.some(tc => (tc.expectedOutput || '').toString().trim() || Object.values(tc.functionInputs || {}).some(v => (v || '').toString().trim()));
-      if (!hasValidFnTc) e.testcases = 'At least one function test case with an expected return is required';
+      if (testCasesRequired && !hasValidFnTc) e.testcases = 'At least one function test case with an expected return is required';
     } else {
-      if (!tcs.some(tc => tc.input.trim() && tc.expectedOutput.trim())) e.testcases = 'At least one test case with input & output is required';
+      if (testCasesRequired && !tcs.some(tc => tc.input.trim() && tc.expectedOutput.trim())) e.testcases = 'At least one test case with input & output is required';
     }
     const currentQ = flowQuestions[currentIndex]; const dbQsForDiff = getDbQuestionsForDiff(currentDiff);
     if (!isGeneral && isScoreEditable(currentDiff)) {
@@ -3710,7 +3716,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
             <div ref={constraintsSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <label className="prog-label" style={{ margin: 0 }}>
-                  Constraints <span style={{ color: 'var(--lms-danger)' }}>*</span>
+                  Constraints <span style={{ color: 'var(--lms-text-muted)', fontWeight: 400 }}>(optional)</span>
                 </label>
                 {errs.constraints && touched.has('constraints') && (
                   <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)' }}>— {errs.constraints}</span>
@@ -3854,7 +3860,9 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                     <label className="prog-label" style={{ margin: 0 }}>
-                      Test Cases <span style={{ color: 'var(--lms-danger)' }}>*</span>
+                      Test Cases {testCasesRequired
+                        ? <span style={{ color: 'var(--lms-danger)' }}>*</span>
+                        : <span style={{ color: 'var(--lms-text-muted)', fontWeight: 400 }}>(optional — Manual evaluation)</span>}
                     </label>
                     {errs.testcases && touched.has('testcases') && (
                       <span style={{ fontFamily: 'var(--lms-font)', fontSize: 11, color: 'var(--lms-danger)' }}>— {errs.testcases}</span>

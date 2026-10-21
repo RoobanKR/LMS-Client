@@ -1743,7 +1743,13 @@ export default function CodeEditor({
         const s = seconds % 60;
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
+    // The current / last Run's console lines and the code it ran - a later
+    // submit sends them with the answer, so the trainer's review shows what
+    // the program printed (stale when the code changed after that run).
+    const runCaptureRef = useRef<{ lines: { kind: string; text: string }[]; code: string; stdin: string; at: string; active: boolean } | null>(null);
     const addTerminalLog = (type: LogEntry['type'], content: string) => {
+        const cap = runCaptureRef.current;
+        if (cap?.active && cap.lines.length < 500) cap.lines.push({ kind: type, text: String(content ?? '') });
         setTerminalLogs(prev => [...prev, {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${prev.length}`,
             type,
@@ -2605,6 +2611,10 @@ export default function CodeEditor({
                 ? customInput
                 : (problem?.examples?.[0]?.input || "");
 
+            runCaptureRef.current = {
+                lines: [], stdin: runInput, at: new Date().toISOString(), active: true,
+                code: editorInstanceRef.current ? editorInstanceRef.current.getValue() : code,
+            };
             const executionResult = await executeCode(runInput);
 
 
@@ -2612,6 +2622,7 @@ export default function CodeEditor({
         } catch (error) {
             addTerminalLog('error', `Error: ${error}`);
         } finally {
+            if (runCaptureRef.current) runCaptureRef.current.active = false;
             setIsRunning(false);
         }
     };
@@ -2808,6 +2819,15 @@ export default function CodeEditor({
             }
             const openedAt = questionOpenedAtRef.current[String(questionId)];
             if (openedAt) formData.append('questionStartedAt', openedAt);
+            // A real submit carries the last Run's output (not nav-saves, not
+            // link questions); the server runs the code once itself when there
+            // is none, or it is stale.
+            const cap = runCaptureRef.current;
+            if (cap && cap.lines.length && codeOverride === undefined && status !== 'attempted' && status !== 'skipped') {
+                formData.append('runOutput', JSON.stringify({
+                    lines: cap.lines, stdin: cap.stdin, ranAt: cap.at, stale: cap.code !== currentCode,
+                }));
+            }
 
             addTerminalLog('system', '📤 Submitting to server...');
 
