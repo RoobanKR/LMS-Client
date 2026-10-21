@@ -8,12 +8,27 @@ import type {
   CourseStructureData, Module, SubModule, SubTopic, Topic,
 } from "@/app/lms/pages/courses/api/coursesData";
 import type { CourseNode } from "./Types";
+import { groupByPhase } from "@/lib/phaseGroups";
+
+/**
+ * The modules this rail may show: a phase that Service Mapping hides ("Hide"
+ * box - the server sends its name in `hiddenPhases`) is left out with all its
+ * modules, so nothing can open them - not the sidebar, not the page's
+ * first-module auto-select, not the module count.
+ */
+function visibleModules(courseData: CourseStructureData): Module[] {
+  const data = courseData as CourseStructureData & { phaseNames?: string[]; hiddenPhases?: string[] };
+  const modules = courseData.modules || [];
+  if (!data.hiddenPhases?.length) return modules;
+  const groups = groupByPhase(modules, (m: any) => m?.phase, data.phaseNames || [], data.hiddenPhases);
+  return groups ? groups.flatMap((g) => g.items) : modules;
+}
 
 export function transformToCourseNodes(courseData: CourseStructureData): CourseNode[] {
   return [{
     id: courseData._id, name: courseData.courseName, type: "course", level: 0,
     originalData: courseData,
-    children: courseData.modules.map((module: Module) => ({
+    children: visibleModules(courseData).map((module: Module) => ({
       id: module._id, name: module.title, type: "module" as const, level: 1,
       originalData: module,
       children: [
