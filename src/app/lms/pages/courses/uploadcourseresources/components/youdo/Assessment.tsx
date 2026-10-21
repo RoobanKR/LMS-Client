@@ -1012,6 +1012,7 @@ export default function Assessment({
   // (practice/blank) so no existing record is hidden by the two-tab split.
   const [activeTestTab, setActiveTestTab] = useState<'mock' | 'final'>('mock');
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterTestType, setFilterTestType] = useState<string>('');
 
   // Mock/Final split is a student-only affordance. Trainers/admins see one
   // combined Assessment list — the tab strip and the mock/final filter both
@@ -1075,7 +1076,7 @@ export default function Assessment({
     };
   }, [statusMenuOpen]);
 
-  useEffect(() => { setCurrentPage(1); }, [assessments.length, searchQuery, activeTestTab, filterStatus]);
+  useEffect(() => { setCurrentPage(1); }, [assessments.length, searchQuery, activeTestTab, filterStatus, filterTestType]);
 
   // Deep-links (highlightExerciseId) must land on the tab that actually
   // contains the highlighted row, or the flash animation plays off-screen.
@@ -1115,10 +1116,10 @@ export default function Assessment({
   // Status filter — matches the row's OWN Status badge (`setup.isComplete`),
   // so what the menu says and what the Status column shows are the same thing.
   const filtered = useMemo(
-    () => (filterStatus
-      ? baseFiltered.filter(asm => asm.setup.isComplete === (filterStatus === 'complete'))
-      : baseFiltered),
-    [baseFiltered, filterStatus],
+    () => baseFiltered
+      .filter(asm => !filterStatus || asm.setup.isComplete === (filterStatus === 'complete'))
+      .filter(asm => !filterTestType || asm.testType === filterTestType),
+    [baseFiltered, filterStatus, filterTestType],
   );
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -1540,47 +1541,30 @@ export default function Assessment({
             )}
           </div>
 
-          {/* Status menu — as in the reference: a text trigger reading
-              "<status> (<count>)" with a chevron, opening the statuses with
-              their counts. Picking one filters the list at once (see
-              `filtered`) and the trigger keeps showing the choice. */}
-          <div className="relative flex-shrink-0" ref={statusMenuRef}>
-            <button
-              type="button"
-              onClick={() => setStatusMenuOpen(o => !o)}
-              aria-haspopup="listbox"
-              aria-expanded={statusMenuOpen}
-              className="inline-flex items-center gap-1.5 h-8 px-2 rounded-control text-[13px] font-semibold text-heading hover:bg-row-hover transition-colors duration-150"
-            >
-              {activeStatusOption.label}
-              <span className="font-medium text-subtle">({statusCounts[activeStatusOption.value || 'all']})</span>
-              <ChevronDown size={14} className={`text-subtle transition-transform duration-150 ${statusMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {statusMenuOpen && (
-              <div
-                role="listbox"
-                aria-label="Filter by status"
-                className="absolute left-0 top-full z-30 mt-1 w-[188px] rounded-xl border border-hairline bg-surface p-1 shadow-lg"
-              >
-                {STATUS_FILTER_OPTIONS.map(opt => {
-                  const selected = opt.value === filterStatus;
-                  return (
-                    <button
-                      key={opt.value || 'all'}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      onClick={() => { setFilterStatus(opt.value); setStatusMenuOpen(false); }}
-                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-[12.5px] transition-colors duration-150 ${selected ? 'bg-ink-100 font-semibold text-heading' : 'font-medium text-body hover:bg-row-hover'}`}
-                    >
-                      <span>{opt.label}</span>
-                      <span className="text-subtle">({statusCounts[opt.value || 'all']})</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Filters — the same bordered selects as We Do › Assignments. */}
+          <select
+            value={filterTestType}
+            onChange={e => setFilterTestType(e.target.value)}
+            aria-label="Filter by test type"
+            className={`h-8 rounded-control border border-hairline-strong bg-surface px-2.5 text-xs font-medium text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 transition-colors duration-150 ${filterTestType ? 'border-brand bg-brand-wash text-brand-strong' : ''}`}
+            style={{ minWidth: 130 }}
+          >
+            <option value="">All Test Types</option>
+            <option value="mock">Mock</option>
+            <option value="final">Final</option>
+            <option value="practice">Practice</option>
+          </select>
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            aria-label="Filter by status"
+            className={`h-8 rounded-control border border-hairline-strong bg-surface px-2.5 text-xs font-medium text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 transition-colors duration-150 ${filterStatus ? 'border-brand bg-brand-wash text-brand-strong' : ''}`}
+            style={{ minWidth: 110 }}
+          >
+            {STATUS_FILTER_OPTIONS.map(opt => (
+              <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
 
           {/* Secondary cluster — pushed right */}
           <div className="ml-auto flex items-center gap-1.5 flex-wrap">
