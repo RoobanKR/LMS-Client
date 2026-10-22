@@ -2226,9 +2226,9 @@ export default function MultiFileCodeEditor({
   const selectQuestion = (idx: number) => setCurrentQuestionIndex(idx)
 
   // ─── Reusable question UI ───────────────────────────────────────────────────
-  // Bottom-bar navigation: Hide / Show problems, then Previous / "Problem N of M" /
-  // Next. Moving between problems sits beside Submit and Finish; nothing to
-  // navigate with a single question, so it is left out then.
+  // Bottom-bar navigation: Hide / Show problems on the left, then Previous /
+  // "Problem N of M" / Next in the centre of the bar; nothing to navigate with
+  // a single question, so it is left out then.
   const pagerBtnStyle = (disabled: boolean): React.CSSProperties => ({
     display: "inline-flex", alignItems: "center", gap: 6,
     height: 36, padding: "0 16px", borderRadius: 6,
@@ -2239,21 +2239,21 @@ export default function MultiFileCodeEditor({
     cursor: disabled ? "not-allowed" : "pointer",
     flexShrink: 0,
   })
+  // The problems list docks beside the description — not in full screen.
+  const problemsToggle = questions.length > 1 && !isFull ? (
+    <button
+      type="button"
+      onClick={() => setShowSidebar((v) => !v)}
+      aria-pressed={showSidebar}
+      title={showSidebar ? "Hide the problems list" : "Show the problems list"}
+      style={pagerBtnStyle(false)}
+    >
+      {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
+      {showSidebar ? "Hide problems" : "Show problems"}
+    </button>
+  ) : null
   const questionNav = questions.length > 1 ? (
-    <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
-      {/* The problems list docks beside the description — not in full screen. */}
-      {!isFull && (
-        <button
-          type="button"
-          onClick={() => setShowSidebar((v) => !v)}
-          aria-pressed={showSidebar}
-          title={showSidebar ? "Hide the problems list" : "Show the problems list"}
-          style={pagerBtnStyle(false)}
-        >
-          {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
-          {showSidebar ? "Hide problems" : "Show problems"}
-        </button>
-      )}
+    <div className="flex items-center justify-center gap-3 flex-shrink-0 flex-wrap">
       <button
         type="button"
         onClick={goPrev}
@@ -3146,14 +3146,15 @@ export default function MultiFileCodeEditor({
         </div>)}{/* end non-link description + editor */}
       </div>
 
-      {/* BOTTOM BAR — Previous / Problem N of M / Next on the left; Submit
-          Answer (this problem) and Finish (the whole assignment) on the
-          right. */}
+      {/* BOTTOM BAR — Hide / Show problems on the left, Previous / Problem N
+          of M / Next in the centre, Submit Answer (this problem) and Finish
+          (the whole assignment) on the right. */}
       {exercise && (
-        <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: UI.panel, borderTop: `1px solid ${UI.border}`, padding: "10px 20px" }}>
+        <div className={`flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3! ${questionNav ? "sm:grid sm:grid-cols-[1fr_auto_1fr]" : ""}`} style={{ background: UI.panel, borderTop: `1px solid ${UI.border}`, padding: "10px 20px" }}>
+          {questionNav && <div className="flex items-center min-w-0">{problemsToggle}</div>}
           {questionNav}
           {/* Phones: the two actions share one row, half each. */}
-          <div className="ml-auto flex items-start gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
+          <div className="ml-auto sm:justify-self-end flex items-start gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
             <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
               {submitAction}
             </div>

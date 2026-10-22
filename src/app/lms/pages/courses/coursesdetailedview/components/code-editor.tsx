@@ -5017,18 +5017,19 @@ export default function CodeEditor({
 
             </div>
 
-            {/* BOTTOM BAR — Hide / Show problems, Previous / Problem N of M / Next
-                (+ Skip and the difficulty jump) on the left; Submit Answer
-                (this problem) and Finish (the whole exercise) on the right. */}
+            {/* BOTTOM BAR — Hide / Show problems and the difficulty jump on the
+                left; Previous / Problem N of M / Next (+ Skip) in the centre;
+                Submit Answer (this problem) and Finish (the whole exercise) on
+                the right. */}
             {exercise && (() => {
                 const prevDisabled = currentProblemIndex === 0;
                 const nextDisabled = currentProblemIndex === problems.length - 1 || (!isFreeFlow && !isQuestionSolved(currentProblemIndex));
                 const attemptsMaxed = !!(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1));
                 const submitBlocked = isRunning || codeIsEmpty || unchangedSinceSubmit || attemptsMaxed;
                 return (
-                    <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: WS.panel, borderTop: `1px solid ${WS.border}`, padding: '10px 20px' }}>
+                    <div className={`flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3! ${problems.length > 1 ? 'sm:grid sm:grid-cols-[1fr_auto_1fr]' : ''}`} style={{ background: WS.panel, borderTop: `1px solid ${WS.border}`, padding: '10px 20px' }}>
                         {problems.length > 1 && (
-                            <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center gap-3 flex-wrap min-w-0">
                                 <button
                                     type="button"
                                     onClick={() => setShowSidebar(!showSidebar)}
@@ -5039,6 +5040,34 @@ export default function CodeEditor({
                                     {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
                                     {showSidebar ? 'Hide problems' : 'Show problems'}
                                 </button>
+                                {availableDifficulties.length > 0 && (
+                                    <select
+                                        value={selectedDifficulty}
+                                        onChange={(e) => {
+                                            setSelectedDifficulty(e.target.value);
+                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
+                                        }}
+                                        aria-label="Jump to a difficulty"
+                                        title="Jump to the first problem of a difficulty"
+                                        style={{
+                                            height: 36, padding: '0 8px', borderRadius: 6,
+                                            border: `1px solid ${WS.border}`, background: WS.panel, color: WS.text,
+                                            fontFamily: FONT, fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+                                        }}
+                                    >
+                                        <option value="all">All difficulties</option>
+                                        {availableDifficulties.map((diff) => (
+                                            <option key={diff} value={diff}>
+                                                {diff.charAt(0).toUpperCase() + diff.slice(1)} ({difficultyMap[diff].count})
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        )}
+                        {/* Previous / Problem N of M / Next (+ Skip), centred. */}
+                        {problems.length > 1 && (
+                            <div className="flex items-center justify-center gap-3 flex-wrap">
                                 <button
                                     type="button"
                                     onClick={prevProblem}
@@ -5073,33 +5102,10 @@ export default function CodeEditor({
                                         <SkipForward style={{ width: 15, height: 15 }} />
                                     </button>
                                 )}
-                                {availableDifficulties.length > 0 && (
-                                    <select
-                                        value={selectedDifficulty}
-                                        onChange={(e) => {
-                                            setSelectedDifficulty(e.target.value);
-                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
-                                        }}
-                                        aria-label="Jump to a difficulty"
-                                        title="Jump to the first problem of a difficulty"
-                                        style={{
-                                            height: 36, padding: '0 8px', borderRadius: 6,
-                                            border: `1px solid ${WS.border}`, background: WS.panel, color: WS.text,
-                                            fontFamily: FONT, fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
-                                        }}
-                                    >
-                                        <option value="all">All difficulties</option>
-                                        {availableDifficulties.map((diff) => (
-                                            <option key={diff} value={diff}>
-                                                {diff.charAt(0).toUpperCase() + diff.slice(1)} ({difficultyMap[diff].count})
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
                             </div>
                         )}
                         {/* Phones: the two actions share one row, half each. */}
-                        <div className="ml-auto flex items-center gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
+                        <div className="ml-auto sm:justify-self-end flex items-center gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
                             {/* Submit Answer — runs the exercise's configured
                                 evaluation (server judge / AI / nothing for
                                 Manual), stores the score and marks the question
