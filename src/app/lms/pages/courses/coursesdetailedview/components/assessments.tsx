@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation"
 import { retestApi } from "@/app/lms/pages/courses/coursesdetailedview/api/retest"
 import { isMockAssessment } from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/mockTest"
 import TableFooter from "@/app/lms/shared/listing/TableFooter"
+import { FloatingDueDateFilter, FloatingFilterSelect } from "./FloatingFilterSelect"
 import { SectionStartPopup } from "@/app/lms/pages/courses/coursesdetailedview/components/section-based-assessments"
 import SectionBasedTestPage from "@/app/lms/pages/courses/coursesdetailedview/components/YouDo/SectionBasedTestPage"
 
@@ -1309,7 +1310,6 @@ export default function Assessments({
   onSectionSubmit,
 }: ExercisesProps) {
   const router = useRouter()
-  const filterRef = useRef<HTMLDivElement>(null)
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null)
   const [popupExercise, setPopupExercise] = useState<{ exercise: Exercise; isRetake?: boolean } | null>(null)
   const [resumeModalExercise, setResumeModalExercise] = useState<Exercise | null>(null)
@@ -1319,12 +1319,11 @@ export default function Assessments({
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [filterLevel, setFilterLevel] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string[]>([])
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false)
-  // Staged copies used inside the Filter popover so chips don't apply
-  // until the student clicks Apply. Sync from applied on open.
-  const [stagedLevel, setStagedLevel] = useState<string>('all')
-  const [stagedDue, setStagedDue] = useState<'any' | 'week' | 'later'>('any')
-  const [filterDue, setFilterDue] = useState<'any' | 'week' | 'later'>('any')
+  // Due-date scope: presets, or `custom` = end date inside [dueFrom, dueTo]
+  // (either bound may be left open).
+  const [filterDue, setFilterDue] = useState<'any' | 'week' | 'later' | 'custom'>('any')
+  const [dueFrom, setDueFrom] = useState<string>('')
+  const [dueTo, setDueTo] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
   const [hoveredRow, setHoveredRow] = useState<string | null>(null)
   // Rows shown per page are computed from the visible table-area height so the
@@ -1441,31 +1440,6 @@ export default function Assessments({
     }
   }
 
-  // Close filter dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setShowFilterDropdown(false)
-      }
-    }
-    if (showFilterDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showFilterDropdown])
-
-  // Sync staged filter state from applied whenever the popover opens.
-  // Cancel closes without touching applied; Apply commits staged.
-  useEffect(() => {
-    if (showFilterDropdown) {
-      setStagedLevel(filterLevel)
-      setStagedDue(filterDue)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFilterDropdown])
-
   const showToast = (message: string, type: 'error' | 'warning' | 'success' = 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3500)
@@ -1514,7 +1488,15 @@ export default function Assessments({
     else if (k === 'pending') setFilterStatus(['pending'])
     else if (k === 'missed') setFilterStatus(['missed'])
   }
-  const activeFilterCount = (filterLevel !== 'all' ? 1 : 0) + (filterDue !== 'any' ? 1 : 0)
+  const hasActiveFilters = !!searchQuery || filterStatus.length > 0 || filterLevel !== 'all' || filterDue !== 'any'
+  const clearAllFilters = () => {
+    setSearchQuery('')
+    setFilterStatus([])
+    setFilterLevel('all')
+    setFilterDue('any')
+    setDueFrom('')
+    setDueTo('')
+  }
 
   const filteredExercises = useMemo(
     () => {
@@ -1540,10 +1522,17 @@ export default function Assessments({
       if (filterDue !== "any") {
         const now = Date.now()
         const weekOut = now + 7 * 24 * 60 * 60 * 1000
+        // Custom range bounds, as local whole days.
+        const from = dueFrom ? new Date(`${dueFrom}T00:00:00`).getTime() : null
+        const to = dueTo ? new Date(`${dueTo}T23:59:59.999`).getTime() : null
         result = result.filter((ex) => {
           const endRaw = ex.availabilityPeriod?.endDate
           const end = endRaw ? new Date(endRaw).getTime() : null
           if (filterDue === "week") return end != null && end >= now && end <= weekOut
+          if (filterDue === "custom") {
+            if (from == null && to == null) return true
+            return end != null && (from == null || end >= from) && (to == null || end <= to)
+          }
           return end == null || end > weekOut
         })
       }
@@ -1596,11 +1585,11 @@ export default function Assessments({
         return sortDir === 'asc' ? cmp : -cmp
       })
     },
-    [exercises, searchQuery, filterLevel, filterStatus, filterDue, studentAnswers, method, subcategory, sortColumn, sortDir, approvedRetestWindows]
+    [exercises, searchQuery, filterLevel, filterStatus, filterDue, dueFrom, dueTo, studentAnswers, method, subcategory, sortColumn, sortDir, approvedRetestWindows]
   )
 
   // Reset to page 1 when filters change
-  useEffect(() => { setCurrentPage(1) }, [searchQuery, filterLevel, filterStatus.join(','), filterDue])
+  useEffect(() => { setCurrentPage(1) }, [searchQuery, filterLevel, filterStatus.join(','), filterDue, dueFrom, dueTo])
 
   // Fit rows to the available height so the list doesn't scroll. This ref
   // wraps ONLY the scroll region (header + rows) — the TableFooter sits
@@ -2015,11 +2004,11 @@ export default function Assessments({
       >
 
         {/* ── Toolbar — matches the We_Do assignments layout: search
-             (flex-1), segmented status control (All / Active /
-             Submitted / Pending / Missed), orange-outlined Filter button. ── */}
-        <div className="flex-none flex flex-wrap items-center gap-2 sm:gap-3 pt-2 pb-2 min-w-0">
+             (flex-1), then Status · Level · Due date as floating-label
+             selects. No separate Filter popover. ── */}
+        <div className="flex-none flex flex-wrap items-center gap-x-2.5 gap-y-3 pt-3 pb-2 min-w-0">
           {/* Search — grows via flex-1 to fill available width. */}
-          <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
+          <div className="relative flex-1 min-w-[200px] sm:min-w-[240px]">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
             <input
               type="text"
@@ -2040,199 +2029,54 @@ export default function Assessments({
             )}
           </div>
 
-          {/* Segmented status control — single container, hairline
-              dividers, circular count badges. Active segment = pale
-              orange bg + orange text + orange-tinted badge. */}
-          <div
-            role="tablist" aria-label="Filter by status"
-            className="order-last basis-full lg:order-none lg:basis-auto inline-flex items-stretch h-9 max-w-full rounded-control border border-hairline-strong bg-surface overflow-x-auto lg:overflow-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
-          >
-            {([
-              { key: 'all' as const,       label: 'All',       count: statusCounts.all },
-              { key: 'active' as const,    label: 'Active',    count: statusCounts.active },
-              { key: 'submitted' as const, label: 'Submitted', count: statusCounts.submitted },
-              { key: 'pending' as const,   label: 'Pending',   count: statusCounts.pending },
-              { key: 'missed' as const,    label: 'Missed',    count: statusCounts.missed },
-            ]).map((c, i) => {
-              const selected = activeChip === c.key
-              return (
-                <button
-                  key={c.key}
-                  type="button" role="tab" aria-selected={selected}
-                  onClick={() => setChip(c.key)}
-                  className={`inline-flex flex-1 lg:flex-none shrink-0 whitespace-nowrap items-center justify-center gap-1.5 px-2.5 sm:px-3 text-[12.5px] font-semibold transition-colors duration-150 ${
-                    selected ? 'text-brand-strong' : 'text-subtle hover:text-heading'
-                  } ${i > 0 ? 'border-l border-hairline' : ''}`}
-                  style={selected ? { background: '#FFF4EC' } : undefined}
-                >
-                  <span>{c.label}</span>
-                  <span
-                    className={`inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[10.5px] font-semibold tabular-nums ${
-                      selected ? 'text-brand-strong' : 'text-subtle'
-                    }`}
-                    style={{ background: selected ? '#FFE4CC' : '#F1F5F9' }}
-                  >
-                    {c.count}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          <FloatingFilterSelect<ChipKey>
+            label="Status"
+            value={activeChip}
+            defaultValue="all"
+            onChange={setChip}
+            minWidth={150}
+            options={[
+              { value: 'all', label: 'All', count: statusCounts.all },
+              { value: 'active', label: 'Active', count: statusCounts.active },
+              { value: 'submitted', label: 'Submitted', count: statusCounts.submitted },
+              { value: 'pending', label: 'Pending', count: statusCounts.pending },
+              { value: 'missed', label: 'Missed', count: statusCounts.missed },
+            ]}
+          />
 
-          {/* Filter — orange OUTLINE, sliders icon, badge counts only
-              in-popover filters (Level + Due Date). */}
-          <div className="relative shrink-0 ml-auto" ref={filterRef}>
+          <FloatingFilterSelect<string>
+            label="Level"
+            value={filterLevel}
+            defaultValue="all"
+            onChange={setFilterLevel}
+            minWidth={140}
+            options={[
+              { value: 'all', label: 'Any level' },
+              { value: 'beginner', label: 'Beginner' },
+              { value: 'intermediate', label: 'Intermediate' },
+              { value: 'expert', label: 'Expert' },
+            ]}
+          />
+
+          {/* Due date — presets, or a From / To range picked inside the
+              same dropdown, so the row never wraps. */}
+          <FloatingDueDateFilter
+            value={filterDue}
+            from={dueFrom}
+            to={dueTo}
+            onChange={(v, f, t) => { setFilterDue(v); setDueFrom(f); setDueTo(t) }}
+          />
+
+          {hasActiveFilters && (
             <button
               type="button"
-              onClick={() => setShowFilterDropdown(v => !v)}
-              aria-expanded={showFilterDropdown}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-control text-[12.5px] font-semibold transition-colors duration-150"
-              style={{ border: '1px solid #F97316', background: '#FFFFFF', color: '#F97316' }}
+              onClick={clearAllFilters}
+              className="inline-flex h-9 shrink-0 items-center gap-1 rounded-control px-2.5 text-[12.5px] font-medium text-subtle hover:bg-row-hover hover:text-heading transition-colors duration-150"
             >
-              <SlidersHorizontal size={14} />
-              <span>Filter</span>
-              {activeFilterCount > 0 && (
-                <span
-                  className="inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10.5px] font-bold text-white tabular-nums"
-                  style={{ background: '#F97316' }}
-                >
-                  {activeFilterCount}
-                </span>
-              )}
-              <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
+              <X size={13} /> Clear
             </button>
-
-            {showFilterDropdown && (
-              <div
-                className="absolute top-full right-0 mt-2 z-40 bg-surface rounded-xl border border-hairline-strong"
-                style={{
-                  width: 'min(360px, calc(100vw - 24px))',
-                  boxShadow: '0 14px 36px rgba(15,23,42,0.10), 0 2px 6px rgba(15,23,42,0.06)',
-                }}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                  <span className="text-[15px] font-semibold text-heading">Filters</span>
-                  <button
-                    type="button"
-                    onClick={() => { setStagedLevel('all'); setStagedDue('any') }}
-                    className="text-[13px] font-semibold transition-colors duration-150"
-                    style={{ color: '#F97316', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  >
-                    Clear all
-                  </button>
-                </div>
-
-                {/* Level — staged so nothing applies until Apply. */}
-                <div className="px-5 pt-2">
-                  <div className="text-[11px] font-semibold text-faint tracking-wide mb-2">LEVEL</div>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { val: 'all',          label: 'Any' },
-                      { val: 'beginner',     label: 'Beginner' },
-                      { val: 'intermediate', label: 'Intermediate' },
-                      { val: 'expert',       label: 'Expert' },
-                    ].map(({ val, label }) => {
-                      const selected = stagedLevel === val
-                      return (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setStagedLevel(val)}
-                          className="inline-flex items-center h-9 px-3.5 rounded-control text-[12.5px] font-semibold transition-colors duration-150"
-                          style={selected
-                            ? { border: '1px solid #F97316', background: '#FFF4EC', color: '#F97316' }
-                            : { border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#475569' }}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Due date */}
-                <div className="px-5 pt-4">
-                  <div className="text-[11px] font-semibold text-faint tracking-wide mb-2">DUE DATE</div>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { val: 'any' as const,  label: 'Any time' },
-                      { val: 'week' as const, label: 'Due this week' },
-                      { val: 'later' as const,label: 'Due later' },
-                    ].map(({ val, label }) => {
-                      const selected = stagedDue === val
-                      return (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setStagedDue(val)}
-                          className="inline-flex items-center h-9 px-3.5 rounded-control text-[12.5px] font-semibold transition-colors duration-150"
-                          style={selected
-                            ? { border: '1px solid #F97316', background: '#FFF4EC', color: '#F97316' }
-                            : { border: '1px solid #E2E8F0', background: '#FFFFFF', color: '#475569' }}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="mt-4 border-t border-hairline flex items-center justify-end gap-2 px-5 py-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowFilterDropdown(false)}
-                    className="inline-flex items-center justify-center h-10 px-4 rounded-control text-[13px] font-semibold text-body bg-surface border border-hairline-strong hover:bg-row-hover transition-colors duration-150"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFilterLevel(stagedLevel)
-                      setFilterDue(stagedDue)
-                      setShowFilterDropdown(false)
-                    }}
-                    className="inline-flex items-center justify-center h-10 px-6 rounded-control text-[13px] font-semibold text-white transition-colors duration-150"
-                    style={{ background: '#F97316', border: 'none' }}
-                  >
-                    Apply filters
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
-
-        {/* ── Active filter chips ── */}
-        {(searchQuery || filterLevel !== "all" || filterStatus.length > 0) && (
-          <div className="flex-none flex flex-wrap items-center gap-2 px-4 py-1.5"
-            style={{ background: 'rgba(249,115,22,0.04)', borderBottom: '1px solid rgba(249,115,22,0.12)' }}>
-            <span className="text-2xs font-semibold uppercase tracking-wide" style={{ color: '#f97316' }}>Filters:</span>
-            {searchQuery && (
-              <button onClick={() => setSearchQuery("")}
-                className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full transition-all"
-                style={{ background: 'rgba(249,115,22,0.08)', color: '#f97316', border: '1px solid rgba(249,115,22,0.2)', cursor: 'pointer' }}>
-                "{searchQuery}" <X size={9} />
-              </button>
-            )}
-            {filterLevel !== "all" && (
-              <button onClick={() => setFilterLevel("all")}
-                className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full capitalize transition-all"
-                style={{ background: 'rgba(249,115,22,0.08)', color: '#f97316', border: '1px solid rgba(249,115,22,0.2)', cursor: 'pointer' }}>
-                {filterLevel} <X size={9} />
-              </button>
-            )}
-            {filterStatus.map(s => (
-              <button key={s} onClick={() => setFilterStatus(prev => prev.filter(x => x !== s))}
-                className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full capitalize transition-all"
-                style={{ background: 'rgba(249,115,22,0.08)', color: '#f97316', border: '1px solid rgba(249,115,22,0.2)', cursor: 'pointer' }}>
-                {s === 'not-submitted' ? 'Not Submitted' : s.charAt(0).toUpperCase() + s.slice(1)} <X size={9} />
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* ── Table area ── */}
         <div ref={tableAreaRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white roster-scroll">
@@ -2245,6 +2089,15 @@ export default function Assessments({
               <p className="text-xs max-w-xs leading-relaxed" style={{ color: '#8b8b9e' }}>
                 Try adjusting your search or clearing the filters.
               </p>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="mt-3 inline-flex h-8 items-center rounded-control border border-hairline-strong bg-surface px-3 text-[12.5px] font-medium text-body hover:bg-row-hover transition-colors duration-150"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
           ) : (
             <table className="w-full min-w-[620px] md:min-w-[960px] xl:min-w-0 border-collapse text-sm table-fixed">
