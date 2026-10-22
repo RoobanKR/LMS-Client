@@ -5,9 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft, BookOpen, ChevronRight, ClipboardList, Eye, FileBarChart, Loader2, Search, SearchX, UsersRound, X,
+  ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, Eye, Loader2, Search, SearchX, UsersRound, X,
 } from "lucide-react";
-import BatchReport from "./BatchReport";
 import { PrintPreviewModal } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
 import type { ServiceMapping } from "@/app/lms/pages/servicemapping/api/serviceMappingService";
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
@@ -36,15 +35,12 @@ import {
 //   By Student   S1 every student with totals across the filtered exercises
 //                S2 ▸ View: one student's every exercise, each expandable to
 //                   its questions
-//   Batch Report pick batches / activities / exercises ▸ Generate: one table,
-//                every batch a collapsible header row with its students
-//                under it (BatchReport.tsx)
 //
 // Read-only on purpose — grading, retests and live monitoring stay on the Live
 // Dashboard. Every figure comes from reportData.ts, which reuses the Live
 // Dashboard's own marks functions.
 
-type Tab = "exercise" | "student" | "batch";
+type Tab = "exercise" | "student";
 type Activity = "" | ActivityType;
 
 const ACTIVITY_LABEL: Record<ActivityType, string> = {
@@ -89,9 +85,7 @@ export default function CourseReport() {
 
   // ── Where the reader is — mirrored into the URL so a refresh (or coming
   //    back from another page) reopens the same view. ──
-  const [tab, setTab] = useState<Tab>(
-    params.get("view") === "student" ? "student" : params.get("view") === "batch" ? "batch" : "exercise",
-  );
+  const [tab, setTab] = useState<Tab>(params.get("view") === "student" ? "student" : "exercise");
   const [exerciseId, setExerciseId] = useState(params.get("exerciseId") || "");
   const [studentId, setStudentId] = useState(params.get("studentId") || "");
   const [drawer, setDrawer] = useState<{ exerciseId: string; studentId: string } | null>(null);
@@ -157,11 +151,7 @@ export default function CourseReport() {
     (exId: string, stId: string) => results.get(exId)?.get(stId) ?? EMPTY_RESULT,
     [results],
   );
-  /** Only the pairs the student's batch was set — for the Batch Report. */
-  const resultIfSet = useCallback(
-    (exId: string, stId: string) => results.get(exId)?.get(stId),
-    [results],
-  );
+
 
   // Questions are only needed when a row is opened or printed, so they are
   // built on demand and kept for the life of the payload.
@@ -360,7 +350,6 @@ export default function CourseReport() {
           {([
             { key: "exercise" as const, label: "By Exercise", icon: <ClipboardList size={13} /> },
             { key: "student" as const, label: "By Student", icon: <UsersRound size={13} /> },
-            { key: "batch" as const, label: "Batch Report", icon: <FileBarChart size={13} /> },
           ]).map((t) => (
             <button
               key={t.key}
@@ -378,8 +367,7 @@ export default function CourseReport() {
         </div>
       </div>
 
-      {/* ── Filters ── (the Batch Report brings its own) */}
-      {tab !== "batch" && (
+      {/* ── Filters ── */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hairline bg-surface px-3 py-2.5 shadow-xs">
         {/* One exercise is already open on E2, so only Batch and Search
             apply there. */}
@@ -416,7 +404,6 @@ export default function CourseReport() {
           </span>
         </label>
       </div>
-      )}
 
       {/* ── Body ── */}
       {isLoading ? (
@@ -425,15 +412,6 @@ export default function CourseReport() {
         </div>
       ) : isError || !courseData ? (
         <Centered icon={<SearchX size={20} />} title="Couldn't load this course" body="Check the connection and reload the page." />
-      ) : tab === "batch" ? (
-        <BatchReport
-          courseName={courseName}
-          exercises={exercises}
-          students={students}
-          batchOptions={batchOptions}
-          showSubcategory={showSubcategory}
-          resultIfSet={resultIfSet}
-        />
       ) : tab === "exercise" && !currentExercise ? (
         <ExerciseList
           rows={filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.subcategory))}
@@ -469,6 +447,7 @@ export default function CourseReport() {
       ) : tab === "student" && !currentStudent ? (
         <StudentList
           rows={roster.filter((s) => matches(q, s.name, s.regNo, s.email))}
+          batchOptions={batchOptions}
           totalsOf={totalsOf}
           exerciseCount={filteredExercises.length}
           selected={selected}
@@ -801,9 +780,10 @@ function ExerciseResults({
 
 // S1 ────────────────────────────────────────────────────────────────────────
 function StudentList({
-  rows, totalsOf, exerciseCount, selected, setSelected, onView, onPrint,
+  rows, batchOptions, totalsOf, exerciseCount, selected, setSelected, onView, onPrint,
 }: {
   rows: ReportStudent[];
+  batchOptions: { value: string; label: string }[];
   totalsOf: (s: ReportStudent) => ReturnType<typeof totalsFor>;
   exerciseCount: number;
   selected: Set<string>;
@@ -812,32 +792,66 @@ function StudentList({
   onPrint: (layout: PrintLayout, visible: ReportStudent[]) => void;
 }) {
   const sel = useSelection(rows, selected, setSelected);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  // One group per batch, in the batch filter's order — the batch is said
+  // once, as a header row across the table, not on every student's row. A
+  // student in two batches is listed under each; one with no batch goes
+  // last under "No batch".
+  const groups = useMemo(() => {
+    const out = batchOptions
+      .map((b) => ({ id: b.value, label: b.label, rows: rows.filter((s) => s.batchIds.includes(b.value)) }))
+      .filter((g) => g.rows.length > 0);
+    const loose = rows.filter((s) => !s.batchIds.some((id) => batchOptions.some((b) => b.value === id)));
+    if (loose.length) out.push({ id: "__none", label: "No batch", rows: loose });
+    return out;
+  }, [rows, batchOptions]);
+
+  const toggle = (id: string) => setCollapsed((c) => {
+    const n = new Set(c);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.id));
+  const COLS = 10;
+
   return (
     <Card
       toolbar={(
         <>
           <span className="text-xs text-subtle">
             {sel.picked ? `${sel.picked} of ${rows.length} selected` : `${rows.length} student${rows.length === 1 ? "" : "s"}`}
+            {groups.length > 1 && ` in ${groups.length} batches`}
             {` · totals over ${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"}`}
             <span className="block text-2xs text-faint">Marks count exercises that are due or started; ones still open and not started are left out.</span>
           </span>
-          <PrintMenu
-            layouts={["student-totals", "student-exercises", "student-questions"]}
-            scopeLabel={sel.picked ? `${sel.picked} selected` : `all ${rows.length}`}
-            disabled={rows.length === 0}
-            onPick={(layout) => onPrint(layout, rows)}
-          />
+          <div className="flex items-center gap-2">
+            {groups.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.id)))}
+                className="inline-flex h-8 items-center rounded-control border border-hairline-strong bg-surface px-3 text-xs font-medium text-body transition-colors hover:bg-row-hover hover:text-heading"
+              >
+                {allCollapsed ? "Expand all" : "Collapse all"}
+              </button>
+            )}
+            <PrintMenu
+              layouts={["student-totals", "student-exercises", "student-questions"]}
+              scopeLabel={sel.picked ? `${sel.picked} selected` : `all ${rows.length}`}
+              disabled={rows.length === 0}
+              onPick={(layout) => onPrint(layout, rows)}
+            />
+          </div>
         </>
       )}
     >
-      <table className="w-full min-w-[900px] border-collapse lg:min-w-0">
+      <table className="w-full min-w-[860px] border-collapse lg:min-w-0">
         <thead className={THEAD}>
           <tr>
             <th className={`${TH} w-10`}><Checkbox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all students" disabled={!rows.length} /></th>
             <th className={`${TH} w-10 text-right`}>#</th>
             <th className={TH}>Reg No</th>
             <th className={TH}>Student</th>
-            <th className={TH}>Batch</th>
             <th className={`${TH} text-right`}>Assignments</th>
             <th className={`${TH} text-right`}>Assessments</th>
             <th className={`${TH} text-right`}>Marks</th>
@@ -846,30 +860,56 @@ function StudentList({
             <th className={`${TH} text-right`}>Action</th>
           </tr>
         </thead>
-        <tbody>
-          {rows.length === 0 && <EmptyRow colSpan={11} text="No students match." />}
-          {rows.map((s, i) => {
-            const t = totalsOf(s);
-            return (
-              <tr key={s.id} onClick={() => onView(s.id)} className={`cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover ${selected.has(s.id) ? "bg-brand-wash/40" : ""}`}>
-                <td className={TD}><Checkbox checked={selected.has(s.id)} onChange={(c) => sel.toggle(s.id, c)} label={`Select ${s.name}`} /></td>
-                <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
-                <td className={`${TD} whitespace-nowrap`}>{s.regNo || <Dash />}</td>
-                <td className={`${TD} max-w-[240px]`}>
-                  <span className="block truncate font-semibold text-heading" title={s.name}>{s.name}</span>
-                  {s.email && <span className="block truncate text-2xs text-faint" title={s.email}>{s.email}</span>}
+        {rows.length === 0 && (
+          <tbody><EmptyRow colSpan={COLS} text="No students match." /></tbody>
+        )}
+        {groups.map((g) => {
+          const open = !collapsed.has(g.id);
+          const pcts = g.rows.map((s) => totalsOf(s).percent).filter((p): p is number => p != null);
+          const avg = pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null;
+          return (
+            <tbody key={g.id}>
+              {/* The batch — one header row across the table; click to fold. */}
+              <tr className="border-t border-hairline">
+                <td colSpan={COLS} className="bg-[#fbf3ea] p-0 dark:bg-white/[0.04]">
+                  <button
+                    type="button"
+                    onClick={() => toggle(g.id)}
+                    aria-expanded={open}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left"
+                  >
+                    {open ? <ChevronDown size={15} className="text-brand-strong" /> : <ChevronRight size={15} className="text-brand-strong" />}
+                    <span className="text-xs font-semibold text-heading">{g.label}</span>
+                    <span className="rounded-full bg-surface px-2 py-0.5 text-2xs font-medium text-body ring-1 ring-hairline">
+                      {g.rows.length} student{g.rows.length === 1 ? "" : "s"}
+                    </span>
+                    <span className="text-2xs text-subtle">Average {formatPercent(avg)}</span>
+                  </button>
                 </td>
-                <td className={`${TD} max-w-[160px]`}><span className="block truncate" title={s.batch}>{s.batch || <Dash />}</span></td>
-                <td className={TD_NUM}>{t.assignmentsDone} / {t.assignmentsTotal}</td>
-                <td className={TD_NUM}>{t.assessmentsDone} / {t.assessmentsTotal}</td>
-                <td className={`${TD_NUM} font-semibold text-heading`}>{round1(t.scored)} / {round1(t.total)}</td>
-                <td className={TD_NUM}>{formatPercent(t.percent)}</td>
-                <td className={TD}>{t.scale || <Dash />}</td>
-                <td className={`${TD} text-right`}><ViewButton onClick={() => onView(s.id)} label={`View ${s.name}`} /></td>
               </tr>
-            );
-          })}
-        </tbody>
+              {open && g.rows.map((s, i) => {
+                const t = totalsOf(s);
+                return (
+                  <tr key={s.id} onClick={() => onView(s.id)} className={`cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover ${selected.has(s.id) ? "bg-brand-wash/40" : ""}`}>
+                    <td className={TD} onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(s.id)} onChange={(c) => sel.toggle(s.id, c)} label={`Select ${s.name}`} /></td>
+                    <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
+                    <td className={`${TD} whitespace-nowrap`}>{s.regNo || <Dash />}</td>
+                    <td className={`${TD} max-w-[260px]`}>
+                      <span className="block truncate font-semibold text-heading" title={s.name}>{s.name}</span>
+                      {s.email && <span className="block truncate text-2xs text-faint" title={s.email}>{s.email}</span>}
+                    </td>
+                    <td className={TD_NUM}>{t.assignmentsDone} / {t.assignmentsTotal}</td>
+                    <td className={TD_NUM}>{t.assessmentsDone} / {t.assessmentsTotal}</td>
+                    <td className={`${TD_NUM} font-semibold text-heading`}>{round1(t.scored)} / {round1(t.total)}</td>
+                    <td className={TD_NUM}>{formatPercent(t.percent)}</td>
+                    <td className={TD}>{t.scale || <Dash />}</td>
+                    <td className={`${TD} text-right`}><ViewButton onClick={() => onView(s.id)} label={`View ${s.name}`} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          );
+        })}
       </table>
     </Card>
   );
