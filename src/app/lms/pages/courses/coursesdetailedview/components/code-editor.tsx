@@ -886,14 +886,13 @@ export default function CodeEditor({
     const [isFullscreen, setIsFullscreen] = useState(false)
     const [currentProblemIndex, setCurrentProblemIndex] = useState(0)
     const [showSidebar, setShowSidebar] = useState(false)
-    // Problems list — the bottom bar's Hide / Show problems toggles it. Wide
-    // screens open with it showing; crossing below 1280px folds it (and
-    // crossing back restores it) so the editor keeps a usable width.
+    // Problems list — the bottom bar's Hide / Show problems toggles it. It
+    // opens hidden on every screen (the description and the editor come
+    // first); crossing below 1280px folds it so the editor keeps its width.
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const wide = window.matchMedia('(min-width: 1280px)');
-        if (wide.matches) setShowSidebar(true);
-        const onWide = (e: MediaQueryListEvent) => setShowSidebar(e.matches);
+        const onWide = (e: MediaQueryListEvent) => { if (!e.matches) setShowSidebar(false); };
         wide.addEventListener('change', onWide);
         return () => wide.removeEventListener('change', onWide);
     }, []);

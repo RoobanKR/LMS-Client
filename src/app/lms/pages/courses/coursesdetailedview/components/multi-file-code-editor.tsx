@@ -304,12 +304,9 @@ export default function MultiFileCodeEditor({
   // VS Code-like Activity Bar: which side view is open. `null` collapses the
   // side panel entirely (only the icon rail stays visible); clicking the
   // selected icon again does that, and the editor takes the freed width.
-  const [sideView, setSideView] = useState<"explorer" | "search" | null>("explorer")
-  // Phones / tablets (< lg): the explorer is an overlay drawer there, so start
-  // it collapsed (one tap on the activity bar opens it).
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setSideView(null)
-  }, [])
+  // Opens collapsed on every screen — the description and the editor get the
+  // room; one tap on the activity bar opens the Explorer.
+  const [sideView, setSideView] = useState<"explorer" | "search" | null>(null)
   const [isFull, setIsFull] = useState(false)
   const [showQDrawer, setShowQDrawer] = useState(false)
 
@@ -433,20 +430,18 @@ export default function MultiFileCodeEditor({
   // The description panel beside the editor — the toolbar's Hide / Show
   // description toggles it for more editor room.
   const [showQuestionPanel, setShowQuestionPanel] = useState(true)
-  // Problems list — the toolbar's Hide / Show problems toggles it. Wide screens
-  // open with it showing; narrower ones keep it folded so the editor keeps
-  // its room.
+  // Problems list — the bottom bar's Hide / Show problems toggles it. It opens
+  // hidden on every screen: the description and the editor come first.
   const [showSidebar, setShowSidebar] = useState(false)
   useEffect(() => {
     if (typeof window === "undefined") return
     const wide = window.matchMedia("(min-width: 1280px)")
     const lg = window.matchMedia("(min-width: 1024px)")
-    if (wide.matches) setShowSidebar(true)
     // Crossing below 1280px folds the list (below 1024px the Explorer too)
-    // so the editor keeps a usable width; crossing back restores them. Only
-    // crossings act — a panel the student toggled otherwise stays put.
-    const onWide = (e: MediaQueryListEvent) => setShowSidebar(e.matches)
-    const onLg = (e: MediaQueryListEvent) => setSideView((v) => (e.matches ? (v ?? "explorer") : null))
+    // so the editor keeps a usable width. Nothing opens by itself on the
+    // way back up — a panel the student opened stays their choice.
+    const onWide = (e: MediaQueryListEvent) => { if (!e.matches) setShowSidebar(false) }
+    const onLg = (e: MediaQueryListEvent) => { if (!e.matches) setSideView(null) }
     wide.addEventListener("change", onWide)
     lg.addEventListener("change", onLg)
     return () => { wide.removeEventListener("change", onWide); lg.removeEventListener("change", onLg) }
