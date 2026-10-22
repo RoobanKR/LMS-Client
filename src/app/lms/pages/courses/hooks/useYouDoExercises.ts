@@ -115,10 +115,14 @@ export const youDoExercisesQuery = (args: YouDoExercisesArgs) => {
     enabled: !!entityType && !!entityId && !!subcategory && enabled !== false,
     staleTime: 60 * 1000,    // 1 min — back-navigation paints instantly
     gcTime: 10 * 60 * 1000,  // 10 min — survive a brief detour to another page
-    // Don't thrash the network when the window regains focus; this list
-    // changes via explicit user actions (create / delete), which we handle
-    // with `queryClient.invalidateQueries` from the mutation sites.
-    refetchOnWindowFocus: false,
+    // Create / delete invalidate this list from the mutation sites, but the
+    // row's `hasParticipants` (which shows the Review button) flips when a
+    // STUDENT starts the test — nothing on the trainer's page knows that
+    // happened. So the open list re-reads itself every 30 s while the tab is
+    // visible, and on returning to the tab.
+    refetchOnWindowFocus: true,
+    refetchInterval: 30 * 1000,
+    refetchIntervalInBackground: false,
   } as const;
 };
 
