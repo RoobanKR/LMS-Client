@@ -28,7 +28,7 @@ export const CourseBreadcrumbs: React.FC<{ items: CourseCrumb[]; right?: React.R
       className="relative z-30 flex items-center flex-shrink-0"
       style={{
         paddingInline: "clamp(16px, 2vw, 32px)",
-        minHeight: 52,
+        minHeight: 48,
         gap: 12,
         background: T.bg,
       }}

@@ -1,10 +1,10 @@
 // components/TopBar.tsx
 import React, { useState, useEffect, useRef } from "react"
 import {
-  FileText,
   Bell,
   CircleNotch,
   List,
+  NotePencil,
 } from "@phosphor-icons/react"
 import { T } from "./types/constants"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -72,10 +72,10 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, tabs }) => {
 }
 
 const ICON_BTN: React.CSSProperties = {
-  position: 'relative', width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+  position: 'relative', width: 34, height: 34, borderRadius: 8, flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   border: 'none', background: 'transparent',
-  color: '#64748b', cursor: 'pointer', transition: 'all .15s',
+  color: '#475569', cursor: 'pointer', transition: 'all .15s',
 }
 
 /** Notes and Notifications — the course view's page actions, at the end of
@@ -121,9 +121,10 @@ export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void }> = ({ o
   const unreadCount = notificationsData?.unreadCount || 0
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
 
-      {/* Notes */}
+      {/* Notes — a labelled pill in the brand tint, sized to the breadcrumb
+          text beside it. */}
       <button
         type="button"
         onClick={() => {
@@ -132,21 +133,28 @@ export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void }> = ({ o
           onNotesClick()
           setTimeout(() => setNotesLoading(false), 1200)
         }}
-        title="Notes"
-        aria-label="Notes"
-        style={ICON_BTN}
+        title="Open your notes"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          height: 32, padding: '0 12px', borderRadius: 8,
+          border: '1px solid #FED7AA', background: '#FFF7ED', color: '#C2410C',
+          fontFamily: "'Poppins', 'Plus Jakarta Sans', sans-serif",
+          fontSize: 12.5, fontWeight: 600, lineHeight: 1,
+          cursor: 'pointer', transition: 'background .15s, border-color .15s',
+        }}
         onMouseEnter={e => {
           const el = e.currentTarget as HTMLElement
-          el.style.background = '#f1f5f9'; el.style.color = '#1e293b'
+          el.style.background = '#FFEDD5'; el.style.borderColor = '#FDBA74'
         }}
         onMouseLeave={e => {
           const el = e.currentTarget as HTMLElement
-          el.style.background = 'transparent'; el.style.color = '#64748b'
+          el.style.background = '#FFF7ED'; el.style.borderColor = '#FED7AA'
         }}
       >
         {notesLoading
-          ? <CircleNotch size={22} weight="bold" style={{ animation: 'spin 0.7s linear infinite' }} />
-          : <FileText size={22} weight="regular" />}
+          ? <CircleNotch size={15} weight="bold" style={{ animation: 'spin 0.7s linear infinite' }} />
+          : <NotePencil size={15} weight="bold" />}
+        Notes
       </button>
 
       {/* Notifications */}
@@ -160,7 +168,7 @@ export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void }> = ({ o
           style={{
             ...ICON_BTN,
             background: showNotificationsDropdown ? '#f1f5f9' : 'transparent',
-            color: showNotificationsDropdown ? '#1e293b' : '#64748b',
+            color: showNotificationsDropdown ? '#1e293b' : '#475569',
           }}
           onMouseEnter={e => {
             if (!showNotificationsDropdown) {
@@ -171,19 +179,19 @@ export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void }> = ({ o
           onMouseLeave={e => {
             if (!showNotificationsDropdown) {
               const el = e.currentTarget as HTMLElement
-              el.style.background = 'transparent'; el.style.color = '#64748b'
+              el.style.background = 'transparent'; el.style.color = '#475569'
             }
           }}
         >
-          <Bell size={22} weight={showNotificationsDropdown ? 'duotone' : 'regular'} />
+          <Bell size={19} weight={showNotificationsDropdown ? 'duotone' : 'regular'} />
           {unreadCount > 0 && (
             <span style={{
-              position: 'absolute', top: 1, right: 1,
-              height: 18, minWidth: 18,
+              position: 'absolute', top: 0, right: 0,
+              height: 16, minWidth: 16,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               borderRadius: 9999, background: '#ef4444',
-              color: '#fff', fontSize: '11px', fontWeight: 'bold', padding: '0 4px',
-              border: '2px solid #fff',
+              color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '0 3px',
+              border: '1.5px solid #fff',
             }}>
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
