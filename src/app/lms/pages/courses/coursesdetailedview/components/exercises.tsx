@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation"
 // before it reaches dangerouslySetInnerHTML in the start popup.
 import DOMPurify from "dompurify"
 import DataTable, { type Column as DTColumn } from "@/app/lms/shared/listing/DataTable"
-import { FloatingFilterSelect } from "./FloatingFilterSelect"
+import { FloatingDueDateFilter, FloatingFilterSelect } from "./FloatingFilterSelect"
 import TableFooter from "@/app/lms/shared/listing/TableFooter"
 import ContentSkeleton from "@/components/ContentSkeleton"
 import { StatusPill, type StatusPillTone } from "@/app/lms/shared/ui/StatusPill"
@@ -2048,46 +2048,14 @@ const handleStartClick = (exercise: Exercise, e: React.MouseEvent) => {
             ]}
           />
 
-          <FloatingFilterSelect<'any' | 'week' | 'later' | 'custom'>
-            label="Due date"
+          {/* Due date — presets, or a From / To range picked inside the
+              same dropdown, so the row never wraps. */}
+          <FloatingDueDateFilter
             value={filterDue}
-            defaultValue="any"
-            onChange={(v) => { setFilterDue(v); if (v !== 'custom') { setDueFrom(''); setDueTo('') } }}
-            minWidth={150}
-            options={[
-              { value: 'any', label: 'Any time' },
-              { value: 'week', label: 'Due this week' },
-              { value: 'later', label: 'Due later' },
-              { value: 'custom', label: 'Custom range…' },
-            ]}
+            from={dueFrom}
+            to={dueTo}
+            onChange={(v, f, t) => { setFilterDue(v); setDueFrom(f); setDueTo(t) }}
           />
-
-          {/* Custom range — the due (end) date between From and To. */}
-          {filterDue === 'custom' && (
-            <>
-              {([
-                { key: 'from', label: 'From', value: dueFrom, set: setDueFrom, min: undefined, max: dueTo || undefined },
-                { key: 'to', label: 'To', value: dueTo, set: setDueTo, min: dueFrom || undefined, max: undefined },
-              ]).map((f) => (
-                <div key={f.key} className="relative shrink-0">
-                  <input
-                    type="date"
-                    value={f.value}
-                    min={f.min}
-                    max={f.max}
-                    onChange={(e) => f.set(e.target.value)}
-                    aria-label={`Due ${f.label.toLowerCase()}`}
-                    className={`h-9 w-[150px] rounded-control border bg-surface px-2.5 text-[12.5px] font-medium focus:outline-none focus:ring-2 focus:ring-brand/15 transition-colors duration-150 ${
-                      f.value ? 'border-brand text-brand-strong' : 'border-hairline-strong text-body'
-                    }`}
-                  />
-                  <span className={`pointer-events-none absolute -top-[7px] left-2 bg-surface px-1 text-[10.5px] font-medium leading-[14px] ${f.value ? 'text-brand-strong' : 'text-subtle'}`}>
-                    {f.label}
-                  </span>
-                </div>
-              ))}
-            </>
-          )}
 
           {hasActiveFilters && (
             <button
