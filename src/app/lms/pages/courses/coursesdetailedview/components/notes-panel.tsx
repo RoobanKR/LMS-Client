@@ -992,11 +992,11 @@ export default function NotesPanel({ isOpen, onClose, isDraggable = false, initi
     setPendingClose(false);
   }
 
-  const saveWithTitle = () => {
+  const saveWithTitle = (titleOverride?: unknown) => {
     if (!editor) return;
 
     const finalContent = editor.getHTML();
-    const finalTitle = saveNoteTitle.trim() || "Untitled Note";
+    const finalTitle = (typeof titleOverride === "string" ? titleOverride : saveNoteTitle).trim() || "Untitled Note";
 
     if (currentNote) {
       // Update existing note
@@ -1059,11 +1059,15 @@ export default function NotesPanel({ isOpen, onClose, isDraggable = false, initi
         color: currentNote.color
       };
       updateNoteMutation.mutate({ noteId: currentNote._id, noteData });
+    } else if (editTitle.trim() && editTitle !== "Untitled Note") {
+      // A new note already titled in the header saves directly.
+      setPendingClose(false);
+      saveWithTitle(editTitle);
     } else {
-      // For new notes, always show "Save as" modal
+      // An untitled new note asks for a name first ("Save as").
       setShowSaveConfirm(true);
       setPendingClose(false);
-      setSaveNoteTitle(""); // Start with empty for new note
+      setSaveNoteTitle("");
     }
   };
 
@@ -2548,18 +2552,21 @@ const renderTiptapToolbar = () => {
                 </div>
               </div>
               <div className="px-3 pb-2.5 pt-2">
+                {/* The open note's own title — switching notes in All Notes
+                    shows that note's title here; Save uses what is typed. */}
                 <input
-                  ref={saveTitleInputRef}
                   type="text"
-                  value={saveNoteTitle}
-                  onChange={(e) => setSaveNoteTitle(e.target.value)}
-                  placeholder={currentNote ? currentNote.title : "Note title"}
+                  value={editTitle === "Untitled Note" ? "" : editTitle}
+                  onChange={(e) => {
+                    setEditTitle(e.target.value === "" ? "Untitled Note" : e.target.value)
+                    setHasUnsavedChanges(true)
+                  }}
+                  placeholder="Note title"
                   aria-label="Note title"
+                  maxLength={200}
                   className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FB923C] focus:border-transparent"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && saveNoteTitle.trim()) {
-                      saveWithTitle();
-                    }
+                    if (e.key === 'Enter') saveCurrentNote();
                   }}
                 />
               </div>

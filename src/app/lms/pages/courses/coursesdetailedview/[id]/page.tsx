@@ -2548,7 +2548,6 @@ const getExercisesForActivity = (): any[] => {
               onSummaryClick={() => setShowSummary(v => !v)}
               onMenuClick={() => setSidebarOpen(v => !v)}
               onNotesClick={() => setShowNotesPanel(v => !v)}
-              onHideHeader={canToggleHeader ? () => setIsHeaderCollapsed(true) : undefined}
               tabs={(
                 <MainTabs
                   selectedNode={!!selectedItem}
