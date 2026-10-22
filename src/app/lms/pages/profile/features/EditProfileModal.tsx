@@ -199,9 +199,9 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
       <DialogContent
         showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
-        className="sm:max-w-[480px] p-0 gap-0 overflow-hidden rounded-xl"
+        className="sm:max-w-[760px] p-0 gap-0 overflow-hidden rounded-xl"
       >
-        <DialogHeader className="border-b border-hairline px-5 py-4">
+        <DialogHeader className="border-b border-hairline px-6 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 text-left">
               <DialogTitle className="text-base font-semibold text-heading">Edit profile</DialogTitle>
@@ -222,72 +222,74 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
           </div>
         </DialogHeader>
 
-        <div className="max-h-[62dvh] sm:max-h-[70vh] overflow-y-auto divide-y divide-hairline">
+        {/* md+: photo on the left, password on the right — everything in view,
+            no scrolling. Phones stack the two and scroll. */}
+        <div className="max-h-[70dvh] overflow-y-auto divide-y divide-hairline md:max-h-none md:overflow-visible md:grid md:grid-cols-[280px_minmax(0,1fr)] md:divide-y-0 md:divide-x">
 
           {/* ── Photo ── */}
-          <section className="px-5 py-4">
-            <h3 className="text-sm font-semibold text-heading">Profile photo</h3>
-            <div className="mt-3 flex items-center gap-4">
-              <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full bg-surface-sunken ring-1 ring-hairline">
-                {shownImage ? (
-                  // A plain <img> for the blob: preview — next/image would
-                  // need the object URL whitelisted as a remote pattern.
-                  preview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={preview} alt="New profile photo" className="h-full w-full object-cover" />
-                  ) : (
-                    <Image src={shownImage} alt={user.firstName} width={64} height={64} className="h-full w-full object-cover" />
-                  )
+          <section className="flex flex-col items-center px-6 py-6 text-center">
+            <h3 className="self-stretch text-left text-sm font-semibold text-heading md:text-center">Profile photo</h3>
+            <div className="mt-4 grid h-32 w-32 place-items-center overflow-hidden rounded-full bg-surface-sunken ring-1 ring-hairline">
+              {shownImage ? (
+                // A plain <img> for the blob: preview — next/image would
+                // need the object URL whitelisted as a remote pattern.
+                preview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={preview} alt="New profile photo" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="text-lg font-semibold text-body">{initials}</span>
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => pickPhoto(e.target.files?.[0] || null)}
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileRef.current?.click()}
-                    disabled={saving}
-                  >
-                    <Camera className="h-3.5 w-3.5" /> {shownImage ? "Change photo" : "Upload photo"}
-                  </Button>
-                  {photo && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => { setPhoto(null); if (fileRef.current) fileRef.current.value = "" }}
-                      disabled={saving}
-                    >
-                      <Undo2 className="h-3.5 w-3.5" /> Undo
-                    </Button>
-                  )}
-                </div>
-                <p className="mt-1.5 truncate text-xs text-subtle">
-                  {photo ? `Selected: ${photo.name}` : "JPG, PNG or WebP, up to 5 MB."}
-                </p>
-              </div>
+                  <Image src={shownImage} alt={user.firstName} width={128} height={128} className="h-full w-full object-cover" />
+                )
+              ) : (
+                <span className="text-3xl font-semibold text-body">{initials}</span>
+              )}
             </div>
+            <p className="mt-3 max-w-full truncate text-sm font-medium text-heading">{user.firstName} {user.lastName}</p>
+            <p className="max-w-full truncate text-xs text-subtle">{user.email}</p>
+
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => pickPhoto(e.target.files?.[0] || null)}
+            />
+            <div className="mt-4 flex w-full flex-col gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => fileRef.current?.click()}
+                disabled={saving}
+              >
+                <Camera className="h-3.5 w-3.5" /> {shownImage ? "Change photo" : "Upload photo"}
+              </Button>
+              {photo && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => { setPhoto(null); if (fileRef.current) fileRef.current.value = "" }}
+                  disabled={saving}
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Undo
+                </Button>
+              )}
+            </div>
+            <p className="mt-2 max-w-full truncate text-xs text-subtle">
+              {photo ? `Selected: ${photo.name}` : "JPG, PNG or WebP, up to 5 MB."}
+            </p>
           </section>
 
           {/* ── Password ── */}
-          <section className="px-5 py-4">
+          <section className="px-6 py-6">
             <div className="flex items-baseline gap-2">
               <h3 className="text-sm font-semibold text-heading">Change password</h3>
               <span className="text-xs text-subtle">Optional</span>
             </div>
             <p className="mt-0.5 text-xs text-subtle">Leave these blank to keep your current password.</p>
-            <div className="mt-3 space-y-3">
+            <div className="mt-4 space-y-4">
               <PasswordField
                 id="profile-current-password"
                 label="Current password"
@@ -319,7 +321,7 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
           </section>
         </div>
 
-        <DialogFooter className="border-t border-hairline bg-surface-sunken/50 px-5 py-3">
+        <DialogFooter className="border-t border-hairline bg-surface-sunken/50 px-6 py-3">
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             {/* Why Save is off — only once something has been entered. */}
             <p className="min-w-0 flex-1 text-xs text-subtle sm:truncate">{isDirty && blocked ? blocked : ""}</p>
