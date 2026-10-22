@@ -3930,20 +3930,23 @@ export default function CodeEditor({
                 </div>
             )}
 
-            {/* TOP TOOLBAR — left: Back, the exercise, Hide description, where
-                you are, Score / Info and the proctoring status; right: the
+            {/* TOP TOOLBAR — left: Back and the exercise's name; centre: Score /
+                Info, the proctoring status and the time left; right: the
                 actions on the code (Run Code, Run tests, language, Exit,
-                Terminal) and Close. Hide problems, Previous / Next,
-                Submit and Finish live on the bottom bar. */}
+                Terminal) and Close. Hide description sits alone on the second
+                row; Hide problems, Previous / Next, Submit and Finish live on
+                the bottom bar. */}
             {exercise && (
                 <>
                 <div
-                    className="flex items-center gap-x-3 gap-y-2 flex-wrap max-sm:px-3!"
+                    className="flex items-center gap-x-3 gap-y-2 flex-wrap max-sm:px-3! lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)]"
                     style={{ position: 'relative', flexShrink: 0, padding: '8px 16px', minHeight: 56, background: WS.panel, borderBottom: `1px solid ${WS.border}` }}
                 >
-                    {/* Below lg the left group takes the first row and the code
-                        actions wrap onto their own row underneath. */}
-                    <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1 max-lg:basis-full">
+                    {/* lg+: Back and the name on the left, Score / Info /
+                        proctoring / time left in the centre, code actions on
+                        the right. Below lg the name takes the first row and
+                        the rest wrap underneath. */}
+                    <div className="flex items-center gap-2 min-w-0 flex-1 max-lg:basis-full">
                         <button
                             type="button"
                             onClick={() => setShowBackConfirm(true)}
@@ -3960,16 +3963,21 @@ export default function CodeEditor({
                         }}>
                             <FileCode style={{ width: 18, height: 18 }} />
                         </span>
-                        <strong
+                        {/* Up to two lines, so a long name is read rather than cut. */}
+                        <span
                             title={exercise?.exerciseInformation?.exerciseName || 'Exercise'}
                             style={{
-                                fontSize: 18, color: WS.navy, marginRight: 6,
-                                maxWidth: 260, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: WS.navy, minWidth: 0,
+                                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden', wordBreak: 'break-word',
                             }}
                         >
                             {exercise?.exerciseInformation?.exerciseName || 'Exercise'}
-                        </strong>
-                        <span aria-hidden="true" className="max-lg:hidden" style={{ width: 1, height: 20, background: WS.border, margin: '0 2px', flexShrink: 0 }} />
+                        </span>
+                    </div>
+
+                    {/* Centre: Score / Info, proctoring status and the time left. */}
+                    <div className="flex items-center justify-center gap-2 flex-wrap flex-shrink-0">
                         <button
                             type="button"
                             onClick={() => setShowOverviewModal(true)}
@@ -4037,14 +4045,14 @@ export default function CodeEditor({
                                 )}
                             </div>
                         )}
+
+                        {/* Time Left — the exercise's own countdown; submits and closes at 00:00. */}
+                        {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (
+                            <CountdownPill seconds={exerciseTimeLeft} font={FONT} />
+                        )}
                     </div>
 
-                    {/* Time Left — the exercise's own countdown; submits and closes at 00:00. */}
-                    {exerciseTimeLeft !== null && (exData?.exerciseInformation?.totalDuration || 0) > 0 && (
-                        <CountdownPill seconds={exerciseTimeLeft} font={FONT} />
-                    )}
-
-                    <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink">
+                    <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink lg:justify-self-end lg:justify-end">
                         {!wsIsLinkQ && (
                             <button
                                 type="button"
@@ -4157,7 +4165,7 @@ export default function CodeEditor({
 
                     {/* Second row: Hide / Show description on its own, at the start. */}
                     {!wsIsLinkQ && (
-                        <div style={{ flexBasis: '100%', display: 'flex' }}>
+                        <div className="lg:col-span-3" style={{ flexBasis: '100%', display: 'flex' }}>
                             <button
                                 type="button"
                                 onClick={() => setShowQuestionPanel(v => !v)}

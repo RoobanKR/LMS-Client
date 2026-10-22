@@ -2609,15 +2609,16 @@ export default function MultiFileCodeEditor({
 
   return (
     <div ref={containerRef} className="flex flex-col h-full w-full" style={{ background: UI.page, color: "#111827", fontFamily: FONT, userSelect: resizing.current ? "none" : "auto" }}>
-      {/* TOP TOOLBAR — left: the assignment, Hide description, where you
-          are, and Notes / Score / Info (Hide problems sits on the bottom bar); right: the actions on the
-          code (Run Code, Run tests, Visualize, language, Terminal). In
-          exam mode the page's timer / bell sit between. */}
+      {/* TOP TOOLBAR — left: the assignment's name; centre: Notes / Score /
+          Info and the time left (in exam mode the page's timer / bell);
+          right: the actions on the code (Run Code, Run tests, Visualize,
+          language). Hide description sits alone on the second row. */}
       {exercise && (
-        <div className="flex items-center gap-x-3 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ position: "relative", background: UI.panel, borderBottom: `1px solid ${UI.border}`, padding: "8px 16px", minHeight: 56 }}>
-          {/* Below lg the left group takes the first row and the code
-              actions wrap onto their own row underneath. */}
-          <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1 max-lg:basis-full">
+        <div className="flex items-center gap-x-3 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3! lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)]" style={{ position: "relative", background: UI.panel, borderBottom: `1px solid ${UI.border}`, padding: "8px 16px", minHeight: 56 }}>
+          {/* lg+: name on the left, Notes / Score / Info / time left in the
+              centre, code actions on the right. Below lg the name takes the
+              first row and the rest wrap underneath. */}
+          <div className="flex items-center gap-2 min-w-0 flex-1 max-lg:basis-full">
             <span aria-hidden="true" className="max-sm:hidden!" style={{
               width: 34, height: 34, borderRadius: 8, flexShrink: 0,
               display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -2625,18 +2626,22 @@ export default function MultiFileCodeEditor({
             }}>
               <FileCode style={{ width: 18, height: 18 }} />
             </span>
-            {/* The assignment's (We Do) or assessment's (You Do) own name. */}
-            <strong
+            {/* The assignment's (We Do) or assessment's (You Do) own name —
+                up to two lines, so a long name is read rather than cut. */}
+            <span
               title={exerciseName}
               style={{
-                fontSize: 18, color: UI.navy, marginRight: 6,
-                maxWidth: 260, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: UI.navy, minWidth: 0,
+                display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                overflow: "hidden", wordBreak: "break-word",
               }}
             >
               {exerciseName}
-            </strong>
-            {/* Notes / Score / Info — what the old left rail carried. */}
-            <span aria-hidden="true" className="max-lg:hidden" style={{ width: 1, height: 20, background: UI.border, margin: "0 2px", flexShrink: 0 }} />
+            </span>
+          </div>
+
+          {/* Centre: Notes / Score / Info and the time left. */}
+          <div className="flex items-center justify-center gap-2 flex-wrap flex-shrink-0">
             {!isFull && (
               <button
                 type="button"
@@ -2667,17 +2672,19 @@ export default function MultiFileCodeEditor({
             >
               <Info size={15} />
             </button>
+
+            {/* Exam mode: the page's timer / message bell. */}
+            {exam?.headerSlot}
+
+            {/* The exercise's duration counting down (Exercise Settings); at
+                00:00 the work is submitted and the editor closes. */}
+            {!examMode && exerciseTimeLeft !== null && <CountdownPill seconds={exerciseTimeLeft} font={FONT} />}
           </div>
 
-          {/* Exam mode: the page's timer / message bell. */}
-          {exam?.headerSlot}
-
-          {/* The exercise's duration counting down (Exercise Settings); at
-              00:00 the work is submitted and the editor closes. */}
-          {!examMode && exerciseTimeLeft !== null && <CountdownPill seconds={exerciseTimeLeft} font={FONT} />}
-
-          {!isLinkQ && (
-            <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink">
+          {/* Right: the actions on the code (kept as a cell for a link
+              question too, so the centre group stays centred). */}
+          {isLinkQ ? <div aria-hidden="true" className="max-lg:hidden" /> : (
+            <div className="flex items-center gap-2 flex-wrap flex-shrink-0 max-lg:flex-shrink lg:justify-self-end lg:justify-end">
               {workspaceActions}
               {visualizeAction}
               <select
@@ -2699,7 +2706,7 @@ export default function MultiFileCodeEditor({
 
           {/* Second row: Hide / Show description on its own, at the start. */}
           {!isLinkQ && (
-            <div style={{ flexBasis: "100%", display: "flex" }}>
+            <div className="lg:col-span-3" style={{ flexBasis: "100%", display: "flex" }}>
               <button
                 type="button"
                 onClick={toggleDescription}
