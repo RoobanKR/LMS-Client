@@ -3293,13 +3293,15 @@ builtins.input = _async_input
     );
   }, [selectedExercise, submissionQuestion?.language]);
 
+  // Per-question state starts fresh on another question or student. Full
+  // screen is NOT reset: a trainer stepping through answers with Previous /
+  // Next stays in full screen until they leave it themselves.
   useEffect(() => {
     setFileDrafts({});
     setCodeTab('editor');
     setFeedbackTab('write');
     setFeedbackOpen(false);
     setStdinText('');
-    setWorkspaceExpanded(false);
   }, [selectedQuestion?._id, selectedParticipant?._id]);
 
   useEffect(() => {
