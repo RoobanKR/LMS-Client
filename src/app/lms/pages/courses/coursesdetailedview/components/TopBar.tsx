@@ -1,15 +1,12 @@
 // components/TopBar.tsx
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect } from "react"
 import {
-  Bell,
   CircleNotch,
   List,
   NotePencil,
 } from "@phosphor-icons/react"
 import { T } from "./types/constants"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { notificationsService } from "@/apiServices/notifications"
-import { notificationKeys } from "@/apiServices/notifications"
+import { NotificationBell } from "@/app/lms/component/NotificationBell"
 
 interface TopBarProps {
   items: Array<{ label: string; icon?: React.ComponentType<any>; onClick?: () => void; isLast?: boolean }>
@@ -71,57 +68,14 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, tabs }) => {
   )
 }
 
-const ICON_BTN: React.CSSProperties = {
-  position: 'relative', width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: 'none', background: 'transparent',
-  color: '#475569', cursor: 'pointer', transition: 'all .15s',
-}
-
 /** Notes and Notifications — the course view's page actions, at the end of
- *  the breadcrumb row. */
+ *  the breadcrumb row. The bell is the app's shared NotificationBell, the
+ *  same round control Upload Resources shows. */
 export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void }> = ({ onNotesClick }) => {
-  const queryClient = useQueryClient()
-  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false)
   const [notesLoading, setNotesLoading] = useState(false)
-  const notificationRef = useRef<HTMLDivElement>(null)
-
-  // Fetch notifications
-  const { data: notificationsData } = useQuery({
-    queryKey: notificationKeys.all,
-    queryFn: () => notificationsService.fetchNotifications(),
-    refetchOnWindowFocus: true,
-    staleTime: 30 * 1000,
-    // The course view mounts no shell layout (and so no corner bell) — this
-    // interval is the route's only background delivery of new notifications
-    // now that the notifications service no longer self-polls every 5s.
-    refetchInterval: 30 * 1000,
-    enabled: typeof window !== 'undefined' && !!localStorage.getItem("smartcliff_token"),
-  })
-
-  const markAsReadMutation = useMutation({
-    mutationFn: (notificationId: string) => notificationsService.markAsRead(notificationId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
-  })
-
-  const markAllAsReadMutation = useMutation({
-    mutationFn: () => notificationsService.markAllAsRead(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
-  })
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) setShowNotificationsDropdown(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const notifications = notificationsData?.notifications || []
-  const unreadCount = notificationsData?.unreadCount || 0
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
 
       {/* Notes — a labelled pill in the brand tint, sized to the breadcrumb
           text beside it. */}
@@ -157,140 +111,12 @@ export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void }> = ({ o
         Notes
       </button>
 
-      {/* Notifications */}
-      <div ref={notificationRef} style={{ position: 'relative' }}>
-        <button
-          type="button"
-          onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
-          title="Notifications"
-          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-          aria-expanded={showNotificationsDropdown}
-          style={{
-            ...ICON_BTN,
-            background: showNotificationsDropdown ? '#f1f5f9' : 'transparent',
-            color: showNotificationsDropdown ? '#1e293b' : '#475569',
-          }}
-          onMouseEnter={e => {
-            if (!showNotificationsDropdown) {
-              const el = e.currentTarget as HTMLElement
-              el.style.background = '#f1f5f9'; el.style.color = '#1e293b'
-            }
-          }}
-          onMouseLeave={e => {
-            if (!showNotificationsDropdown) {
-              const el = e.currentTarget as HTMLElement
-              el.style.background = 'transparent'; el.style.color = '#475569'
-            }
-          }}
-        >
-          <Bell size={19} weight={showNotificationsDropdown ? 'duotone' : 'regular'} />
-          {unreadCount > 0 && (
-            <span style={{
-              position: 'absolute', top: 0, right: 0,
-              height: 16, minWidth: 16,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 9999, background: '#ef4444',
-              color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '0 3px',
-              border: '1.5px solid #fff',
-            }}>
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </button>
+      <NotificationBell />
 
-        {/* Notifications Dropdown */}
-        {showNotificationsDropdown && (
-          <>
-            <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowNotificationsDropdown(false)} />
-            <div style={{
-              position: 'absolute', right: 0, top: 'calc(100% + 8px)',
-              width: 'min(340px, calc(100vw - 24px))', borderRadius: 12, background: T.bg,
-              border: `1px solid ${T.line}`,
-              boxShadow: '0 10px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
-              zIndex: 11, overflow: 'hidden', animation: 'fadeIn .15s ease both',
-            }}>
-              {/* Header */}
-              <div style={{
-                padding: '10px 14px', borderBottom: `1px solid ${T.line}`,
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}>
-                <div>
-                  <h3 style={{ fontSize: '14.5px', fontWeight: 700, color: T.textMain }}>Notifications</h3>
-                  {unreadCount > 0 && (
-                    <p style={{ fontSize: '11.5px', color: T.textMuted, marginTop: 2 }}>{unreadCount} unread</p>
-                  )}
-                </div>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={() => markAllAsReadMutation.mutate()}
-                    style={{
-                      fontSize: '11.5px', fontWeight: 600, color: '#F97316',
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                    }}
-                  >
-                    Mark all read
-                  </button>
-                )}
-              </div>
-
-              {/* List */}
-              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                {notifications.length === 0 ? (
-                  <div style={{ padding: '30px 20px', textAlign: 'center' }}>
-                    <Bell size={24} weight="duotone" style={{ color: T.textMuted, opacity: 0.4, marginBottom: 8 }} />
-                    <p style={{ fontSize: '12.5px', color: T.textMuted }}>No notifications</p>
-                  </div>
-                ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n._id}
-                      onClick={() => markAsReadMutation.mutate(n._id)}
-                      style={{
-                        padding: '10px 14px', borderBottom: `1px solid ${T.line}`,
-                        cursor: 'pointer', transition: 'background .12s',
-                        background: !n.isRead ? 'rgba(249,115,22,0.04)' : 'transparent',
-                        display: 'flex', gap: 10,
-                      }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.pageBg }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = !n.isRead ? 'rgba(249,115,22,0.04)' : 'transparent' }}
-                    >
-                      <div style={{
-                        width: 6, height: 6, borderRadius: '50%',
-                        background: !n.isRead ? '#F97316' : '#cbd5e1',
-                        marginTop: 6, flexShrink: 0,
-                      }} />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <p style={{
-                          fontSize: '12.5px', fontWeight: !n.isRead ? 700 : 500,
-                          color: !n.isRead ? T.textMain : T.textSub, marginBottom: 2,
-                        }}>
-                          {n.title}
-                        </p>
-                        {/* pre-line: multi-line messages (an assignment's
-                            Course / Batch / Start / End / Marks lines) keep
-                            their breaks instead of running together. */}
-                        <p style={{ fontSize: '11.5px', color: T.textMuted, lineHeight: 1.4, whiteSpace: 'pre-line' }}>
-                          {n.message}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Animations */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
