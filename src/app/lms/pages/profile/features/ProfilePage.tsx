@@ -572,7 +572,9 @@ export default function ProfilePage() {
         { label: 'Total users', value: stats.totalUsers ?? 0, sub: 'registered' },
         { label: 'Students', value: stats.totalStudents ?? 0, sub: 'enrolled' },
         { label: 'Faculty & staff', value: stats.totalStaff ?? 0, sub: 'members' },
-        { label: 'Courses', value: stats.totalCourses, sub: `${stats.activeCourses ?? 0} active` },
+        // Course records carry no status of their own, so an "N active"
+        // split would always read 0 — the plain total is the honest figure.
+        { label: 'Courses', value: stats.totalCourses, sub: 'in your institution' },
       ]
     }
 
