@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft, BookOpen, ChevronRight, ClipboardList, Eye, Loader2, Search, SearchX, UsersRound, X,
+  ArrowLeft, BookOpen, ChevronRight, ClipboardList, Eye, FileBarChart, Loader2, Search, SearchX, UsersRound, X,
 } from "lucide-react";
+import BatchReport from "./BatchReport";
 import { PrintPreviewModal } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
 import type { ServiceMapping } from "@/app/lms/pages/servicemapping/api/serviceMappingService";
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
@@ -35,12 +36,15 @@ import {
 //   By Student   S1 every student with totals across the filtered exercises
 //                S2 ▸ View: one student's every exercise, each expandable to
 //                   its questions
+//   Batch Report pick batches / activities / exercises ▸ Generate: one table,
+//                every batch a collapsible header row with its students
+//                under it (BatchReport.tsx)
 //
 // Read-only on purpose — grading, retests and live monitoring stay on the Live
 // Dashboard. Every figure comes from reportData.ts, which reuses the Live
 // Dashboard's own marks functions.
 
-type Tab = "exercise" | "student";
+type Tab = "exercise" | "student" | "batch";
 type Activity = "" | ActivityType;
 
 const ACTIVITY_LABEL: Record<ActivityType, string> = {
@@ -85,7 +89,9 @@ export default function CourseReport() {
 
   // ── Where the reader is — mirrored into the URL so a refresh (or coming
   //    back from another page) reopens the same view. ──
-  const [tab, setTab] = useState<Tab>(params.get("view") === "student" ? "student" : "exercise");
+  const [tab, setTab] = useState<Tab>(
+    params.get("view") === "student" ? "student" : params.get("view") === "batch" ? "batch" : "exercise",
+  );
   const [exerciseId, setExerciseId] = useState(params.get("exerciseId") || "");
   const [studentId, setStudentId] = useState(params.get("studentId") || "");
   const [drawer, setDrawer] = useState<{ exerciseId: string; studentId: string } | null>(null);
@@ -149,6 +155,11 @@ export default function CourseReport() {
 
   const resultOf = useCallback(
     (exId: string, stId: string) => results.get(exId)?.get(stId) ?? EMPTY_RESULT,
+    [results],
+  );
+  /** Only the pairs the student's batch was set — for the Batch Report. */
+  const resultIfSet = useCallback(
+    (exId: string, stId: string) => results.get(exId)?.get(stId),
     [results],
   );
 
@@ -349,6 +360,7 @@ export default function CourseReport() {
           {([
             { key: "exercise" as const, label: "By Exercise", icon: <ClipboardList size={13} /> },
             { key: "student" as const, label: "By Student", icon: <UsersRound size={13} /> },
+            { key: "batch" as const, label: "Batch Report", icon: <FileBarChart size={13} /> },
           ]).map((t) => (
             <button
               key={t.key}
@@ -366,7 +378,8 @@ export default function CourseReport() {
         </div>
       </div>
 
-      {/* ── Filters ── */}
+      {/* ── Filters ── (the Batch Report brings its own) */}
+      {tab !== "batch" && (
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hairline bg-surface px-3 py-2.5 shadow-xs">
         {/* One exercise is already open on E2, so only Batch and Search
             apply there. */}
@@ -403,6 +416,7 @@ export default function CourseReport() {
           </span>
         </label>
       </div>
+      )}
 
       {/* ── Body ── */}
       {isLoading ? (
@@ -411,6 +425,15 @@ export default function CourseReport() {
         </div>
       ) : isError || !courseData ? (
         <Centered icon={<SearchX size={20} />} title="Couldn't load this course" body="Check the connection and reload the page." />
+      ) : tab === "batch" ? (
+        <BatchReport
+          courseName={courseName}
+          exercises={exercises}
+          students={students}
+          batchOptions={batchOptions}
+          showSubcategory={showSubcategory}
+          resultIfSet={resultIfSet}
+        />
       ) : tab === "exercise" && !currentExercise ? (
         <ExerciseList
           rows={filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.subcategory))}
