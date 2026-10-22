@@ -497,7 +497,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas dark:bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-surface">
         <Loading size="size-12" label="Loading profile..." />
       </div>
     )
@@ -505,7 +505,7 @@ export default function ProfilePage() {
 
   if (!userData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas px-4 dark:bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-surface px-4">
         <div className="w-full max-w-xs rounded-xl border border-hairline bg-surface p-6 text-center shadow-sm">
           <span className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-surface-sunken ring-1 ring-hairline">
             <User className="h-5 w-5 text-subtle" />
@@ -642,7 +642,7 @@ export default function ProfilePage() {
       ]
 
   const content = (
-    <div className="min-h-screen bg-canvas dark:bg-gray-950">
+    <div className="min-h-full bg-surface">
       <div className="mx-auto max-w-[1200px] space-y-4 px-3 py-3 sm:px-6 sm:py-5">
 
         {/* ── Breadcrumb ─────────────────────────────────────────────────── */}
@@ -656,7 +656,7 @@ export default function ProfilePage() {
         </nav>
 
         {/* ── Identity + headline figures ────────────────────────────────── */}
-        <section className="overflow-hidden rounded-xl border border-hairline bg-surface shadow-xs">
+        <section className="overflow-hidden rounded-xl border border-hairline bg-surface">
           <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
             <Avatar user={userData} className="h-16 w-16 text-xl sm:h-20 sm:w-20 sm:text-2xl" />
 
@@ -1125,7 +1125,7 @@ function Panel({
   title, description, action, children,
 }: { title: string; description?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="min-w-0 rounded-xl border border-hairline bg-surface shadow-xs">
+    <section className="min-w-0 rounded-xl border border-hairline bg-surface">
       <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3 sm:px-5">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-heading">{title}</h2>
