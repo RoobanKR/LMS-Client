@@ -47,7 +47,7 @@ import {
 } from '../api/progress';
 
 import { T, METHOD_CFG, RES_LABEL, FONT_PRIMARY, FONT_INTER_IMPORT } from "../components/types/constants"
-import { TopBar } from "../components/TopBar"
+import { TopBar, CourseHeaderActions } from "../components/TopBar"
 import { CourseBreadcrumbs } from "../components/CourseBreadcrumbs"
 import { Sidebar, LogoutModal, buildHoursMap } from "../components/Sidebar"
 import { CourseSidebar } from "../components/CourseSidebar"
@@ -2549,8 +2549,14 @@ const getExercisesForActivity = (): any[] => {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden p-3.5 pl-0 max-lg:p-2 max-lg:pl-2">
         <div className="relative flex-1 flex flex-col overflow-clip min-h-0 rounded-[18px] border border-[#E4E7EC] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           {/* Dashboard › My Courses › <course> — the same trail Upload
-              Resources shows above its tabs. */}
-          {!isHeaderCollapsed && <CourseBreadcrumbs items={buildBreadcrumbs()} />}
+              Resources shows above its tabs — with Notes and Notifications
+              at the row's end. */}
+          {!isHeaderCollapsed && (
+            <CourseBreadcrumbs
+              items={buildBreadcrumbs()}
+              right={<CourseHeaderActions onNotesClick={() => setShowNotesPanel(v => !v)} />}
+            />
+          )}
           {!isHeaderCollapsed && (
             <TopBar
               items={buildBreadcrumbs()}

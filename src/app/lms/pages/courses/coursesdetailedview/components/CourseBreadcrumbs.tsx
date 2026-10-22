@@ -19,18 +19,24 @@ const LINK_HOVER = "#EA580C"
 const CURRENT = "#475569"
 const MUTED = "#94A3B8"
 
-export const CourseBreadcrumbs: React.FC<{ items: CourseCrumb[] }> = ({ items }) => {
-  if (!items.length) return null
+export const CourseBreadcrumbs: React.FC<{ items: CourseCrumb[]; right?: React.ReactNode }> = ({ items, right }) => {
+  if (!items.length && !right) return null
   return (
-    <nav
-      aria-label="Breadcrumb"
-      className="flex items-center min-w-0 flex-shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    // The row is positioned above the tab bar so a dropdown from `right`
+    // (Notifications) opens over the page instead of under it.
+    <div
+      className="relative z-30 flex items-center flex-shrink-0"
       style={{
         paddingInline: "clamp(16px, 2vw, 32px)",
-        minHeight: 40,
-        gap: 2,
+        minHeight: 52,
+        gap: 12,
         background: T.bg,
       }}
+    >
+    <nav
+      aria-label="Breadcrumb"
+      className="flex flex-1 items-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      style={{ gap: 2 }}
     >
       {items.map((crumb, i) => {
         const isLast = i === items.length - 1
@@ -81,5 +87,8 @@ export const CourseBreadcrumbs: React.FC<{ items: CourseCrumb[] }> = ({ items })
         )
       })}
     </nav>
+    {/* Notes and Notifications sit at the row's end. */}
+    {right && <div className="ml-auto flex flex-shrink-0 items-center">{right}</div>}
+    </div>
   )
 }
