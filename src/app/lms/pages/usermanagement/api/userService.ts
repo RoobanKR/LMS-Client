@@ -1157,13 +1157,20 @@ export const saveApprovalHierarchy = async (
 // the multipart boundary.
 export interface UpdateMyProfileInput {
   photo?: File | null;
+  /** Put the default avatar back. */
+  removePhoto?: boolean;
   currentPassword?: string;
   newPassword?: string;
+  phone?: string;
+  gender?: string;
 }
 
 export const updateMyProfile = async (input: UpdateMyProfileInput, token: string) => {
   const form = new FormData();
   if (input.photo) form.append('profile', input.photo);
+  else if (input.removePhoto) form.append('removePhoto', 'true');
+  if (input.phone !== undefined) form.append('phone', input.phone);
+  if (input.gender !== undefined) form.append('gender', input.gender);
   if (input.newPassword) {
     form.append('currentPassword', input.currentPassword || '');
     form.append('newPassword', input.newPassword);
@@ -1186,6 +1193,6 @@ export const updateMyProfile = async (input: UpdateMyProfileInput, token: string
   }
   return data as {
     message: { key: string; value: string }[];
-    user: { _id: string; email: string; firstName: string; lastName: string; profile?: string; updatedAt: string };
+    user: { _id: string; email: string; firstName: string; lastName: string; phone?: string; gender?: string; profile?: string; updatedAt: string };
   };
 };
