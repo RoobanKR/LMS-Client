@@ -31,15 +31,14 @@ export const CountdownPill: React.FC<{ seconds: number; font?: string }> = ({ se
       role="timer"
       aria-label={`Time left ${formatCountdown(seconds)}`}
       title="Time left. Your work is submitted automatically at 00:00."
-      // Centred in the toolbar on wide screens; inline where the toolbar wraps.
-      className="lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:top-3"
+      // Inline: it sits after Notes / Overview / Info in the toolbar's centre
+      // group, which does the centring.
       style={{
         display: "inline-flex", alignItems: "center", gap: 6,
         height: 32, padding: "0 12px", borderRadius: 8, flexShrink: 0,
         border: `1px solid ${c.bd}`, background: c.bg, color: c.fg,
         fontFamily: font, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
         animation: danger ? "pulse 1s ease-in-out infinite" : undefined,
-        zIndex: 1,
       }}
     >
       <Clock size={14} />
