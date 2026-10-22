@@ -251,7 +251,7 @@ export default function NotesPanel({ isOpen, onClose, isDraggable = false, initi
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
 
-    const newWidth = Math.max(300, Math.min(800, size.width + deltaX));
+    const newWidth = Math.max(360, Math.min(Math.min(1200, window.innerWidth - 20), size.width + deltaX));
     const newHeight = Math.max(400, Math.min(1000, size.height + deltaY));
 
     setSize({ width: newWidth, height: newHeight });
@@ -317,14 +317,18 @@ export default function NotesPanel({ isOpen, onClose, isDraggable = false, initi
     };
   }, [isDraggable, isDragging, isResizing, dragStart]);
 
-  // Reset position and size when panel opens - only when draggable
+  // Reset position and size when panel opens - only when draggable. Wide
+  // enough for the note list beside the editor and a one- or two-row
+  // toolbar; anchored 20px from the right edge.
   useEffect(() => {
     if (isOpen && isDraggable) {
+      const width = Math.max(360, Math.min(760, window.innerWidth - 40));
+      const height = Math.max(400, Math.min(600, window.innerHeight - 90));
       setPosition({
-        x: window.innerWidth - 400, // 400px width + 20px margin from right
-        y: 65 // 20px from top
+        x: Math.max(0, window.innerWidth - width - 20),
+        y: 65
       });
-      setSize({ width: 400, height: 500 });
+      setSize({ width, height });
     }
   }, [isOpen, isDraggable]);
   // Set isClient to true when component mounts on client
@@ -1664,9 +1668,9 @@ const renderTiptapToolbar = () => {
 
   // Main panel content (common for both draggable and non-draggable)
   const panelContent = (
-    <div className="flex-1 flex min-h-0">
+    <div className="@container relative flex-1 flex min-h-0">
       {showNotesSidebar && (
-        <div className="flex flex-col border-r border-gray-300 w-64 max-sm:w-1/2 max-sm:min-w-0 bg-gray-50 notes-sidebar sidebar-slide">
+        <div className="flex flex-col flex-shrink-0 border-r border-gray-300 w-64 bg-gray-50 notes-sidebar sidebar-slide @max-[40rem]:absolute @max-[40rem]:inset-y-0 @max-[40rem]:left-0 @max-[40rem]:z-30 @max-[40rem]:w-[min(16rem,85%)] @max-[40rem]:shadow-2xl">
           {/* Sidebar Header */}
           <div className="p-4 border-b border-gray-300">
             <div className="flex items-center justify-between mb-3">
@@ -2158,9 +2162,9 @@ const renderTiptapToolbar = () => {
           height: `${size.height}px`,
         }}
       >
-        <div className="flex-1 flex min-h-0">
+        <div className="@container relative flex-1 flex min-h-0">
           {showNotesSidebar && (
-            <div className="flex flex-col border-r border-gray-300 w-64 max-sm:w-1/2 max-sm:min-w-0 bg-gray-50 notes-sidebar sidebar-slide">
+            <div className="flex flex-col flex-shrink-0 border-r border-gray-300 w-64 bg-gray-50 notes-sidebar sidebar-slide @max-[40rem]:absolute @max-[40rem]:inset-y-0 @max-[40rem]:left-0 @max-[40rem]:z-30 @max-[40rem]:w-[min(16rem,85%)] @max-[40rem]:shadow-2xl">
               <div
                 className="p-4 border-b border-gray-300 cursor-move"
                 onMouseDown={handleMouseDown}
@@ -2475,92 +2479,89 @@ const renderTiptapToolbar = () => {
           )}
 
           <div className="flex-1 flex flex-col min-w-0">
-            <div
-              className="flex items-center justify-between p-3 border-b border-gray-300 bg-white cursor-move"
-              onMouseDown={handleMouseDown}
-            >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                {!showNotesSidebar && (
-                  <button
-                    onClick={() => setShowNotesSidebar(true)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#FB923C] focus:ring-offset-1 btn-smooth no-drag"
-                  >
-                    <svg
-                      className="w-4 h-4 text-gray-700"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+            {/* Header — row 1 (drag handle): the note list toggle, what is being
+                edited, then Save, the note tools and Close; row 2: the title. */}
+            <div className="border-b border-gray-200 bg-white">
+              <div
+                className="flex items-center justify-between gap-2 px-3 pt-2.5 cursor-move"
+                onMouseDown={handleMouseDown}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  {!showNotesSidebar && (
+                    <button
+                      onClick={() => setShowNotesSidebar(true)}
+                      aria-label="Show all notes"
+                      title="Show all notes"
+                      className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 btn-smooth no-drag"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                      </svg>
+                    </button>
+                  )}
+                  <span className="truncate text-sm font-semibold text-gray-800">
+                    {currentNote ? "Edit note" : "New note"}
+                  </span>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-1.5">
+                  <button
+                    onClick={saveCurrentNote}
+                    disabled={!isSaveEnabled || isLoading || isEmptyNote()}
+                    title={currentNote ? "Save note" : "Save as a new note"}
+                    className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors btn-smooth no-drag ${!isLoading && !isEmptyNote() && isSaveEnabled
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                  >
+                    {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    {isLoading ? "Saving…" : "Save"}
                   </button>
-                )}
-                <div className="mb-4">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Note Title
-                  </label>
-                  <input
-                    ref={saveTitleInputRef}
-                    type="text"
-                    value={saveNoteTitle}
-                    onChange={(e) => setSaveNoteTitle(e.target.value)}
-                    placeholder={currentNote ? currentNote.title : "Enter note title"}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FB923C] focus:border-transparent"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && saveNoteTitle.trim()) {
-                        saveWithTitle();
-                      }
-                    }}
-                  />
+                  <span className="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true" />
+                  <button onClick={pasteFromClipboard} aria-label="Paste from clipboard" title="Paste from clipboard" className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 btn-smooth no-drag">
+                    <ClipboardPaste className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={copyToClipboard} disabled={!editContent.trim()} aria-label="Copy note text" title="Copy note text" className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 btn-smooth no-drag">
+                    {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                  <button onClick={() => downloadNote('txt')} disabled={!editContent.trim()} aria-label="Download as a text file" title="Download as a text file" className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 btn-smooth no-drag">
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                  {currentNote && (
+                    <button
+                      onClick={() => deleteNoteHandler(currentNote._id)}
+                      disabled={!token}
+                      aria-label="Delete note"
+                      title="Delete note"
+                      className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border border-gray-200 bg-white text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40 btn-smooth no-drag"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={handleClose}
+                    aria-label="Close notes"
+                    title="Close"
+                    className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 btn-smooth no-drag"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 ml-3">
-                <button
-                  onClick={saveCurrentNote}
-                  disabled={!isSaveEnabled || isLoading || isEmptyNote()}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-all min-w-[70px] justify-center btn-smooth no-drag ${!isLoading && !isEmptyNote() && isSaveEnabled
-                    ? 'bg-green-500 text-white hover:bg-green-600'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                >
-                  {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                  {isLoading ? "Saving..." : "Save"}
-                </button>
-                <button
-                  onClick={pasteFromClipboard}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-all bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 btn-smooth no-drag"
-                >
-                  <ClipboardPaste className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={copyToClipboard}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-all bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 btn-smooth no-drag"
-                  disabled={!editContent.trim()}
-                >
-                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                </button>
-                <button
-                  onClick={() => downloadNote('txt')}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-all bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 btn-smooth no-drag"
-                  disabled={!editContent.trim()}
-                >
-                  <Download className="w-3 h-3" />
-                </button>
-                {currentNote && (
-                  <button
-                    onClick={() => deleteNoteHandler(currentNote._id)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-all hover:bg-red-50 bg-white text-red-600 border border-gray-300 btn-smooth no-drag"
-                    disabled={!token}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
-                <button
-                  onClick={handleClose}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#FB923C] focus:ring-offset-1 ml-1 btn-smooth no-drag"
-                >
-                  <X className="w-4 h-4 text-gray-600" />
-                </button>
+              <div className="px-3 pb-2.5 pt-2">
+                <input
+                  ref={saveTitleInputRef}
+                  type="text"
+                  value={saveNoteTitle}
+                  onChange={(e) => setSaveNoteTitle(e.target.value)}
+                  placeholder={currentNote ? currentNote.title : "Note title"}
+                  aria-label="Note title"
+                  className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FB923C] focus:border-transparent"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && saveNoteTitle.trim()) {
+                      saveWithTitle();
+                    }
+                  }}
+                />
               </div>
             </div>
             <div className="flex-1 overflow-y-auto bg-white">
@@ -2581,12 +2582,12 @@ const renderTiptapToolbar = () => {
             </div>
             <div className="flex items-center justify-between px-4 py-2 border-t border-gray-300 text-xs bg-gray-50 text-gray-600">
               <div className="flex items-center gap-4">
-                <span>
+                <span className="whitespace-nowrap">
                   <span className="font-medium">
                     {getWordCount(editContent)}
                   </span> words
                 </span>
-                <span>
+                <span className="whitespace-nowrap">
                   <span className="font-medium">
                     {editContent.replace(/<[^>]*>/g, '').length}
                   </span> chars
