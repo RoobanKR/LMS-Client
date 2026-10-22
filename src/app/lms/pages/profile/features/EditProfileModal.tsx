@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
-import { Camera, Eye, EyeOff, KeyRound, Loader2, Save, Trash2, X } from "lucide-react"
+import { Camera, Eye, EyeOff, Loader2, Undo2, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { getToken } from "@/lib/session"
+import { cn } from "@/lib/utils"
 import { updateMyProfile } from "@/app/lms/pages/usermanagement/api/userService"
 
 // Matches what the server's Supabase upload will accept, and keeps a 20 MB
@@ -38,36 +39,54 @@ interface Props {
 }
 
 const FIELD_CLS =
-  "w-full h-10 px-3 pr-10 rounded-lg border border-gray-200 bg-white text-sm text-gray-900 " +
-  "placeholder:text-gray-400 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 " +
-  "transition-colors dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+  "w-full h-10 rounded-control border bg-surface px-3 pr-10 text-sm text-heading " +
+  "placeholder:text-faint focus:outline-none focus:ring-2 transition-colors"
 
+/** A password input with a show / hide toggle, and one line under it: the
+ *  field's problem in red, or a neutral hint. */
 function PasswordField({
-  label, value, onChange, placeholder, autoComplete,
-}: { label: string; value: string; onChange: (v: string) => void; placeholder: string; autoComplete: string }) {
+  id, label, value, onChange, placeholder, autoComplete, error, hint,
+}: {
+  id: string; label: string; value: string; onChange: (v: string) => void
+  placeholder: string; autoComplete: string; error?: string; hint?: string
+}) {
   const [show, setShow] = useState(false)
+  const message = error || hint
   return (
     <div>
-      <label className="mb-1.5 block text-[11px] font-semibold text-gray-500 dark:text-gray-400">{label}</label>
+      <label htmlFor={id} className="mb-1.5 block text-[13px] font-medium text-body">{label}</label>
       <div className="relative">
         <input
+          id={id}
           type={show ? "text" : "password"}
           value={value}
           autoComplete={autoComplete}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={FIELD_CLS}
+          aria-invalid={Boolean(error)}
+          aria-describedby={message ? `${id}-msg` : undefined}
+          className={cn(
+            FIELD_CLS,
+            error
+              ? "border-red-400 focus:border-red-500 focus:ring-red-500/15"
+              : "border-field hover:border-field-hover focus:border-brand focus:ring-brand/15"
+          )}
         />
         <button
           type="button"
           onClick={() => setShow((s) => !s)}
           tabIndex={-1}
           aria-label={show ? "Hide password" : "Show password"}
-          className="absolute inset-y-0 right-0 grid w-10 place-items-center text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute inset-y-0 right-0 grid w-10 place-items-center text-subtle transition-colors hover:text-heading"
         >
           {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
       </div>
+      {message && (
+        <p id={`${id}-msg`} className={cn("mt-1 text-xs", error ? "text-red-600 dark:text-red-400" : "text-subtle")}>
+          {message}
+        </p>
+      )}
     </div>
   )
 }
@@ -133,6 +152,15 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
     return null
   })()
 
+  // Shown under the field as the student types, so a problem is pointed at
+  // where it is rather than only in the footer.
+  const nextError = next && next.length < 8
+    ? "Use at least 8 characters."
+    : next && current && next === current
+      ? "Choose a password different from your current one."
+      : ""
+  const confirmError = confirm && next && confirm !== next ? "Passwords don't match." : ""
+
   const handleSave = async () => {
     if (blocked) return
     const token = getToken()
@@ -171,52 +199,48 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
       <DialogContent
         showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
-        className="sm:max-w-[460px] p-0 gap-0 overflow-hidden rounded-2xl"
+        className="sm:max-w-[480px] p-0 gap-0 overflow-hidden rounded-xl"
       >
-        <DialogHeader className="border-b border-gray-100 px-4 sm:px-5 py-4 dark:border-gray-800">
+        <DialogHeader className="border-b border-hairline px-5 py-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <DialogTitle className="text-base font-black text-gray-900 dark:text-white">Edit Profile</DialogTitle>
-              <DialogDescription className="text-xs text-gray-500">
-                Update your photo or password. Name, email and role are managed in User Management.
+            <div className="min-w-0 text-left">
+              <DialogTitle className="text-base font-semibold text-heading">Edit profile</DialogTitle>
+              <DialogDescription className="mt-1 text-[13px] leading-relaxed text-subtle">
+                Change your profile photo or password. Your name, email and role are managed by your administrator.
               </DialogDescription>
             </div>
             <button
               type="button"
               onClick={requestClose}
               disabled={saving}
+              aria-label="Close"
               title="Close"
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-500 text-white transition-colors duration-150 hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="-mr-1.5 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-control text-subtle transition-colors hover:bg-row-hover hover:text-heading focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <X className="h-4 w-4" strokeWidth={3} />
-              <span className="sr-only">Close</span>
+              <X className="h-4 w-4" />
             </button>
           </div>
         </DialogHeader>
 
-        <div className="max-h-[62dvh] sm:max-h-[70vh] overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
+        <div className="max-h-[62dvh] sm:max-h-[70vh] overflow-y-auto divide-y divide-hairline">
 
           {/* ── Photo ── */}
-          <div>
-            <p className="mb-2.5 text-[11px] font-black uppercase tracking-wider text-gray-400">Profile photo</p>
-            <div className="flex items-center gap-4">
-              <div className="h-20 w-20 flex-shrink-0">
-                <div className="h-full w-full">
-                  <div className="grid h-full w-full place-items-center overflow-hidden rounded-full bg-surface-sunken ring-1 ring-hairline">
-                    {shownImage ? (
-                      // A plain <img> for the blob: preview — next/image would
-                      // need the object URL whitelisted as a remote pattern.
-                      preview ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={preview} alt="New profile photo" className="h-full w-full object-cover" />
-                      ) : (
-                        <Image src={shownImage} alt={user.firstName} width={80} height={80} className="h-full w-full object-cover" />
-                      )
-                    ) : (
-                      <span className="text-2xl font-semibold text-body">{initials}</span>
-                    )}
-                  </div>
-                </div>
+          <section className="px-5 py-4">
+            <h3 className="text-sm font-semibold text-heading">Profile photo</h3>
+            <div className="mt-3 flex items-center gap-4">
+              <div className="grid h-16 w-16 flex-shrink-0 place-items-center overflow-hidden rounded-full bg-surface-sunken ring-1 ring-hairline">
+                {shownImage ? (
+                  // A plain <img> for the blob: preview — next/image would
+                  // need the object URL whitelisted as a remote pattern.
+                  preview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={preview} alt="New profile photo" className="h-full w-full object-cover" />
+                  ) : (
+                    <Image src={shownImage} alt={user.firstName} width={64} height={64} className="h-full w-full object-cover" />
+                  )
+                ) : (
+                  <span className="text-lg font-semibold text-body">{initials}</span>
+                )}
               </div>
 
               <div className="min-w-0 flex-1">
@@ -232,89 +256,84 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1.5 text-xs"
                     onClick={() => fileRef.current?.click()}
                     disabled={saving}
                   >
-                    <Camera className="h-3.5 w-3.5" /> Change photo
+                    <Camera className="h-3.5 w-3.5" /> {shownImage ? "Change photo" : "Upload photo"}
                   </Button>
                   {photo && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 gap-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
                       onClick={() => { setPhoto(null); if (fileRef.current) fileRef.current.value = "" }}
                       disabled={saving}
                     >
-                      <Trash2 className="h-3.5 w-3.5" /> Remove
+                      <Undo2 className="h-3.5 w-3.5" /> Undo
                     </Button>
                   )}
                 </div>
-                <p className="mt-1.5 truncate text-[11px] text-gray-400">
-                  {photo ? photo.name : "JPG, PNG or WebP · up to 5MB"}
+                <p className="mt-1.5 truncate text-xs text-subtle">
+                  {photo ? `Selected: ${photo.name}` : "JPG, PNG or WebP, up to 5 MB."}
                 </p>
               </div>
             </div>
-          </div>
-
-          <div className="h-px bg-gray-100 dark:bg-gray-800" />
+          </section>
 
           {/* ── Password ── */}
-          <div>
-            <div className="mb-2.5 flex items-center gap-2">
-              <KeyRound className="h-3.5 w-3.5 text-subtle" />
-              <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">Change password</p>
-              <span className="text-[11px] font-medium text-gray-300">optional</span>
+          <section className="px-5 py-4">
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-sm font-semibold text-heading">Change password</h3>
+              <span className="text-xs text-subtle">Optional</span>
             </div>
-            <div className="space-y-3">
+            <p className="mt-0.5 text-xs text-subtle">Leave these blank to keep your current password.</p>
+            <div className="mt-3 space-y-3">
               <PasswordField
+                id="profile-current-password"
                 label="Current password"
                 value={current}
                 onChange={setCurrent}
-                placeholder="Your current password"
+                placeholder="Enter your current password"
                 autoComplete="current-password"
               />
               <PasswordField
+                id="profile-new-password"
                 label="New password"
                 value={next}
                 onChange={setNext}
-                placeholder="At least 8 characters"
+                placeholder="Enter a new password"
                 autoComplete="new-password"
+                error={nextError}
+                hint="At least 8 characters."
               />
               <PasswordField
+                id="profile-confirm-password"
                 label="Confirm new password"
                 value={confirm}
                 onChange={setConfirm}
-                placeholder="Repeat the new password"
+                placeholder="Re-enter the new password"
                 autoComplete="new-password"
+                error={confirmError}
               />
             </div>
-          </div>
+          </section>
         </div>
 
-        <DialogFooter className="border-t border-gray-100 bg-gray-50/60 px-4 sm:px-5 py-3 dark:border-gray-800 dark:bg-gray-900/50">
-          <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <p className="min-w-0 flex-1 truncate text-[11px] text-gray-400">{blocked || "Ready to save."}</p>
+        <DialogFooter className="border-t border-hairline bg-surface-sunken/50 px-5 py-3">
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            {/* Why Save is off — only once something has been entered. */}
+            <p className="min-w-0 flex-1 text-xs text-subtle sm:truncate">{isDirty && blocked ? blocked : ""}</p>
             <div className="flex flex-shrink-0 justify-end gap-2">
               <Button variant="outline" size="sm" onClick={requestClose} disabled={saving}>
                 Cancel
               </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={saving || Boolean(blocked)}
-                className="gap-1.5 bg-orange-500 text-white hover:bg-orange-600"
-              >
-                {saving
-                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
-                  : <><Save className="h-3.5 w-3.5" /> Save changes</>}
+              <Button size="sm" onClick={handleSave} disabled={saving || Boolean(blocked)}>
+                {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : "Save changes"}
               </Button>
             </div>
           </div>
         </DialogFooter>
       </DialogContent>
-
       {/* Discard confirmation — only when something has been entered */}
       <Dialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
         <DialogContent showCloseButton={false} className="sm:max-w-[400px]">
@@ -334,7 +353,7 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
             </Button>
             <Button
               size="sm"
-              className="bg-red-600 text-white hover:bg-red-700"
+              variant="destructive"
               onClick={() => { setConfirmDiscard(false); onClose() }}
             >
               Discard &amp; close
