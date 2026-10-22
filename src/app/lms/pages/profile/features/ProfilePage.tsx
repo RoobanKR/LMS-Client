@@ -4,20 +4,11 @@ import { Loading } from "@/components/loading-ui/loading"
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import {
-  User, Mail, Phone, Calendar, BookOpen,
-  GraduationCap, Building, Users, FileText,
-  Clock, Edit, Shield, Award,
-  CheckCircle, Activity, Briefcase,
-  ChevronRight, Home, Star,
-  TrendingUp, Bell, Flame, School,
-  UserCheck, BadgeCheck, MoreVertical, Zap
+  User, Mail, Phone, Calendar, FileText,
+  Clock, Shield, Award, CheckCircle, Activity,
+  ChevronRight, Home, TrendingUp, Bell, Flame,
+  Pencil, Pin,
 } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
@@ -199,7 +190,7 @@ const calcProgress = (course: any) => {
   return total === 0 ? 0 : Math.round((attempted / total) * 60 + (solved / total) * 40)
 }
 
-// Trainer headline stats — Courses · Students · Permissions · Member Since.
+// Trainer headline stats — Courses · Learners · Permissions · Member Since.
 //
 // The first two are the teaching figures the dashboard leads with, read from
 // the dashboard's OWN hook so the two surfaces cannot disagree. The last two are
@@ -215,61 +206,33 @@ function TrainerHeadlineStats({ user }: { user: UserData }) {
   const noop = useMemo(() => () => {}, [])
   const { model, loading } = useTrainerDashboard("all", noop)
 
-  // Only the grants actually in force — the card says "active", and a revoked
-  // permission still sits on the user record with isActive false.
+  // Only the grants actually in force — a revoked permission still sits on
+  // the user record with isActive false.
   const activePermissions = (user.permissions || []).filter((p: any) => p?.isActive).length
   const joined = user.createdAt ? new Date(user.createdAt) : null
   const joinedValid = joined && !Number.isNaN(joined.getTime())
 
-  const cards = [
-    {
-      icon: BookOpen, label: 'Courses', accent: '#F97316',
-      value: loading ? '—' : (model?.courses ?? 0),
-      sub: loading ? 'Loading…' : `${model?.activeCourses ?? 0} with learners`,
-    },
-    {
-      icon: GraduationCap, label: 'Students', accent: '#22C55E',
-      value: loading ? '—' : (model?.students ?? 0),
-      sub: loading ? 'Loading…' : `${model?.completed ?? 0} completed`,
-    },
-    {
-      icon: Shield, label: 'Permissions', accent: '#7C4DD1',
-      value: activePermissions,
-      sub: 'active',
-    },
-    {
-      icon: Calendar, label: 'Member Since', accent: '#F59E0B',
-      value: joinedValid
-        ? joined.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-        : '—',
-      sub: 'joined',
-    },
-  ]
-
   return (
-    <div className="relative mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-      {cards.map((s, i) => {
-        const Icon = s.icon
-        return (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08 + i * 0.05 }}
-            className="flex min-w-0 items-center gap-2 sm:gap-3 rounded-xl border border-gray-100 bg-white/70 p-2.5 sm:p-3 backdrop-blur-sm transition-shadow hover:shadow-[0_4px_14px_-8px_rgba(16,24,40,0.18)] dark:bg-gray-900/60 dark:border-gray-800"
-          >
-            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: `${s.accent}1F` }}>
-              <Icon className="h-4 w-4" style={{ color: s.accent }} />
-            </span>
-            <div className="min-w-0">
-              <p className="text-base sm:text-lg font-black leading-none text-gray-900 dark:text-white">{s.value}</p>
-              <p className="mt-0.5 text-xs font-bold truncate" style={{ color: s.accent }}>{s.label}</p>
-              <p className="text-[10px] text-gray-400 truncate">{s.sub}</p>
-            </div>
-          </motion.div>
-        )
-      })}
-    </div>
+    <StatStrip
+      items={[
+        {
+          label: 'Courses',
+          value: loading ? '—' : (model?.courses ?? 0),
+          sub: loading ? 'Loading…' : `${model?.activeCourses ?? 0} with learners`,
+        },
+        {
+          label: 'Learners',
+          value: loading ? '—' : (model?.students ?? 0),
+          sub: loading ? 'Loading…' : `${model?.completed ?? 0} completed`,
+        },
+        { label: 'Permissions', value: activePermissions, sub: 'active' },
+        {
+          label: 'Member since',
+          value: joinedValid ? joined.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—',
+          sub: joinedValid ? joined.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+        },
+      ]}
+    />
   )
 }
 
@@ -277,7 +240,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [userDataLoading, setUserDataLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("personal")
+  const [activeTab, setActiveTab] = useState("overview")
   const [editOpen, setEditOpen] = useState(false)
   const [userRole, setUserRole] = useState<string>("")
   const [originalRoleName, setOriginalRoleName] = useState<string>("")
@@ -437,11 +400,6 @@ export default function ProfilePage() {
     minute: '2-digit'
   })
 
-  const statusPill = (s: string) => ({
-    active: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
-    inactive: 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400',
-    pending: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
-  }[s.toLowerCase()] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400')
   const navigateToDashboard = () => {
     switch(userRole) {
       case 'admin':
@@ -539,26 +497,26 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F6FA] dark:bg-gray-950">
-        <Loading size="size-12" label="Loading Profile..." />
+      <div className="min-h-screen flex items-center justify-center bg-canvas dark:bg-gray-950">
+        <Loading size="size-12" label="Loading profile..." />
       </div>
     )
   }
 
   if (!userData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F6FA] dark:bg-gray-950">
-        <div className="text-center bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-xl border border-gray-100 dark:border-gray-800 max-w-xs">
-          <div className="w-14 h-14 mx-auto mb-3 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-            <User className="h-7 w-7 text-orange-500" />
-          </div>
-          <h2 className="text-lg font-black text-gray-900 dark:text-white mb-1">No User Found</h2>
-          <p className="text-gray-400 text-sm mb-4">Please log in to continue.</p>
-          <button 
+      <div className="min-h-screen flex items-center justify-center bg-canvas px-4 dark:bg-gray-950">
+        <div className="w-full max-w-xs rounded-xl border border-hairline bg-surface p-6 text-center shadow-sm">
+          <span className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-surface-sunken ring-1 ring-hairline">
+            <User className="h-5 w-5 text-subtle" />
+          </span>
+          <h2 className="text-base font-semibold text-heading">You are signed out</h2>
+          <p className="mt-1 text-sm text-subtle">Sign in to see your profile.</p>
+          <button
             onClick={() => router.push("/login")}
-            className="px-5 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-orange-200 dark:shadow-orange-900/30 hover:shadow-xl transition-all"
+            className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-control bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
           >
-            Go to Login
+            Go to sign in
           </button>
         </div>
       </div>
@@ -579,7 +537,7 @@ export default function ProfilePage() {
   }
 
   const Layout = getLayout()
-  
+
   const getDisplayRoleName = () => {
     if (userRole === 'admin') {
       // Check if it's a specific admin sub-role
@@ -590,367 +548,184 @@ export default function ProfilePage() {
       return 'Administrator'
     }
     if (userRole === 'student') return 'Student'
-    const roleDisplay = originalRoleName.charAt(0).toUpperCase() + originalRoleName.slice(1)
-    return roleDisplay
+    // A trainer's role may carry the institution's own name for it.
+    return userData.role?.renameRole || cap(originalRoleName)
   }
-  
+
   const roleName = getDisplayRoleName()
-  
-  const getRoleBadgeClass = () => {
-    if (userRole === 'admin') {
-      const originalRole = originalRoleName.toLowerCase()
-      if (originalRole === 'ldhead') return 'from-purple-500 to-indigo-500'
-      if (originalRole === 'subhead') return 'from-blue-500 to-cyan-500'
-      if (originalRole === 'programcoordinator') return 'from-rose-500 to-orange-500'
-      return 'from-rose-500 to-orange-500'
-    }
-    if (userRole === 'staff') {
-      const originalRole = originalRoleName.toLowerCase()
-      if (originalRole === 'poc') return 'from-orange-500 to-amber-500'
-      if (originalRole === 'trainer') return 'from-amber-400 to-yellow-500'
-      return 'from-orange-500 to-amber-500'
-    }
-    return 'from-amber-400 to-orange-400'
-  }
+  const isStaffOrAdmin = userRole === 'staff' || userRole === 'admin'
 
-  const roleBadge = getRoleBadgeClass()
-
-  const getStatCards = () => {
+  // ── Headline figures ──────────────────────────────────────────────────────
+  // Staff read the trainer dashboard's own figures (TrainerHeadlineStats).
+  const getStatCards = (): StatItem[] => {
     if (userRole === 'student') {
       return [
-        { icon: BookOpen, label: "Enrolled", value: stats.totalCourses, sub: "Courses", accent: "#f97316" },
-        { icon: CheckCircle, label: "Done", value: stats.completed, sub: "Completed", accent: "#22c55e" },
-        { icon: Flame, label: "Active", value: stats.active, sub: "In Progress", accent: "#f59e0b" },
-        { icon: TrendingUp, label: "Progress", value: `${stats.overall}%`, sub: "Overall", accent: "#fb923c" },
+        { label: 'Enrolled courses', value: stats.totalCourses, sub: 'active enrolments' },
+        { label: 'Completed', value: stats.completed, sub: 'courses finished' },
+        { label: 'In progress', value: stats.active, sub: 'courses under way' },
+        { label: 'Overall progress', value: `${stats.overall}%`, sub: 'across all courses' },
       ]
     }
-    
+
     if (userRole === 'admin' && dashboardStats) {
       return [
-        { icon: Users, label: "Total Users", value: stats.totalUsers, sub: "All registered users", accent: "#F97316" },
-        { icon: GraduationCap, label: "Students", value: stats.totalStudents, sub: "Enrolled students", accent: "#22C55E" },
-        { icon: Users, label: "Faculty & Staff", value: stats.totalStaff, sub: "Total staff members", accent: "#7C4DD1" },
-        { icon: BookOpen, label: "Courses", value: stats.totalCourses, sub: "Total courses", accent: "#F59E0B" },
+        { label: 'Total users', value: stats.totalUsers ?? 0, sub: 'registered' },
+        { label: 'Students', value: stats.totalStudents ?? 0, sub: 'enrolled' },
+        { label: 'Faculty & staff', value: stats.totalStaff ?? 0, sub: 'members' },
+        { label: 'Courses', value: stats.totalCourses, sub: `${stats.activeCourses ?? 0} active` },
       ]
     }
-    
+
     return [
-      { icon: BookOpen, label: "Courses", value: stats.totalCourses, sub: "Total", accent: "#f97316" },
-      { icon: FileText, label: "Tasks", value: stats.totalAssignments, sub: "Assignments", accent: "#f59e0b" },
-      { icon: Award, label: "Evals", value: stats.totalEvaluations, sub: "Completed", accent: "#fb923c" },
-      { icon: Users, label: "Students", value: stats.totalEnrollments, sub: "Enrolled", accent: "#fdba74" },
+      { label: 'Courses', value: stats.totalCourses, sub: 'total' },
+      { label: 'Assignments', value: stats.totalAssignments, sub: 'total' },
+      { label: 'Evaluations', value: stats.totalEvaluations, sub: 'completed' },
+      { label: 'Enrolments', value: stats.totalEnrollments, sub: 'students' },
     ]
   }
 
-  const statCards = getStatCards()
-
-  const getSecondaryStats = () => {
-    if (userRole === 'admin' && dashboardStats) {
-      return [
-        { icon: UserCheck, label: "Active Users", value: stats.activeUsers, sub: `of ${stats.totalUsers} registered`, accent: "#7C4DD1", of: stats.totalUsers || 0 },
-        { icon: TrendingUp, label: "New Users", value: stats.newUsers, sub: "added in the last 30 days", accent: "#F97316", of: stats.totalUsers || 0 },
-        { icon: BookOpen, label: "New Courses", value: stats.newCourses, sub: "added in the last 30 days", accent: "#7C4DD1", of: stats.totalCourses || 0 },
+  // Admin only: the last-30-days figures, as plain counts.
+  const secondaryStats: StatItem[] = userRole === 'admin' && dashboardStats
+    ? [
+        { label: 'Active users', value: stats.activeUsers ?? 0, sub: `of ${stats.totalUsers ?? 0} registered` },
+        { label: 'New users', value: stats.newUsers ?? 0, sub: 'in the last 30 days' },
+        { label: 'New courses', value: stats.newCourses ?? 0, sub: 'in the last 30 days' },
       ]
-    }
-    return []
-  }
+    : []
 
-  const secondaryStats: { icon: any; label: string; value: number; sub: string; accent: string; of: number }[] =
-    getSecondaryStats().map((s) => ({ ...s, value: Number(s.value ?? 0), of: Number(s.of ?? 0) }))
+  const permissions: any[] = (userData.permissions || []).slice()
+    .sort((a: any, b: any) => Number(!!b?.isActive) - Number(!!a?.isActive))
+  const activePermissionCount = permissions.filter((p) => p?.isActive).length
 
-  const tabs = [
-    { id: "personal", label: "Personal", icon: User },
-    { id: "academic", label: userRole === 'admin' ? "Institution" : userRole === 'student' ? "Academic" : "Professional", 
-      icon: userRole === 'admin' ? School : userRole === 'student' ? GraduationCap : Briefcase },
-    // Students only: their own overall performance, read from the dashboard's
-    // metrics. Staff and admin have no learner record to summarise here.
-    ...(isStudentRole ? [{ id: "performance", label: "Performance", icon: TrendingUp }] : []),
-    { id: "notes", label: "Notes", icon: FileText, badge: stats.totalNotes },
-    { id: "activity", label: "Activity", icon: Activity },
-    ...((userRole === 'staff' || userRole === 'admin') ? [{ id: "teaching", label: userRole === 'admin' ? "Manage" : "Teaching", icon: BookOpen }] : [])
+  const notifications: any[] = (userData.notifications || []).slice()
+    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  const tabs: { id: string; label: string; badge?: number }[] = [
+    { id: "overview", label: "Overview" },
+    // Students only: their own performance, read from the dashboard's metrics.
+    // Staff and admin have no learner record to summarise here.
+    ...(isStudentRole ? [{ id: "performance", label: "Performance" }] : []),
+    { id: "notes", label: "Notes", badge: stats.totalNotes },
+    { id: "notifications", label: "Notifications", badge: stats.unread },
+    ...(isStaffOrAdmin ? [{ id: "permissions", label: "Permissions", badge: activePermissionCount }] : []),
   ]
 
-  // ── Right-rail: recent account activity ───────────────────────────────────
-  // Built from what the user record actually carries — the profile's own
-  // timestamps plus the newest notifications — rather than an invented feed.
-  const activityFeed = [
-    { icon: UserCheck, tone: '#7C4DD1', label: 'Profile updated', at: userData.updatedAt },
-    { icon: Calendar, tone: '#F97316', label: 'Account created', at: userData.createdAt },
-    ...(userData.notifications || [])
-      .slice()
-      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 2)
-      .map((n: any) => ({ icon: Bell, tone: '#22C55E', label: n.title || 'Notification', at: n.createdAt })),
-  ].filter((a) => a.at)
-
-  // Quick actions go only to destinations that exist. Anything that would need
-  // a screen this app doesn't have yet (change password, privacy) is left out
-  // rather than rendered as a dead tile.
-  const quickActions = [
-    { icon: Edit, label: 'Edit', sub: 'Profile', tone: '#F97316', onClick: () => setEditOpen(true) },
-    { icon: Bell, label: 'View', sub: 'Notifications', tone: '#7C4DD1', onClick: () => router.push('/lms/pages/notifications') },
-    { icon: FileText, label: 'My', sub: 'Notes', tone: '#22C55E', onClick: () => setActiveTab('notes') },
-    { icon: Activity, label: 'Full', sub: 'Activity', tone: '#3B82F6', onClick: () => setActiveTab('activity') },
+  // ── Overview fields ───────────────────────────────────────────────────────
+  // `createdBy` is free text — a name or an email. An id says nothing to the
+  // person reading their own profile, so it is left out.
+  const createdBy = userData.createdBy && !/^[a-f0-9]{24}$/i.test(userData.createdBy) ? userData.createdBy : ''
+  const personalFields: DetailItem[] = [
+    { label: 'Full name', value: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() },
+    { label: 'Email', value: userData.email },
+    { label: 'Phone', value: userData.phone },
+    { label: 'Gender', value: cap(userData.gender) },
+    { label: 'Account created', value: userData.createdAt ? fmt(userData.createdAt) : '' },
+    { label: 'Last updated', value: userData.updatedAt ? `${fmt(userData.updatedAt)}, ${fmtTime(userData.updatedAt)}` : '' },
+    ...(createdBy ? [{ label: 'Created by', value: createdBy }] : []),
   ]
+
+  const workTitle = userRole === 'student' ? 'Academic details' : 'Professional details'
+  const workFields: DetailItem[] = userRole === 'student'
+    ? [
+        { label: 'Degree', value: userData.degree },
+        { label: 'Department', value: userData.department },
+        { label: 'Year', value: userData.year },
+        { label: 'Semester', value: userData.semester },
+        { label: 'Batch', value: userData.batch },
+        { label: 'Enrolled courses', value: String(stats.totalCourses) },
+      ]
+    : [
+        { label: 'Role', value: roleName },
+        { label: 'Department', value: userData.department },
+        { label: 'Degree', value: userData.degree },
+        { label: 'Permissions', value: `${activePermissionCount} active` },
+      ]
 
   const content = (
-    <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-950">
-      <div className="mx-auto max-w-[1320px] px-1.5 sm:px-4 lg:px-6 py-1.5 sm:py-4 space-y-3">
+    <div className="min-h-screen bg-canvas dark:bg-gray-950">
+      <div className="mx-auto max-w-[1200px] space-y-4 px-3 py-3 sm:px-6 sm:py-5">
 
-        {/* ── Breadcrumb + page actions ───────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-3">
-          <nav className="flex items-center gap-1.5 text-xs min-w-0">
-            <span className="grid h-6 w-6 place-items-center rounded-md bg-orange-100 text-orange-500 dark:bg-orange-950/40">
-              <Home className="h-3 w-3" />
-            </span>
-            <button onClick={navigateToDashboard} className="font-semibold text-gray-500 hover:text-orange-600 transition-colors dark:text-gray-400">
-              Dashboard
-            </button>
-            <ChevronRight className="h-3.5 w-3.5 text-gray-300 dark:text-gray-700" />
-            <span className="font-bold text-orange-500 truncate">Profile</span>
-          </nav>
+        {/* ── Breadcrumb ─────────────────────────────────────────────────── */}
+        <nav className="flex items-center gap-1.5 text-[13px]" aria-label="Breadcrumb">
+          <button onClick={navigateToDashboard} className="inline-flex items-center gap-1.5 text-subtle transition-colors hover:text-heading">
+            <Home className="h-3.5 w-3.5" />
+            Dashboard
+          </button>
+          <ChevronRight className="h-3.5 w-3.5 text-subtle/60" />
+          <span className="font-medium text-heading" aria-current="page">Profile</span>
+        </nav>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setEditOpen(true)}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold text-white shadow-sm shadow-orange-500/25 hover:brightness-105 transition-[filter]"
-              style={{ background: 'linear-gradient(135deg,#F97316,#FB8C3C)' }}
-            >
-              <Edit className="h-3.5 w-3.5" /> Edit Profile
-            </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-orange-600 hover:border-orange-200 transition-colors dark:bg-gray-900 dark:border-gray-800"
-                  aria-label="More profile actions"
-                >
-                  <MoreVertical className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                  <Edit className="h-3.5 w-3.5" /> Edit profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={navigateToDashboard}>
-                  <Home className="h-3.5 w-3.5" /> Go to dashboard
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/lms/pages/notifications')}>
-                  <Bell className="h-3.5 w-3.5" /> Notifications
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setActiveTab('activity')}>
-                  <Activity className="h-3.5 w-3.5" /> Recent activity
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+        {/* ── Identity + headline figures ────────────────────────────────── */}
+        <section className="overflow-hidden rounded-xl border border-hairline bg-surface shadow-xs">
+          <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
+            <Avatar user={userData} className="h-16 w-16 text-xl sm:h-20 sm:w-20 sm:text-2xl" />
 
-        {/* ── Hero card: identity, headline stats, trend strip ────────────── */}
-        <motion.section
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 sm:p-5 shadow-[0_2px_12px_-6px_rgba(16,24,40,0.10)] dark:bg-gray-900 dark:border-gray-800"
-        >
-          {/* Decorative orbit + wash, matching the reference. Purely visual, so
-              it is aria-hidden and never intercepts a click. */}
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-[42%] hidden lg:block" aria-hidden>
-            <div
-              className="absolute -right-20 -top-20 h-[320px] w-[320px] rounded-full opacity-70"
-              style={{ background: 'radial-gradient(circle at 30% 30%, rgba(251,146,60,0.14), rgba(139,92,246,0.10) 45%, transparent 70%)' }}
-            />
-            <svg viewBox="0 0 420 300" className="absolute right-4 top-2 h-[180px] w-[280px]">
-              <g fill="none" stroke="currentColor" className="text-gray-200 dark:text-gray-800">
-                <circle cx="250" cy="140" r="38" />
-                <circle cx="250" cy="140" r="72" />
-                <circle cx="250" cy="140" r="108" />
-              </g>
-              <circle cx="168" cy="42" r="15" fill="#8B5CF6" />
-              <circle cx="352" cy="88" r="10" fill="#C4B5FD" />
-              <circle cx="120" cy="150" r="7" fill="#FDBA74" />
-              <circle cx="330" cy="168" r="8" fill="#A78BFA" />
-              <circle cx="292" cy="196" r="9" fill="#8B5CF6" />
-              <circle cx="392" cy="26" r="5" fill="#FB923C" />
-            </svg>
-          </div>
-
-          <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 text-center sm:text-left">
-            {/* Avatar with gradient ring + presence dot */}
-            <div className="relative flex-shrink-0">
-              <div
-                className="h-20 w-20 sm:h-24 sm:w-24 rounded-full p-[3px] shadow-md shadow-orange-500/20"
-                style={{ background: 'linear-gradient(135deg,#C4B5FD,#FDBA74 55%,#F97316)' }}
-              >
-                <div className="h-full w-full rounded-full bg-white p-[2px] dark:bg-gray-900">
-                  <div className="h-full w-full overflow-hidden rounded-full bg-gradient-to-br from-orange-200 to-orange-400 grid place-items-center">
-                    {userData.profile && userData.profile !== 'default' ? (
-                      <Image src={userData.profile} alt={userData.firstName} width={112} height={112} className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-2xl sm:text-3xl font-black text-white">
-                        {userData.firstName?.[0]?.toUpperCase()}{userData.lastName?.[0]?.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <span
-                className={cn(
-                  'absolute bottom-1 right-1 h-4 w-4 rounded-full border-2 border-white dark:border-gray-900',
-                  userData.status?.toLowerCase() === 'active' ? 'bg-emerald-500' : 'bg-gray-400'
-                )}
-                title={userData.status}
-              />
-            </div>
-
-            <div className="w-full sm:w-auto min-w-0 flex-1 pt-0.5">
-              <div className="flex items-center justify-center sm:justify-start gap-2">
-                <h1 className="min-w-0 text-lg sm:text-xl font-black tracking-tight text-gray-900 dark:text-white truncate">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight text-heading">
                   {userData.firstName} {userData.lastName}
                 </h1>
-                {userData.status?.toLowerCase() === 'active' && (
-                  <BadgeCheck className="h-4 w-4 flex-shrink-0 text-orange-500" fill="currentColor" stroke="white" />
-                )}
+                <StatusBadge status={userData.status} />
               </div>
-
-              <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
-                <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold', statusPill(userData.status))}>
-                  <span className={cn('h-1.5 w-1.5 rounded-full', userData.status?.toLowerCase() === 'active' ? 'bg-emerald-500' : 'bg-gray-400')} />
-                  {userData.status.charAt(0).toUpperCase() + userData.status.slice(1)}
+              <p className="mt-0.5 text-sm text-subtle">
+                {[roleName, userData.department].filter(Boolean).join(' · ')}
+              </p>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-body">
+                <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5 flex-shrink-0 text-subtle" />
+                  <span className="truncate">{userData.email}</span>
                 </span>
-                <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-bold text-violet-600 dark:bg-violet-950/40 dark:text-violet-300">
-                  {roleName}
-                </span>
-                {(userRole === 'staff' || userRole === 'admin') && (
-                  <span className="rounded-full bg-orange-50 px-2.5 py-0.5 text-[11px] font-bold text-orange-600 dark:bg-orange-950/40 dark:text-orange-300">
-                    {userRole === 'admin'
-                      ? originalRoleName.charAt(0).toUpperCase() + originalRoleName.slice(1)
-                      : userData.role?.renameRole || userData.role?.originalRole || originalRoleName}
+                {userData.phone && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 flex-shrink-0 text-subtle" />
+                    {userData.phone}
                   </span>
                 )}
               </div>
-
-              <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
-                  <Mail className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-                  <span className="min-w-0 truncate">{userData.email}</span>
-                </span>
-                {userData.phone && (
-                  <>
-                    <span className="hidden sm:inline h-3.5 w-px bg-gray-200 dark:bg-gray-700" aria-hidden />
-                    <span className="inline-flex items-center gap-1.5">
-                      <Phone className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-                      {userData.phone}
-                    </span>
-                  </>
-                )}
-              </div>
             </div>
+
+            <button
+              onClick={() => setEditOpen(true)}
+              className="inline-flex h-9 flex-shrink-0 items-center justify-center gap-1.5 rounded-control border border-hairline-strong bg-surface px-3.5 text-[13px] font-medium text-heading shadow-xs transition-colors hover:bg-row-hover sm:self-start"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit profile
+            </button>
           </div>
 
-          {/* Headline stats. Staff read the trainer dashboard's own figures —
-              see TrainerHeadlineStats above for why they cannot come from the
-              cached user document. */}
-          {userRole === 'staff' ? (
-            <TrainerHeadlineStats user={userData} />
-          ) : (
-            <div className="relative mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {statCards.map((s, i) => {
-                const Icon = s.icon
-                return (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.08 + i * 0.05 }}
-                    className="flex min-w-0 items-center gap-2 sm:gap-3 rounded-xl border border-gray-100 bg-white/70 p-2.5 sm:p-3 backdrop-blur-sm transition-shadow hover:shadow-[0_4px_14px_-8px_rgba(16,24,40,0.18)] dark:bg-gray-900/60 dark:border-gray-800"
-                  >
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: `${s.accent}1F` }}>
-                      <Icon className="h-4 w-4" style={{ color: s.accent }} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-base sm:text-lg font-black leading-none text-gray-900 dark:text-white">{s.value}</p>
-                      <p className="mt-0.5 text-xs font-bold truncate" style={{ color: s.accent }}>{s.label}</p>
-                      <p className="text-[10px] text-gray-400 truncate">{s.sub}</p>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Trend strip — admin only. Every figure below is a real count; the
-              chip is that count as a share of the matching total, which is the
-              only comparison this data supports (no prior-period series). */}
+          <div className="border-t border-hairline">
+            {userRole === 'staff' ? <TrainerHeadlineStats user={userData} /> : <StatStrip items={getStatCards()} />}
+          </div>
           {secondaryStats.length > 0 && (
-            <div className="relative mt-2.5 grid grid-cols-1 lg:grid-cols-3 rounded-xl border border-gray-100 bg-white/70 divide-y lg:divide-y-0 lg:divide-x divide-gray-100 dark:bg-gray-900/60 dark:border-gray-800 dark:divide-gray-800">
-              {secondaryStats.map((s, i) => {
-                const Icon = s.icon
-                const pct = s.of > 0 ? Math.round((Number(s.value) / s.of) * 100) : 0
-                return (
-                  <div key={i} className="flex items-center gap-3 p-3">
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: `${s.accent}1F` }}>
-                      <Icon className="h-4 w-4" style={{ color: s.accent }} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">{s.label}</p>
-                      <div className="flex items-baseline gap-2">
-                        <p className="text-lg font-black text-gray-900 dark:text-white">{s.value}</p>
-                        <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-600">
-                          <TrendingUp className="h-2.5 w-2.5" />{pct}%
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-gray-400 truncate">{s.sub}</p>
-                      <div className="mt-1 h-1 w-full max-w-[140px] overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.min(100, pct)}%` }}
-                          transition={{ duration: 0.8, delay: 0.2 + i * 0.1, ease: 'easeOut' }}
-                          className="h-full rounded-full"
-                          style={{ background: s.accent }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+            <div className="border-t border-hairline">
+              <StatStrip items={secondaryStats} />
             </div>
           )}
-        </motion.section>
+        </section>
 
-        {/* ── Tabs ────────────────────────────────────────────────────────── */}
-        <div className="rounded-xl border border-gray-100 bg-white px-1.5 shadow-[0_2px_8px_-6px_rgba(16,24,40,0.10)] dark:bg-gray-900 dark:border-gray-800">
-          {/* Scrolls horizontally on narrow screens, but the bar itself stays
-              hidden. `overflow-x-auto` forces overflow-y to compute to `auto`,
-              so the active underline's 1px `-bottom-px` overhang was raising a
-              vertical scrollbar inside a strip that never scrolls vertically. */}
-          <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {/* ── Tabs ───────────────────────────────────────────────────────── */}
+        {/* Scrolls sideways on narrow screens with the bar hidden. */}
+        <div className="border-b border-hairline">
+          <div role="tablist" className="-mb-px flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {tabs.map((tab) => {
-              const Icon = tab.icon
               const active = activeTab === tab.id
               return (
                 <button
                   key={tab.id}
+                  role="tab"
+                  aria-selected={active}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'relative flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-xs font-bold transition-colors duration-150',
-                    active ? 'text-orange-500' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                    'relative flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-[13px] transition-colors duration-150',
+                    active
+                      ? 'border-brand font-semibold text-heading'
+                      : 'border-transparent font-medium text-subtle hover:text-heading'
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
                   {tab.label}
-                  {tab.badge !== undefined && tab.badge > 0 && (
-                    <span className={cn(
-                      'rounded-full px-1.5 py-0.5 text-[10px] font-black',
-                      active ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                    )}>
+                  {!!tab.badge && tab.badge > 0 && (
+                    <span className="rounded-full bg-surface-sunken px-1.5 py-px text-[11px] font-medium tabular-nums text-body ring-1 ring-hairline">
                       {tab.badge}
                     </span>
-                  )}
-                  {active && (
-                    <motion.span
-                      layoutId="profileTabUnderline"
-                      className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-orange-500"
-                    />
                   )}
                 </button>
               )
@@ -958,501 +733,291 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* ── Body: tab panel + right rail ────────────────────────────────── */}
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_312px] gap-3 items-start">
+        {/* ── Tab panel ──────────────────────────────────────────────────── */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="min-w-0 space-y-4"
+          >
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2 }}
-              className="min-w-0 space-y-3"
-            >
-
-              {activeTab === 'personal' && (
-                <Panel icon={User} title="Personal Information" color="#F97316">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {[
-                      { icon: User, label: 'Full Name', value: `${userData.firstName} ${userData.lastName}`, tone: '#7C4DD1' },
-                      { icon: Mail, label: 'Email', value: userData.email, tone: '#7C4DD1' },
-                      { icon: Phone, label: 'Phone', value: userData.phone, tone: '#F97316' },
-                      { icon: Users, label: 'Gender', value: userData.gender, tone: '#F97316' },
-                      { icon: Calendar, label: 'Created', value: fmt(userData.createdAt), tone: '#7C4DD1' },
-                      { icon: Clock, label: 'Updated', value: fmt(userData.updatedAt), tone: '#7C4DD1' },
-                      { icon: User, label: 'Created By', value: userData.createdBy, tone: '#F97316' },
-                    ].map((item, idx) => <FieldTile key={idx} idx={idx} {...item} />)}
-                  </div>
+            {activeTab === 'overview' && (
+              <div className="grid items-start gap-4 lg:grid-cols-2">
+                <Panel title="Personal details">
+                  <DetailList items={personalFields} />
                 </Panel>
-              )}
+                <Panel title={workTitle}>
+                  <DetailList items={workFields} />
+                </Panel>
+              </div>
+            )}
 
-              {activeTab === 'academic' && (
-                <>
-                  <Panel
-                    icon={userRole === 'admin' ? School : userRole === 'student' ? GraduationCap : Briefcase}
-                    title={userRole === 'admin' ? 'Institution Details' : userRole === 'student' ? 'Academic Details' : 'Professional Details'}
-                    color="#F97316"
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {[
-                        { icon: GraduationCap, label: 'Degree', value: userData.degree, tone: '#7C4DD1' },
-                        { icon: Building, label: 'Department', value: userData.department, tone: '#7C4DD1' },
-                        ...(userRole === 'student' ? [
-                          { icon: Calendar, label: 'Year', value: userData.year, tone: '#F97316' },
-                          { icon: BookOpen, label: 'Semester', value: userData.semester, tone: '#F97316' },
-                          { icon: Calendar, label: 'Batch', value: userData.batch, tone: '#7C4DD1' },
-                          { icon: Activity, label: 'Courses', value: String(stats.totalCourses), tone: '#22C55E' },
-                        ] : userRole === 'staff' ? [
-                          { icon: Briefcase, label: 'Staff ID', value: userData._id.substring(0, 12) + '…', tone: '#F97316' },
-                          { icon: Shield, label: 'Permissions', value: `${stats.totalPermissions} Active`, tone: '#7C4DD1' },
-                          { icon: BookOpen, label: 'Courses', value: String(stats.totalCourses), tone: '#22C55E' },
-                          { icon: FileText, label: 'Assignments', value: String(stats.totalAssignments), tone: '#F97316' },
-                        ] : userRole === 'admin' && dashboardStats ? [
-                          { icon: School, label: 'Institution ID', value: dashboardStats.institution, tone: '#7C4DD1' },
-                          { icon: Users, label: 'Total Users', value: String(dashboardStats.users.total), tone: '#F97316' },
-                          { icon: GraduationCap, label: 'Students', value: String(dashboardStats.users.students), tone: '#22C55E' },
-                          { icon: Briefcase, label: 'Staff', value: String(dashboardStats.users.staff), tone: '#7C4DD1' },
-                          { icon: BookOpen, label: 'Total Courses', value: String(dashboardStats.courses.total), tone: '#F97316' },
-                          { icon: UserCheck, label: 'Active Users', value: String(dashboardStats.recentActivities.activeUsers), tone: '#22C55E' },
-                        ] : [
-                          { icon: Briefcase, label: 'Role', value: originalRoleName, tone: '#F97316' },
-                          { icon: Building, label: 'Department', value: userData.department, tone: '#7C4DD1' },
-                          { icon: BookOpen, label: 'Courses', value: String(stats.totalCourses), tone: '#22C55E' },
-                          { icon: FileText, label: 'Assignments', value: String(stats.totalAssignments), tone: '#F97316' },
-                        ])
-                      ].map((item, idx) => <FieldTile key={idx} idx={idx} {...item} />)}
-                    </div>
-                  </Panel>
-
-                  {(userRole === 'staff' || userRole === 'admin') && userData.courses?.length > 0 && (
-                    <Panel icon={BookOpen} title={userRole === 'admin' ? 'Course Summary' : 'Teaching Summary'} color="#7C4DD1">
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {userData.courses.map((course, i) => {
-                          const asgns = course.answers?.We_Do?.assignments || []
-                          const totalQ = asgns.reduce((s: number, a: any) => s + (a.questions?.length || 0), 0)
-                          return (
-                            <motion.div key={i} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
-                              transition={{ delay: i * 0.06 }}
-                              className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-800/40">
-                              <div className="mb-1 flex items-start justify-between gap-2">
-                                <p className="min-w-0 break-words text-sm font-bold text-gray-900 dark:text-white">{course.courseId?.name || `Course ${i + 1}`}</p>
-                                <span className="flex-shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-600 dark:bg-orange-950/40 dark:text-orange-300">
-                                  {asgns.length} tasks
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">{totalQ} questions total</p>
-                            </motion.div>
-                          )
-                        })}
-                      </div>
-                    </Panel>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'notes' && (
-                <Panel
-                  icon={FileText}
-                  title="My Notes"
-                  color="#F97316"
-                  action={
-                    <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-bold text-orange-600 dark:bg-orange-950/40 dark:text-orange-300">
-                      {stats.totalNotes} • {userData.notes?.filter((n) => n.isPinned).length || 0} pinned
-                    </span>
-                  }
-                >
-                  {userData.notes?.length > 0 ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {userData.notes.map((note, i) => (
-                        <motion.div key={i} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: i * 0.04 }} whileHover={{ y: -3 }}
-                          className={cn(
-                            'cursor-pointer rounded-xl border p-3 transition-all duration-200',
-                            note.isPinned
-                              ? 'border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 dark:border-amber-900/40 dark:from-amber-950/20 dark:to-orange-950/20'
-                              : 'border-gray-100 bg-gray-50/70 hover:border-orange-200 dark:border-gray-800 dark:bg-gray-800/40'
-                          )}>
-                          <div className="mb-2 flex items-start justify-between gap-2">
-                            <h4 className="flex min-w-0 items-center gap-1.5 break-words text-sm font-bold text-gray-900 dark:text-white">
-                              {note.isPinned && <Star className="h-3 w-3 fill-amber-500 text-amber-500" />}
-                              {note.title}
-                            </h4>
-                            <span className="flex-shrink-0 text-[10px] text-gray-400">{fmt(note.lastEdited)}</span>
+            {activeTab === 'notes' && (
+              <Panel
+                title="Notes"
+                description={stats.totalNotes > 0
+                  ? `${stats.totalNotes} ${stats.totalNotes === 1 ? 'note' : 'notes'} · ${userData.notes?.filter((n) => n.isPinned).length || 0} pinned`
+                  : undefined}
+              >
+                {userData.notes?.length > 0 ? (
+                  <div className="grid gap-3 py-1 sm:grid-cols-2">
+                    {userData.notes
+                      .slice()
+                      .sort((a: any, b: any) => Number(!!b.isPinned) - Number(!!a.isPinned))
+                      .map((note, i) => (
+                        <article key={note._id || i} className="min-w-0 rounded-lg border border-hairline bg-surface p-3.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <h3 className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-heading">
+                              {note.isPinned && <Pin className="h-3.5 w-3.5 flex-shrink-0 text-subtle" aria-label="Pinned" />}
+                              <span className="truncate">{note.title || 'Untitled note'}</span>
+                            </h3>
+                            {note.lastEdited && <span className="flex-shrink-0 text-xs text-subtle">{fmt(note.lastEdited)}</span>}
                           </div>
-                          <div className="mb-2 line-clamp-2 text-xs text-gray-500 dark:text-gray-400"
-                            dangerouslySetInnerHTML={{ __html: note.content }} />
+                          <div
+                            className="mt-1.5 line-clamp-3 break-words text-[13px] leading-relaxed text-body"
+                            dangerouslySetInnerHTML={{ __html: note.content }}
+                          />
                           {note.tags?.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {note.tags.slice(0, 3).map((tag: string, ti: number) => (
-                                <span key={ti} className="rounded-md bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-950/40 dark:text-orange-300">#{tag}</span>
+                            <div className="mt-2.5 flex flex-wrap gap-1">
+                              {note.tags.slice(0, 4).map((tag: string, ti: number) => (
+                                <Chip key={ti}>#{tag}</Chip>
                               ))}
                             </div>
                           )}
-                        </motion.div>
+                        </article>
                       ))}
-                    </div>
-                  ) : (
-                    <EmptyBlock icon={FileText} text="No notes yet!" />
-                  )}
-                </Panel>
-              )}
+                  </div>
+                ) : (
+                  <EmptyBlock icon={FileText} title="No notes yet" text="Notes you save appear here." />
+                )}
+              </Panel>
+            )}
 
-              {activeTab === 'activity' && (
-                <>
-                  <Panel icon={Activity} title="Recent Activity" color="#F97316">
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {[
-                        { icon: Bell, label: 'Total', value: stats.totalNotifications, accent: '#F97316' },
-                        { icon: Bell, label: 'Unread', value: stats.unread || 0, accent: '#EF4444' },
-                        { icon: CheckCircle, label: 'Read', value: (stats.totalNotifications || 0) - (stats.unread || 0), accent: '#22C55E' },
-                        { icon: Shield, label: 'Role', value: roleName, accent: '#7C4DD1' },
-                      ].map((item, idx) => (
-                        <div key={idx} className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-800/40">
-                          <span className="mb-1.5 inline-grid h-8 w-8 place-items-center rounded-full" style={{ background: `${item.accent}1F` }}>
-                            <item.icon className="h-4 w-4" style={{ color: item.accent }} />
-                          </span>
-                          <p className="text-lg font-black leading-none text-gray-900 dark:text-white">{item.value}</p>
-                          <p className="mt-1 text-[11px] font-semibold text-gray-400">{item.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </Panel>
-
-                  {userData.notifications?.length > 0 && (
-                    <Panel icon={Bell} title="Notifications" color="#7C4DD1">
-                      <div className="custom-scroll max-h-96 space-y-2 overflow-y-auto pr-1">
-                        {userData.notifications.slice(0, 10).map((n, i) => (
-                          <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.03 }}
-                            className={cn(
-                              'rounded-xl border p-3 transition-all',
-                              n.isRead
-                                ? 'border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-900/50'
-                                : 'border-orange-200 bg-orange-50/60 dark:border-orange-900/40 dark:bg-orange-950/10'
-                            )}>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="mb-0.5 flex items-center gap-1.5">
-                                  <h5 className="min-w-0 break-words text-xs font-bold text-gray-900 dark:text-white">{n.title}</h5>
-                                  {!n.isRead && <span className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-orange-500" />}
-                                </div>
-                                <p className="break-words text-xs text-gray-500 dark:text-gray-400">{n.message}</p>
-                              </div>
-                              <span className={cn('flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold',
-                                n.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                  : n.type === 'warning' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                    : 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400')}>
-                                {n.type || 'info'}
-                              </span>
-                            </div>
-                            <p className="mt-1.5 text-[10px] text-gray-400">{fmt(n.createdAt)}</p>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </Panel>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'performance' && isStudentRole && (
-                <>
-                  {perfLoading && (
-                    <Panel icon={TrendingUp} title="Overall Performance" color="#F97316">
-                      <div className="py-10 flex justify-center"><Loading size="size-8" /></div>
-                    </Panel>
-                  )}
-
-                  {!perfLoading && (!performance || performance.courses.length === 0) && (
-                    <Panel icon={TrendingUp} title="Overall Performance" color="#F97316">
-                      <EmptyBlock icon={TrendingUp} text="No enrolled courses yet — your performance appears here once you start learning." />
-                    </Panel>
-                  )}
-
-                  {!perfLoading && performance && performance.courses.length > 0 && (
-                    <>
-                      {/* ── Headline: the four numbers the dashboard leads with ── */}
-                      <Panel
-                        icon={TrendingUp}
-                        title="Overall Performance"
-                        color="#F97316"
-                        action={
-                          <button
-                            onClick={() => router.push('/lms/pages/studentdashboard')}
-                            className="text-[11px] font-bold text-orange-500 hover:underline"
-                          >
-                            Open dashboard
-                          </button>
-                        }
-                      >
-                        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-                          <MetricTile
-                            idx={0} icon={TrendingUp} tone="#F97316" label="Overall Progress"
-                            value={`${performance.overallProgress}%`}
-                            sub={`${performance.activeCourses} active · ${performance.completed} completed`}
-                            pct={performance.overallProgress}
-                          />
-                          <MetricTile
-                            idx={1} icon={Award} tone="#7C4DD1" label="Grade"
-                            value={performance.scorePct === null ? '—' : performance.grade.letter}
-                            sub={performance.scorePct === null ? 'Nothing graded yet' : `${performance.scorePct}% · ${performance.grade.caption}`}
-                            pct={performance.scorePct}
-                          />
-                          <MetricTile
-                            idx={2} icon={CheckCircle} tone="#22C55E" label="Attendance"
-                            value={performance.attendance.pct === null ? '—' : `${performance.attendance.pct}%`}
-                            sub={performance.attendance.hasData
-                              ? `${performance.attendance.present} present of ${performance.attendance.totalDays} days`
-                              : 'Not marked yet'}
-                            pct={performance.attendance.pct}
-                          />
-                          <MetricTile
-                            idx={3} icon={Clock} tone="#3B82F6" label="Study Time"
-                            value={performance.time.tracked ? shortDuration(performance.time.totalSeconds) : '—'}
-                            sub={performance.time.tracked
-                              ? `${shortDuration(performance.time.exerciseSeconds)} on exercises`
-                              : 'No measured sessions yet'}
-                            pct={null}
-                          />
-                        </div>
-                      </Panel>
-
-                      {/* ── Stage breakdown: the Learn → Practice → Assess pipeline ── */}
-                      <Panel icon={Zap} title="Learning Journey" color="#7C4DD1">
-                        <div className="space-y-3">
-                          <StageRow
-                            idx={0} title="I Do · Learning Resources" tone="#7C4DD1"
-                            hasContent={performance.totals.learn.hasContent}
-                            pct={performance.totals.learn.completionPct}
-                            meterLabel="opened"
-                            cells={[
-                              { label: 'Resources', value: `${performance.totals.learn.opened}/${performance.totals.learn.total}`, sub: 'opened' },
-                              { label: 'Checkpoints', value: `${performance.totals.learn.mcqCompleted}/${performance.totals.learn.mcqDocs}`, sub: 'completed' },
-                              { label: 'Content', value: `${Math.round(performance.totals.learn.completedMinutes)}/${performance.totals.learn.contentMinutes}`, sub: 'minutes' },
-                              { label: 'Done', value: `${performance.totals.learn.completionPct}%`, sub: 'of resources' },
-                            ]}
-                          />
-                          <StageRow
-                            idx={1} title="We Do · Assignments" tone="#22C55E"
-                            hasContent={performance.totals.practice.hasContent}
-                            pct={performance.totals.practice.completionPct}
-                            meterLabel="started"
-                            cells={stageCells(performance.totals.practice)}
-                          />
-                          <StageRow
-                            idx={2} title="You Do · Assessments" tone="#F97316"
-                            hasContent={performance.totals.assess.hasContent}
-                            pct={performance.totals.assess.completionPct}
-                            meterLabel="started"
-                            cells={stageCells(performance.totals.assess)}
-                          />
-                        </div>
-                      </Panel>
-
-                      {/* ── Per course: where the blended figure above comes from ── */}
-                      <Panel icon={BookOpen} title="Course Progress" color="#22C55E">
-                        <div className="space-y-2">
-                          {performance.courses.map((c, i) => (
-                            <CourseProgressRow key={c.id || i} idx={i} course={c} />
-                          ))}
-                        </div>
-                      </Panel>
-
-                      {/* ── Momentum ── */}
-                      <Panel icon={Flame} title="Momentum" color="#22C55E">
-                        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-                          <MetricTile
-                            idx={0} icon={Flame} tone="#F97316" label="Current Streak"
-                            value={`${performance.momentum.streak}`}
-                            sub={performance.momentum.streak === 1 ? 'day in a row' : 'days in a row'}
-                            pct={null}
-                          />
-                          <MetricTile
-                            idx={1} icon={Activity} tone="#3B82F6" label="Active Days"
-                            value={`${performance.momentum.activeDays30}`} sub="in the last 30 days" pct={null}
-                          />
-                          <MetricTile
-                            idx={2} icon={CheckCircle} tone="#22C55E" label="Solved This Month"
-                            value={`${performance.solvedThisMonth}`}
-                            sub={performance.monthDeltaPct === null
-                              ? 'no earlier baseline'
-                              : `${performance.monthDeltaPct >= 0 ? '+' : ''}${performance.monthDeltaPct}% vs previous 30d`}
-                            pct={null}
-                          />
-                          <MetricTile
-                            idx={3} icon={Calendar} tone="#7C4DD1" label="Due This Week"
-                            value={`${performance.pendingThisWeek}`} sub="pending deadlines" pct={null}
-                          />
-                        </div>
-                      </Panel>
-
-                      {/* ── Insights: the dashboard's own read of these numbers ── */}
-                      {performance.insights.length > 0 && (
-                        <Panel icon={Star} title="Insights" color="#3B82F6">
-                          <div className="space-y-2">
-                            {performance.insights.map((ins, i) => {
-                              const tone = ins.tone === 'good' ? '#22C55E' : ins.tone === 'warn' ? '#F97316' : '#3B82F6'
-                              return (
-                                <motion.div
-                                  key={i}
-                                  initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: i * 0.04 }}
-                                  className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-2.5 dark:border-gray-800 dark:bg-gray-800/40"
-                                >
-                                  <span className="mt-0.5 grid h-6 w-6 flex-shrink-0 place-items-center rounded-full" style={{ background: `${tone}1F` }}>
-                                    <Star className="h-3 w-3" style={{ color: tone }} />
-                                  </span>
-                                  <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">{ins.text}</p>
-                                </motion.div>
-                              )
-                            })}
+            {activeTab === 'notifications' && (
+              <Panel
+                title="Notifications"
+                description={notifications.length > 0
+                  ? `${notifications.length} total · ${stats.unread || 0} unread`
+                  : undefined}
+                action={
+                  <button
+                    onClick={() => router.push('/lms/pages/notifications')}
+                    className="flex-shrink-0 text-[13px] font-medium text-brand-strong hover:underline"
+                  >
+                    View all
+                  </button>
+                }
+              >
+                {notifications.length > 0 ? (
+                  <ul className="divide-y divide-hairline">
+                    {notifications.slice(0, 10).map((n, i) => (
+                      <li key={n._id || i} className="flex items-start gap-3 py-3">
+                        <span
+                          className={cn('mt-1.5 h-2 w-2 flex-shrink-0 rounded-full', n.isRead ? 'bg-transparent' : 'bg-brand')}
+                          aria-label={n.isRead ? undefined : 'Unread'}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                            <p className={cn('min-w-0 break-words text-[13px] text-heading', !n.isRead && 'font-semibold')}>
+                              {n.title || 'Notification'}
+                            </p>
+                            {n.createdAt && (
+                              <time className="flex-shrink-0 text-xs text-subtle">{fmt(n.createdAt)}, {fmtTime(n.createdAt)}</time>
+                            )}
                           </div>
-                        </Panel>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
+                          {n.message && <p className="mt-0.5 break-words text-[13px] text-body">{n.message}</p>}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyBlock icon={Bell} title="No notifications" text="Updates about your courses and account appear here." />
+                )}
+              </Panel>
+            )}
 
-              {activeTab === 'teaching' && (userRole === 'staff' || userRole === 'admin') && (
-                <>
-                  {userData.permissions?.length > 0 && (
-                    <Panel icon={Shield} title="Permissions" color="#F97316">
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {userData.permissions.slice(0, 6).map((p, i) => (
-                          <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.04 }}
-                            className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-2.5 dark:border-gray-800 dark:bg-gray-800/40">
-                            <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-orange-100 dark:bg-orange-950/40">
-                              <Shield className="h-3.5 w-3.5 text-orange-500" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-xs font-bold text-gray-900 dark:text-white">{p.permissionName}</p>
-                              <p className="truncate text-[11px] text-gray-400">{p.description}</p>
-                            </div>
-                            {p.isActive && <CheckCircle className="h-4 w-4 flex-shrink-0 text-emerald-500" />}
-                          </motion.div>
+            {activeTab === 'permissions' && isStaffOrAdmin && (
+              <Panel
+                title="Permissions"
+                description={permissions.length > 0
+                  ? `${activePermissionCount} of ${permissions.length} active · assigned by your administrator`
+                  : undefined}
+              >
+                {permissions.length > 0 ? (
+                  <ul className="divide-y divide-hairline">
+                    {permissions.map((p, i) => (
+                      <li key={p._id || p.permissionKey || i} className="flex items-start justify-between gap-3 py-3">
+                        <div className="min-w-0">
+                          <p className="break-words text-[13px] font-medium text-heading">{p.permissionName}</p>
+                          {p.description && <p className="mt-0.5 break-words text-xs text-subtle">{p.description}</p>}
+                        </div>
+                        <Chip tone={p.isActive ? 'success' : 'neutral'}>{p.isActive ? 'Active' : 'Inactive'}</Chip>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyBlock icon={Shield} title="No permissions assigned" text="Your administrator assigns permissions from User Management." />
+                )}
+              </Panel>
+            )}
+
+            {activeTab === 'performance' && isStudentRole && (
+              <>
+                {perfLoading && (
+                  <Panel title="Overall performance">
+                    <div className="flex justify-center py-10"><Loading size="size-8" /></div>
+                  </Panel>
+                )}
+
+                {!perfLoading && (!performance || performance.courses.length === 0) && (
+                  <Panel title="Overall performance">
+                    <EmptyBlock icon={TrendingUp} title="No enrolled courses yet" text="Your performance appears here once you start learning." />
+                  </Panel>
+                )}
+
+                {!perfLoading && performance && performance.courses.length > 0 && (
+                  <>
+                    {/* ── Headline: the four numbers the dashboard leads with ── */}
+                    <Panel
+                      title="Overall performance"
+                      action={
+                        <button
+                          onClick={() => router.push('/lms/pages/studentdashboard')}
+                          className="flex-shrink-0 text-[13px] font-medium text-brand-strong hover:underline"
+                        >
+                          Open dashboard
+                        </button>
+                      }
+                    >
+                      <div className="grid gap-3 py-1 sm:grid-cols-2 xl:grid-cols-4">
+                        <MetricTile
+                          icon={TrendingUp} label="Overall progress"
+                          value={`${performance.overallProgress}%`}
+                          sub={`${performance.activeCourses} active · ${performance.completed} completed`}
+                          pct={performance.overallProgress}
+                        />
+                        <MetricTile
+                          icon={Award} label="Grade"
+                          value={performance.scorePct === null ? '—' : performance.grade.letter}
+                          sub={performance.scorePct === null ? 'Nothing graded yet' : `${performance.scorePct}% · ${performance.grade.caption}`}
+                          pct={performance.scorePct}
+                        />
+                        <MetricTile
+                          icon={CheckCircle} label="Attendance"
+                          value={performance.attendance.pct === null ? '—' : `${performance.attendance.pct}%`}
+                          sub={performance.attendance.hasData
+                            ? `${performance.attendance.present} present of ${performance.attendance.totalDays} days`
+                            : 'Not marked yet'}
+                          pct={performance.attendance.pct}
+                        />
+                        <MetricTile
+                          icon={Clock} label="Study time"
+                          value={performance.time.tracked ? shortDuration(performance.time.totalSeconds) : '—'}
+                          sub={performance.time.tracked
+                            ? `${shortDuration(performance.time.exerciseSeconds)} on exercises`
+                            : 'No measured sessions yet'}
+                          pct={null}
+                        />
+                      </div>
+                    </Panel>
+
+                    {/* ── Stage breakdown: the Learn → Practice → Assess pipeline ── */}
+                    <Panel title="Learning journey" description="I Do → We Do → You Do">
+                      <div className="space-y-3 py-1">
+                        <StageRow
+                          title="I Do · Learning resources"
+                          hasContent={performance.totals.learn.hasContent}
+                          pct={performance.totals.learn.completionPct}
+                          meterLabel="opened"
+                          cells={[
+                            { label: 'Resources', value: `${performance.totals.learn.opened}/${performance.totals.learn.total}`, sub: 'opened' },
+                            { label: 'Checkpoints', value: `${performance.totals.learn.mcqCompleted}/${performance.totals.learn.mcqDocs}`, sub: 'completed' },
+                            { label: 'Content', value: `${Math.round(performance.totals.learn.completedMinutes)}/${performance.totals.learn.contentMinutes}`, sub: 'minutes' },
+                            { label: 'Done', value: `${performance.totals.learn.completionPct}%`, sub: 'of resources' },
+                          ]}
+                        />
+                        <StageRow
+                          title="We Do · Assignments"
+                          hasContent={performance.totals.practice.hasContent}
+                          pct={performance.totals.practice.completionPct}
+                          meterLabel="started"
+                          cells={stageCells(performance.totals.practice)}
+                        />
+                        <StageRow
+                          title="You Do · Assessments"
+                          hasContent={performance.totals.assess.hasContent}
+                          pct={performance.totals.assess.completionPct}
+                          meterLabel="started"
+                          cells={stageCells(performance.totals.assess)}
+                        />
+                      </div>
+                    </Panel>
+
+                    {/* ── Per course: where the blended figure above comes from ── */}
+                    <Panel title="Course progress">
+                      <div className="divide-y divide-hairline">
+                        {performance.courses.map((c, i) => (
+                          <CourseProgressRow key={c.id || i} course={c} />
                         ))}
                       </div>
                     </Panel>
-                  )}
 
-                  {userData.courses?.length > 0 && (
-                    <Panel icon={BookOpen} title="Course Assignments" color="#7C4DD1">
-                      <div className="space-y-3">
-                        {userData.courses.slice(0, 5).map((course, i) => {
-                          const asgns = course.answers?.We_Do?.assignments || []
-                          const totalQ = asgns.reduce((s: number, a: any) => s + (a.questions?.length || 0), 0)
-                          const submitted = asgns.filter((a: any) => a.questions?.some((q: any) => q.status === 'submitted')).length
-                          const comp = asgns.length ? Math.round((submitted / asgns.length) * 100) : 0
-                          return (
-                            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: i * 0.06 }}
-                              className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
-                              <div className="flex flex-col items-start gap-0.5 border-b border-gray-100 bg-gray-50/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0 sm:px-4 dark:border-gray-800 dark:bg-gray-800/40">
-                                <h5 className="min-w-0 max-w-full break-words text-sm font-bold text-gray-900 dark:text-white">{course.courseId?.name || `Course ${i + 1}`}</h5>
-                                <span className="text-[11px] text-gray-400">Updated {fmt(course.updatedAt)}</span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-3 px-3 py-3 sm:grid-cols-4 sm:px-4">
-                                {[
-                                  { label: 'Tasks', value: asgns.length, color: '#F97316' },
-                                  { label: 'Questions', value: totalQ, color: '#F59E0B' },
-                                  { label: 'Submitted', value: submitted, color: '#22C55E' },
-                                  { label: 'Done', value: `${comp}%`, color: '#7C4DD1' },
-                                ].map((s, si) => (
-                                  <div key={si}>
-                                    <p className="text-[10px] text-gray-400">{s.label}</p>
-                                    <p className="mt-0.5 text-base font-black" style={{ color: s.color }}>{s.value}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </motion.div>
-                          )
-                        })}
+                    {/* ── Momentum ── */}
+                    <Panel title="Momentum">
+                      <div className="grid gap-3 py-1 sm:grid-cols-2 xl:grid-cols-4">
+                        <MetricTile
+                          icon={Flame} label="Current streak"
+                          value={`${performance.momentum.streak}`}
+                          sub={performance.momentum.streak === 1 ? 'day in a row' : 'days in a row'}
+                          pct={null}
+                        />
+                        <MetricTile
+                          icon={Activity} label="Active days"
+                          value={`${performance.momentum.activeDays30}`} sub="in the last 30 days" pct={null}
+                        />
+                        <MetricTile
+                          icon={CheckCircle} label="Solved this month"
+                          value={`${performance.solvedThisMonth}`}
+                          sub={performance.monthDeltaPct === null
+                            ? 'no earlier baseline'
+                            : `${performance.monthDeltaPct >= 0 ? '+' : ''}${performance.monthDeltaPct}% vs previous 30 days`}
+                          pct={null}
+                        />
+                        <MetricTile
+                          icon={Calendar} label="Due this week"
+                          value={`${performance.pendingThisWeek}`} sub="pending deadlines" pct={null}
+                        />
                       </div>
                     </Panel>
-                  )}
 
-                  {!userData.permissions?.length && !userData.courses?.length && (
-                    <Panel icon={BookOpen} title={userRole === 'admin' ? 'System Management' : 'Teaching Materials'} color="#F97316">
-                      <EmptyBlock icon={BookOpen} text="Nothing assigned yet." />
-                    </Panel>
-                  )}
-                </>
-              )}
+                    {/* ── Insights: the dashboard's own read of these numbers ── */}
+                    {performance.insights.length > 0 && (
+                      <Panel title="Insights">
+                        <ul className="divide-y divide-hairline">
+                          {performance.insights.map((ins, i) => (
+                            <li key={i} className="flex items-start gap-2.5 py-2.5">
+                              <span
+                                className={cn(
+                                  'mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full',
+                                  ins.tone === 'good' ? 'bg-emerald-500' : ins.tone === 'warn' ? 'bg-amber-500' : 'bg-slate-400'
+                                )}
+                              />
+                              <p className="text-[13px] leading-relaxed text-body">{ins.text}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </Panel>
+                    )}
+                  </>
+                )}
+              </>
+            )}
 
-            </motion.div>
-          </AnimatePresence>
-
-          {/* ── Right rail ─────────────────────────────────────────────────── */}
-          <aside className="space-y-3 xl:sticky xl:top-3">
-            <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-[0_2px_8px_-6px_rgba(16,24,40,0.10)] dark:bg-gray-900 dark:border-gray-800">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="grid h-7 w-7 place-items-center rounded-md bg-orange-50 dark:bg-orange-950/40">
-                    <Activity className="h-3.5 w-3.5 text-orange-500" />
-                  </span>
-                  <h3 className="text-sm font-black text-gray-900 dark:text-white">Activity Summary</h3>
-                </div>
-                <button
-                  onClick={() => setActiveTab('activity')}
-                  className="rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-600 transition-colors hover:bg-violet-100 dark:bg-violet-950/40 dark:text-violet-300"
-                >
-                  View All
-                </button>
-              </div>
-
-              {activityFeed.length > 0 ? (
-                <div className="space-y-2.5">
-                  {activityFeed.map((a, i) => {
-                    const Icon = a.icon
-                    return (
-                      <div key={i} className="flex items-center gap-2.5">
-                        <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full" style={{ background: `${a.tone}1F` }}>
-                          <Icon className="h-3.5 w-3.5" style={{ color: a.tone }} />
-                        </span>
-                        <p className="min-w-0 flex-1 truncate text-xs font-bold text-gray-900 dark:text-white">{a.label}</p>
-                        <p className="flex-shrink-0 text-[10px] text-gray-400">
-                          {fmt(a.at)} <span className="text-gray-300 dark:text-gray-700">·</span> {fmtTime(a.at)}
-                        </p>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <EmptyBlock icon={Activity} text="No activity recorded yet." />
-              )}
-            </div>
-
-            <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-[0_2px_8px_-6px_rgba(16,24,40,0.10)] dark:bg-gray-900 dark:border-gray-800">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="grid h-7 w-7 place-items-center rounded-md bg-orange-50 dark:bg-orange-950/40">
-                  <Zap className="h-3.5 w-3.5 text-orange-500" />
-                </span>
-                <h3 className="text-sm font-black text-gray-900 dark:text-white">Quick Actions</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
-                {quickActions.map((a, i) => {
-                  const Icon = a.icon
-                  return (
-                    <button
-                      key={i}
-                      onClick={a.onClick}
-                      className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 bg-white p-3 text-center transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_6px_14px_-10px_rgba(249,115,22,0.55)] dark:border-gray-800 dark:bg-gray-900"
-                    >
-                      <span className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: `${a.tone}1F` }}>
-                        <Icon className="h-4 w-4" style={{ color: a.tone }} />
-                      </span>
-                      <span className="text-[11px] font-bold leading-tight text-gray-700 dark:text-gray-300">
-                        {a.label}<br />{a.sub}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </aside>
-        </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Self-service editor — photo and password only. Everything else on this
@@ -1477,14 +1042,6 @@ export default function ProfilePage() {
           })
         }}
       />
-
-      <style jsx global>{`
-        .custom-scroll::-webkit-scrollbar { width: 5px; }
-        .custom-scroll::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #fed7aa; border-radius: 4px; }
-        .dark .custom-scroll::-webkit-scrollbar-track { background: #1c1917; }
-        .dark .custom-scroll::-webkit-scrollbar-thumb { background: #7c2d12; }
-      `}</style>
     </div>
   )
 
@@ -1493,44 +1050,123 @@ export default function ProfilePage() {
 
 // ─── Presentational pieces ────────────────────────────────────────────────────
 
-/** A content card: tinted icon tile, title, a rule that fades out, and an
- *  optional right-aligned action. Every tab panel is built from these so the
- *  page reads as one surface rather than five different ones. */
-function Panel({
-  icon: Icon, title, color, action, children,
-}: { icon: any; title: string; color: string; action?: React.ReactNode; children: React.ReactNode }) {
+const cap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
+
+type StatItem = { label: string; value: React.ReactNode; sub?: string }
+type DetailItem = { label: string; value?: string }
+
+/** The profile photo, or the person's initials on a neutral disc. */
+function Avatar({ user, className }: { user: UserData; className?: string }) {
+  const hasPhoto = !!user.profile && user.profile !== 'default'
   return (
-    <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-[0_2px_8px_-6px_rgba(16,24,40,0.10)] dark:bg-gray-900 dark:border-gray-800">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md" style={{ background: `${color}1F` }}>
-          <Icon className="h-3.5 w-3.5" style={{ color }} />
-        </span>
-        <h3 className="min-w-0 truncate text-sm font-black text-gray-900 dark:text-white whitespace-nowrap">{title}</h3>
-        <span className="h-px flex-1" style={{ background: `linear-gradient(90deg, ${color}45, transparent)` }} />
-        {action}
-      </div>
+    <div className={cn('grid flex-shrink-0 place-items-center overflow-hidden rounded-full bg-surface-sunken font-semibold text-body ring-1 ring-hairline', className)}>
+      {hasPhoto ? (
+        <Image src={user.profile} alt={`${user.firstName} ${user.lastName}`} width={112} height={112} className="h-full w-full object-cover" />
+      ) : (
+        <span>{user.firstName?.[0]?.toUpperCase()}{user.lastName?.[0]?.toUpperCase()}</span>
+      )}
+    </div>
+  )
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  if (!status) return null
+  const s = status.toLowerCase()
+  const cls = s === 'active'
+    ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/30'
+    : s === 'pending'
+      ? 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/30'
+      : 'bg-surface-sunken text-body ring-hairline'
+  const dot = s === 'active' ? 'bg-emerald-500' : s === 'pending' ? 'bg-amber-500' : 'bg-gray-400'
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', cls)}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', dot)} />
+      {cap(status)}
+    </span>
+  )
+}
+
+function Chip({ tone = 'neutral', children }: { tone?: 'neutral' | 'success'; children: React.ReactNode }) {
+  return (
+    <span className={cn(
+      'inline-flex flex-shrink-0 items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+      tone === 'success'
+        ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/30'
+        : 'bg-surface-sunken text-body ring-hairline'
+    )}>
       {children}
+    </span>
+  )
+}
+
+/** A row of headline figures in one bordered strip, split by hairlines. */
+function StatStrip({ items }: { items: StatItem[] }) {
+  return (
+    <div className={cn(
+      'grid gap-px bg-hairline',
+      items.length % 2 ? 'grid-cols-1' : 'grid-cols-2',
+      items.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-4'
+    )}>
+      {items.map((s) => (
+        <div key={s.label} className="min-w-0 bg-surface px-4 py-3 sm:px-5">
+          <p className="truncate text-xs font-medium text-subtle">{s.label}</p>
+          <p className="mt-1 truncate text-xl font-semibold leading-tight tabular-nums text-heading">{s.value}</p>
+          {s.sub && <p className="mt-0.5 truncate text-xs text-subtle">{s.sub}</p>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** A content card: title, optional one-line description and a right-aligned
+ *  action, over its body. Every tab is built from these so the page reads as
+ *  one surface. */
+function Panel({
+  title, description, action, children,
+}: { title: string; description?: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="min-w-0 rounded-xl border border-hairline bg-surface shadow-xs">
+      <header className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3 sm:px-5">
+        <div className="min-w-0">
+          <h2 className="truncate text-sm font-semibold text-heading">{title}</h2>
+          {description && <p className="mt-0.5 truncate text-xs text-subtle">{description}</p>}
+        </div>
+        {action}
+      </header>
+      <div className="px-4 py-2 sm:px-5">{children}</div>
     </section>
   )
 }
 
-/** One labelled value inside a panel. */
-function FieldTile({ idx, icon: Icon, label, value, tone = '#F97316' }: { idx: number; icon: any; label: string; value: string; tone?: string }) {
+/** Label / value rows. A missing value reads "Not provided" rather than a dash. */
+function DetailList({ items }: { items: DetailItem[] }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: idx * 0.035 }}
-      className="flex items-center gap-2.5 rounded-xl border border-gray-100 bg-gray-50/80 p-2.5 transition-colors hover:border-orange-200 dark:border-gray-800 dark:bg-gray-800/40"
+    <dl className="divide-y divide-hairline">
+      {items.map((it) => (
+        <div key={it.label} className="grid gap-0.5 py-2.5 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-4">
+          <dt className="text-[13px] text-subtle">{it.label}</dt>
+          <dd className="min-w-0 break-words text-[13px] font-medium text-heading">
+            {it.value || <span className="font-normal text-faint">Not provided</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+/** A thin progress bar: slate while under way, green once complete. */
+function Meter({ pct, className }: { pct: number; className?: string }) {
+  const w = Math.max(0, Math.min(100, Math.round(pct)))
+  return (
+    <div
+      className={cn('h-1.5 overflow-hidden rounded-full bg-hairline', className)}
+      role="progressbar" aria-valuenow={w} aria-valuemin={0} aria-valuemax={100}
     >
-      <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-md" style={{ background: `${tone}1F` }}>
-        <Icon className="h-3.5 w-3.5" style={{ color: tone }} />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold text-gray-400">{label}</p>
-        <p className="mt-0.5 truncate text-[13px] font-bold text-gray-900 dark:text-white">{value || '—'}</p>
-      </div>
-    </motion.div>
+      <div
+        className={cn('h-full rounded-full transition-[width] duration-500', w >= 100 ? 'bg-emerald-500' : 'bg-slate-600 dark:bg-slate-400')}
+        style={{ width: `${w}%` }}
+      />
+    </div>
   )
 }
 
@@ -1552,117 +1188,76 @@ function stageCells(s: StageStats) {
 /** A headline number with its own meter. `pct` null → no meter (the metric has
  *  no 0-100 scale, or nothing has been recorded to place it on one yet). */
 function MetricTile({
-  idx, icon: Icon, label, value, sub, tone, pct,
-}: { idx: number; icon: any; label: string; value: string; sub: string; tone: string; pct: number | null }) {
+  icon: Icon, label, value, sub, pct,
+}: { icon: any; label: string; value: string; sub: string; pct: number | null }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: idx * 0.05 }}
-      className="rounded-xl border border-gray-100 bg-gray-50/80 p-3 transition-colors hover:border-orange-200 dark:border-gray-800 dark:bg-gray-800/40"
-    >
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg" style={{ background: `${tone}1F` }}>
-          <Icon className="h-4 w-4" style={{ color: tone }} />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{label}</p>
-          <p className="text-xl font-black leading-tight text-gray-900 dark:text-white">{value}</p>
-        </div>
-      </div>
-      <p className="mt-1.5 truncate text-[11px] text-gray-400">{sub}</p>
-      {pct !== null && (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-200/70 dark:bg-gray-700/60">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
-            transition={{ delay: idx * 0.05 + 0.15, duration: 0.5 }}
-            className="h-full rounded-full"
-            style={{ background: tone }}
-          />
-        </div>
-      )}
-    </motion.div>
+    <div className="min-w-0 rounded-lg border border-hairline bg-surface p-3.5">
+      <p className="flex items-center gap-1.5 text-xs font-medium text-subtle">
+        <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+        <span className="truncate">{label}</span>
+      </p>
+      <p className="mt-1.5 text-xl font-semibold leading-tight tabular-nums text-heading">{value}</p>
+      <p className="mt-0.5 truncate text-xs text-subtle">{sub}</p>
+      {pct !== null && <Meter pct={pct} className="mt-2.5" />}
+    </div>
   )
 }
 
 /** One stage of the Learn → Practice → Assess pipeline: a titled header with
- *  its completion meter, over a four-cell figure strip. Mirrors the course-row
- *  treatment in the Teaching tab so the page keeps one vocabulary. */
+ *  its completion meter, over a four-cell figure strip. */
 function StageRow({
-  idx, title, tone, hasContent, pct, meterLabel, cells,
+  title, hasContent, pct, meterLabel, cells,
 }: {
-  idx: number; title: string; tone: string; hasContent: boolean; pct: number
+  title: string; hasContent: boolean; pct: number
   /** What the header meter is a percentage OF — without it "20%" next to an
    *  "Exercises 3/15" cell reads as though it were the question figure. */
   meterLabel: string
   cells: { label: string; value: string; sub: string }[]
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: idx * 0.06 }}
-      className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800"
-    >
-      <div className="flex flex-col items-start gap-1.5 border-b border-gray-100 bg-gray-50/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4 dark:border-gray-800 dark:bg-gray-800/40">
-        <h5 className="min-w-0 max-w-full truncate text-sm font-bold text-gray-900 dark:text-white">{title}</h5>
+    <div className="overflow-hidden rounded-lg border border-hairline">
+      <div className="flex flex-col items-start gap-1.5 border-b border-hairline bg-surface-sunken/60 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <h3 className="min-w-0 max-w-full truncate text-[13px] font-semibold text-heading">{title}</h3>
         {hasContent ? (
           <div className="flex flex-shrink-0 items-center gap-2">
-            <span className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-200/70 dark:bg-gray-700/60">
-              <motion.span
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
-                transition={{ delay: idx * 0.06 + 0.15, duration: 0.5 }}
-                className="block h-full rounded-full"
-                style={{ background: tone }}
-              />
-            </span>
-            <span className="text-[11px] font-bold" style={{ color: tone }}>{pct}%</span>
-            <span className="text-[11px] text-gray-400">{meterLabel}</span>
+            <Meter pct={pct} className="w-24" />
+            <span className="text-xs font-semibold tabular-nums text-heading">{pct}%</span>
+            <span className="text-xs text-subtle">{meterLabel}</span>
           </div>
         ) : (
-          <span className="flex-shrink-0 text-[11px] text-gray-400">Nothing configured</span>
+          <span className="flex-shrink-0 text-xs text-subtle">Nothing configured</span>
         )}
       </div>
       {hasContent && (
-        <div className="grid grid-cols-2 gap-3 px-3 py-3 sm:grid-cols-4 sm:px-4">
-          {cells.map((c, ci) => (
-            <div key={ci}>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{c.label}</p>
-              <p className="mt-0.5 text-base font-black leading-tight text-gray-900 dark:text-white">{c.value}</p>
-              <p className="text-[10px] text-gray-400">{c.sub}</p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3 sm:grid-cols-4">
+          {cells.map((c) => (
+            <div key={c.label} className="min-w-0">
+              <p className="text-xs text-subtle">{c.label}</p>
+              <p className="mt-0.5 text-base font-semibold leading-tight tabular-nums text-heading">{c.value}</p>
+              <p className="text-xs text-subtle">{c.sub}</p>
             </div>
           ))}
         </div>
       )}
-    </motion.div>
+    </div>
   )
 }
 
-/** One course in the Academic tab's Course Progress list.
+/** One course in the Performance tab's Course progress list.
  *
- *  Driven by the dashboard's CourseModel, not by the cached user record. The
- *  old version read `course.answers.We_Do.assignments` straight off
- *  localStorage and scored it 60% attempted / 40% solved — which meant a
- *  learner who had opened resources and sat assessments but had no We Do
- *  submission read 0%, and the course title fell back to "Course 1" because
- *  the cached row carries only an id. Both numbers now come from the same
- *  blend the dashboard shows, so Profile and Dashboard agree.
+ *  Driven by the dashboard's CourseModel, not by the cached user record, so
+ *  the figure here is the same blend the dashboard shows.
  */
-function CourseProgressRow({ idx, course }: { idx: number; course: CourseModel }) {
+function CourseProgressRow({ course }: { course: CourseModel }) {
   const p = Math.max(0, Math.min(100, Math.round(course.progress)))
   const done = p >= 100
   const started = p > 0 || course.hasActivity
-  const status = done ? 'Completed' : started ? 'In progress' : 'Not started'
-  const statusCls = done ? 'text-emerald-500' : started ? 'text-orange-500' : 'text-gray-400'
 
-  // Only the stages this course actually configured. A course with no You Do
-  // content should show two meters, not a third one stuck at 0%.
+  // Only the stages this course actually configured.
   const stages = [
-    { label: 'I Do', on: course.learn.hasContent, pct: course.learn.completionPct, detail: `${course.learn.opened}/${course.learn.total}`, tone: '#7C4DD1' },
-    { label: 'We Do', on: course.practice.hasContent, pct: course.practice.completionPct, detail: `${course.practice.started}/${course.practice.assigned}`, tone: '#22C55E' },
-    { label: 'You Do', on: course.assess.hasContent, pct: course.assess.completionPct, detail: `${course.assess.started}/${course.assess.assigned}`, tone: '#F97316' },
+    { label: 'I Do', on: course.learn.hasContent, pct: course.learn.completionPct, detail: `${course.learn.opened}/${course.learn.total}` },
+    { label: 'We Do', on: course.practice.hasContent, pct: course.practice.completionPct, detail: `${course.practice.started}/${course.practice.assigned}` },
+    { label: 'You Do', on: course.assess.hasContent, pct: course.assess.completionPct, detail: `${course.assess.started}/${course.assess.assigned}` },
   ].filter((s) => s.on)
 
   const lastSeen = course.lastAccessed
@@ -1670,76 +1265,45 @@ function CourseProgressRow({ idx, course }: { idx: number; course: CourseModel }
     : 'Never'
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -12 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: idx * 0.06 }}
-      className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-800/40"
-    >
-      <div className="mb-2 flex items-start justify-between gap-3">
+    <div className="py-3.5">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-gray-900 dark:text-white">{course.name}</p>
+          <p className="truncate text-[13px] font-semibold text-heading">{course.name}</p>
           {(course.code || course.level) && (
-            <p className="mt-0.5 truncate text-[11px] text-gray-400">
+            <p className="mt-0.5 truncate text-xs text-subtle">
               {[course.code, course.level].filter(Boolean).join(' · ')}
             </p>
           )}
         </div>
-        <span className="flex-shrink-0 text-xs font-black" style={{ color: done ? '#22C55E' : '#F97316' }}>{p}%</span>
-      </div>
-
-      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${p}%` }}
-          transition={{ duration: 1, delay: idx * 0.08, ease: 'easeOut' }}
-          className="h-full rounded-full"
-          style={{ background: done ? 'linear-gradient(90deg,#22C55E,#4ADE80)' : 'linear-gradient(90deg,#F97316,#FBBF24)' }}
-        />
-      </div>
-
-      {/* Where the blended number above actually comes from. */}
-      {stages.length > 0 && (
-        <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
-          {stages.map((s) => (
-            <div key={s.label} className="rounded-lg border border-gray-100 bg-white px-2.5 py-1.5 dark:border-gray-800 dark:bg-gray-900/60">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{s.label}</span>
-                <span className="text-[11px] font-bold" style={{ color: s.tone }}>{s.pct}%</span>
-              </div>
-              <div className="mt-1 h-1 overflow-hidden rounded-full bg-gray-200/70 dark:bg-gray-700/60">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.max(0, Math.min(100, s.pct))}%` }}
-                  transition={{ duration: 0.6, delay: idx * 0.08 + 0.2 }}
-                  className="h-full rounded-full"
-                  style={{ background: s.tone }}
-                />
-              </div>
-              <p className="mt-1 text-[10px] text-gray-400">{s.detail}</p>
-            </div>
-          ))}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Chip tone={done ? 'success' : 'neutral'}>{done ? 'Completed' : started ? 'In progress' : 'Not started'}</Chip>
+          <span className="w-10 text-right text-[13px] font-semibold tabular-nums text-heading">{p}%</span>
         </div>
-      )}
-
-      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-400">
-        <span className="truncate">Last: {lastSeen}</span>
-        <span className="flex-shrink-0">
-          {course.scorePct !== null && <span className="mr-2 text-gray-500 dark:text-gray-300">Score {course.scorePct}%</span>}
-          <span className={statusCls}>{status}</span>
-        </span>
       </div>
-    </motion.div>
+
+      <Meter pct={p} className="mt-2.5" />
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-subtle">
+        {stages.map((s) => (
+          <span key={s.label}>
+            {s.label} <span className="font-medium tabular-nums text-body">{s.pct}%</span> ({s.detail})
+          </span>
+        ))}
+        <span>Last opened {lastSeen}</span>
+        {course.scorePct !== null && <span>Score <span className="font-medium tabular-nums text-body">{course.scorePct}%</span></span>}
+      </div>
+    </div>
   )
 }
 
-function EmptyBlock({ icon: Icon, text }: { icon: any; text: string }) {
+function EmptyBlock({ icon: Icon, title, text }: { icon: any; title: string; text?: string }) {
   return (
-    <div className="py-8 text-center">
-      <span className="mx-auto mb-2.5 grid h-11 w-11 place-items-center rounded-xl bg-orange-50 dark:bg-orange-950/20">
-        <Icon className="h-5 w-5 text-orange-300" />
+    <div className="py-10 text-center">
+      <span className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-full bg-surface-sunken ring-1 ring-hairline">
+        <Icon className="h-[18px] w-[18px] text-subtle" />
       </span>
-      <p className="text-xs text-gray-400">{text}</p>
+      <p className="text-sm font-medium text-heading">{title}</p>
+      {text && <p className="mt-1 text-xs text-subtle">{text}</p>}
     </div>
   )
 }

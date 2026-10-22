@@ -200,12 +200,9 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
           <div>
             <p className="mb-2.5 text-[11px] font-black uppercase tracking-wider text-gray-400">Profile photo</p>
             <div className="flex items-center gap-4">
-              <div
-                className="h-20 w-20 flex-shrink-0 rounded-full p-[3px] shadow-md shadow-orange-500/20"
-                style={{ background: "linear-gradient(135deg,#C4B5FD,#FDBA74 55%,#F97316)" }}
-              >
-                <div className="h-full w-full rounded-full bg-white p-[2px] dark:bg-gray-900">
-                  <div className="grid h-full w-full place-items-center overflow-hidden rounded-full bg-gradient-to-br from-orange-200 to-orange-400">
+              <div className="h-20 w-20 flex-shrink-0">
+                <div className="h-full w-full">
+                  <div className="grid h-full w-full place-items-center overflow-hidden rounded-full bg-surface-sunken ring-1 ring-hairline">
                     {shownImage ? (
                       // A plain <img> for the blob: preview — next/image would
                       // need the object URL whitelisted as a remote pattern.
@@ -216,7 +213,7 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
                         <Image src={shownImage} alt={user.firstName} width={80} height={80} className="h-full w-full object-cover" />
                       )
                     ) : (
-                      <span className="text-2xl font-black text-white">{initials}</span>
+                      <span className="text-2xl font-semibold text-body">{initials}</span>
                     )}
                   </div>
                 </div>
@@ -266,9 +263,7 @@ export default function EditProfileModal({ open, onClose, user, onUpdated }: Pro
           {/* ── Password ── */}
           <div>
             <div className="mb-2.5 flex items-center gap-2">
-              <span className="grid h-6 w-6 place-items-center rounded-md bg-orange-50 dark:bg-orange-950/40">
-                <KeyRound className="h-3 w-3 text-orange-500" />
-              </span>
+              <KeyRound className="h-3.5 w-3.5 text-subtle" />
               <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">Change password</p>
               <span className="text-[11px] font-medium text-gray-300">optional</span>
             </div>
