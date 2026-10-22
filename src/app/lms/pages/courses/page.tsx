@@ -36,6 +36,7 @@ import { StudentLayout } from '../../component/student/student-layout';
 import { isBlockedEnrollment } from '@/lib/api/courses';
 import DashboardLayout from '../../component/layout';
 import { StaffLayout } from '../../component/stafflayout/staff-layout';
+import { NotificationBell } from '@/app/lms/component/NotificationBell';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PERMISSION_IDS } from '@/app/lms/pages/usermanagement/components/permissions/index';
 
@@ -925,6 +926,10 @@ export default function CoursesPage() {
 
   const hasActiveFilter = selectedCategory !== 'All' || selectedLevel !== 'All' || !!searchTerm;
 
+  // The trainer shell already pins the round bell to its corner; the student
+  // and admin shells don't, so the title row carries it for them.
+  const inStaffShell = !(['admin', 'ldhead', 'subhead', 'programcoordinator', 'student'].includes(userRole || '') || isStudent);
+
   // ── Content ────────────────────────────────────────────────────────────────
   const content = (
     <div className={`${poppins.variable} sc-courses-font`}>
@@ -945,6 +950,11 @@ export default function CoursesPage() {
               {sorted.length}
             </span>
           )} */}
+          {!inStaffShell && (
+            <div className="ml-auto">
+              <NotificationBell />
+            </div>
+          )}
         </div>
         {/* <p className="text-[12.5px] mt-0.5" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
           Discover and continue your learning journey

@@ -1,3 +1,4 @@
+import React from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
@@ -205,8 +206,18 @@ class NotificationsService {
 
     const icon = iconMap[notification.relatedEntity] || iconMap[notification.type] || '🔔';
 
-    toast.success(`${notification.message}`, { 
-      duration: 4000,
+    // Title first — it names the item ("New assessment: <name>"); the
+    // message under it is the detail (course, due date). Showing only the
+    // message read as "just the course name".
+    const title = (notification.title || '').trim()
+    const message = (notification.message || '').trim()
+    toast.success(
+      React.createElement('div', { style: { minWidth: 0 } },
+        title ? React.createElement('div', { style: { fontWeight: 600, color: '#0f172a', lineHeight: 1.35 } }, title) : null,
+        message ? React.createElement('div', { style: { marginTop: title ? 2 : 0, fontSize: 12.5, color: '#475569', lineHeight: 1.4, whiteSpace: 'pre-line' } }, message) : null,
+      ),
+      {
+      duration: 5000,
       position: 'top-right',
       style: {
         background: '#f0f9ff',
