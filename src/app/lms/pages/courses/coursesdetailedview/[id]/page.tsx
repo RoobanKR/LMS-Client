@@ -48,6 +48,7 @@ import {
 
 import { T, METHOD_CFG, RES_LABEL, FONT_PRIMARY, FONT_INTER_IMPORT } from "../components/types/constants"
 import { TopBar } from "../components/TopBar"
+import { CourseBreadcrumbs } from "../components/CourseBreadcrumbs"
 import { Sidebar, LogoutModal, buildHoursMap } from "../components/Sidebar"
 import { CourseSidebar } from "../components/CourseSidebar"
 import { postLogout } from "@/apiServices/activityLog"
@@ -1747,8 +1748,14 @@ const getExercisesForActivity = (): any[] => {
       setCurrentFolder(null); setFolderPath([]); closeAllViewers()
     }
 
-    items.push({ label: "Dashboard", icon: LayoutDashboard, onClick: () => { clear(); router.push('/lms/pages/studentdashboard') } })
-    items.push({ label: "Courses", icon: BookMarked, onClick: () => router.push('/lms/pages/courses') })
+    // Each role's own dashboard (staff also open courses here to preview).
+    let role = ''
+    try { role = (localStorage.getItem('smartcliff_roleValue') || '').toLowerCase() } catch { }
+    const dashboardHref = ['admin', 'ldhead', 'subhead', 'programcoordinator'].includes(role)
+      ? '/lms/pages/admindashboard'
+      : ['poc', 'trainer'].includes(role) ? '/lms/pages/dashboard' : '/lms/pages/studentdashboard'
+    items.push({ label: "Dashboard", icon: LayoutDashboard, onClick: () => { clear(); router.push(dashboardHref) } })
+    items.push({ label: "My Courses", icon: BookMarked, onClick: () => router.push('/lms/pages/courses') })
     if (courseData) items.push({ label: courseData.courseName, icon: GraduationCap, onClick: clear })
 
     return items
@@ -2541,6 +2548,9 @@ const getExercisesForActivity = (): any[] => {
             the upload-resources and dashboard shells. */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden p-3.5 pl-0 max-lg:p-2 max-lg:pl-2">
         <div className="relative flex-1 flex flex-col overflow-clip min-h-0 rounded-[18px] border border-[#E4E7EC] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+          {/* Dashboard › My Courses › <course> — the same trail Upload
+              Resources shows above its tabs. */}
+          {!isHeaderCollapsed && <CourseBreadcrumbs items={buildBreadcrumbs()} />}
           {!isHeaderCollapsed && (
             <TopBar
               items={buildBreadcrumbs()}
