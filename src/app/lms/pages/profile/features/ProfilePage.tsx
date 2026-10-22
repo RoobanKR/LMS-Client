@@ -416,20 +416,15 @@ export default function ProfilePage() {
         { icon: TrendingUp, tone: "purple", label: "Overall progress", value: `${performance?.overallProgress ?? 0}%`, sub: "across all courses" },
       ]
     : dashboardStats
+      // One row: the last-30-days activity rides in each card's second line
+      // rather than as a second row of cards.
       ? [
-          { icon: Users, tone: "blue", label: "Total users", value: dashboardStats.users.total, sub: "registered" },
+          { icon: Users, tone: "blue", label: "Total users", value: dashboardStats.users.total, sub: `${dashboardStats.recentActivities.activeUsers} active · ${dashboardStats.recentActivities.newUsers} new this month` },
           { icon: GraduationCap, tone: "green", label: "Students", value: dashboardStats.users.students, sub: "enrolled" },
           { icon: UserCircle2, tone: "orange", label: "Faculty & staff", value: dashboardStats.users.staff, sub: "members" },
-          { icon: BookOpen, tone: "purple", label: "Courses", value: dashboardStats.courses.total, sub: "in your institution" },
+          { icon: BookOpen, tone: "purple", label: "Courses", value: dashboardStats.courses.total, sub: `${dashboardStats.recentActivities.newCourses} added in the last 30 days` },
         ]
       : []
-  const adminActivity: StatItem[] = dashboardStats
-    ? [
-        { icon: Users, tone: "blue", label: "Active users", value: dashboardStats.recentActivities.activeUsers, sub: `of ${dashboardStats.users.total} registered` },
-        { icon: TrendingUp, tone: "green", label: "New users", value: dashboardStats.recentActivities.newUsers, sub: "in the last 30 days" },
-        { icon: BookOpen, tone: "purple", label: "New courses", value: dashboardStats.recentActivities.newCourses, sub: "in the last 30 days" },
-      ]
-    : []
 
   const permissions: any[] = (userData.permissions || []).slice()
     .sort((a: any, b: any) => Number(!!b?.isActive) - Number(!!a?.isActive))
@@ -569,7 +564,9 @@ export default function ProfilePage() {
   )
 
   const content = (
-    <div className="min-h-full space-y-5 bg-surface">
+    // The student and staff shells pad their panel; the admin shell leaves
+    // padding to the page.
+    <div className={cn("min-h-full space-y-5 bg-surface", userRole === 'admin' && "p-3 sm:p-4 md:px-6 md:py-5")}>
 
       {/* ── Breadcrumb ─────────────────────────────────────────────────── */}
       <nav className="flex items-center gap-1.5 text-[13px]" aria-label="Breadcrumb">
@@ -660,7 +657,6 @@ export default function ProfilePage() {
       {userRole === 'staff'
         ? <TrainerHeadlineStats user={userData} />
         : statItems.length > 0 && <StatCards items={statItems} loading={isStudentRole && perfLoading} />}
-      {adminActivity.length > 0 && <StatCards items={adminActivity} />}
 
       {/* ── Tabs ───────────────────────────────────────────────────────── */}
       <div className="border-b border-hairline pb-2">
