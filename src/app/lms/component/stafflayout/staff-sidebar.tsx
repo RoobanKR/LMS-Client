@@ -288,8 +288,8 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
         items.push(...rest)
       }
 
-      // Grade stays on a trainer's rail: the Courses page it now opens has no
-      // per-course route to grades (Course Management ▸ Course Actions did).
+      // Grades is currently hidden from a trainer's rail (see the filter just
+      // before setSidebarItems below).
 
       // "Reports" — the course list (/lms/pages/reports/performance), the same
       // page the L&D rail's Reports opens. Injected for every staff-shell
@@ -311,10 +311,14 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
         else items.push(reportItem)
       }
 
+      // Grades is hidden from the trainer rail for now — the page itself still
+      // opens by its URL. To bring it back, delete this one filter line.
+      const visible = items.filter((i) => i.href !== `${BASE_PATH}grades`)
+
       // Some trainers hold both legacy course grants; render one destination.
-      setSidebarItems(items.filter((item, index) =>
+      setSidebarItems(visible.filter((item, index) =>
         !trainerCourseRoute(item.permissionKey || "", u.role) ||
-        items.findIndex((other) => other.href === item.href) === index,
+        visible.findIndex((other) => other.href === item.href) === index,
       ))
     } catch (e) {
       console.error("Error loading user data for sidebar:", e)
