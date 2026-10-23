@@ -53,6 +53,10 @@ export const PERMISSION_ROUTES: Record<string, string> = {
     // screens sit together the way the rail groups them.
     externalassessment: "/lms/pages/external/assessment",
     externalevent: "/lms/pages/external/event",
+    // The trainer's Log Activity grant opens the same Logs page as the admin's
+    // `logs` grant — there is no /lms/pages/log-activity folder (that route
+    // now only redirects here).
+    "log-activity": "/lms/pages/logs",
 };
 
 /** Where a permission key's page lives. Defaults to /lms/pages/<key>. */
