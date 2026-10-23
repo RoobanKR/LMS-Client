@@ -65,6 +65,8 @@ export interface BatchToday {
   batchName: string;
   courseName: string;
   courseId: string;
+  /** The batch on the course (for a batchless course, its fallback batch). */
+  batchId: string;
   students: number;
   marked: boolean;
   mine: boolean;
@@ -90,6 +92,17 @@ export interface UseTrainerDashboard {
   /** Active permission keys — panels use these to hide dead destinations. */
   permissionKeys: Set<string>;
 }
+
+// Attendance Management links from the dashboard carry `returnTo`, so its
+// back arrow comes back here.
+const RETURN_TO_DASHBOARD = `returnTo=${encodeURIComponent("/lms/pages/dashboard")}`;
+/** The attendance course list. */
+export const attendanceListHref = () => `/lms/pages/attendancemanagement?${RETURN_TO_DASHBOARD}`;
+/** One batch's marking sheet, that batch already selected. */
+export const markAttendanceHref = (batch: Pick<BatchToday, "courseId" | "batchId">) =>
+  `/lms/pages/attendancemanagement?courseId=${encodeURIComponent(batch.courseId)}`
+  + (batch.batchId ? `&batchId=${encodeURIComponent(batch.batchId)}` : "")
+  + `&${RETURN_TO_DASHBOARD}`;
 
 export function useTrainerDashboard(course: string, onReset: () => void): UseTrainerDashboard {
   const today = useMemo(() => {
@@ -209,7 +222,7 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
     // `null` drops the alert (destination the trainer cannot open).
     const HREFS: Record<string, string | null> = {
       att: permissionKeys.has("attendancemanagement")
-        ? "/lms/pages/attendancemanagement"
+        ? attendanceListHref()
         : "#todays-batches",
       risk: "#at-risk",
       idle: "#at-risk",
@@ -317,6 +330,7 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
           batchName: b.name,
           courseName: c.courseName || "Course",
           courseId: id,
+          batchId: b.id || "",
           students: b.students,
           marked: b.marked,
           mine: b.mine,

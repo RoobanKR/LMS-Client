@@ -23,6 +23,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
+    ArrowLeft,
     BookOpen,
     Search,
     X,
@@ -58,6 +59,10 @@ export default function AttendanceManagementPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const courseId = searchParams.get("courseId");
+    // Opened from another page (the trainer dashboard's "View list"): Back
+    // returns there. Same-origin paths only.
+    const rawReturnTo = searchParams.get("returnTo") || "";
+    const returnTo = rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") ? rawReturnTo : "";
     const [searchTerm, setSearchTerm] = useState("");
     const [clientFilter, setClientFilter] = useState("");
     // Course filter — narrows the list to one specific course when a program
@@ -228,8 +233,11 @@ export default function AttendanceManagementPage() {
         [rows, rangeStart, rangeEnd]
     );
 
+    // The marking sheet's Back comes back to this list — and, when the list
+    // itself was opened from the dashboard, the list's Back still leads there.
     const openCourse = (id: string) => {
-        router.push(`/lms/pages/attendancemanagement?courseId=${id}`);
+        const listUrl = `/lms/pages/attendancemanagement${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`;
+        router.push(`/lms/pages/attendancemanagement?courseId=${id}${returnTo ? `&returnTo=${encodeURIComponent(listUrl)}` : ""}`);
     };
 
     // Attendance grid view — layout provides the shell, we just render body.
@@ -265,9 +273,22 @@ export default function AttendanceManagementPage() {
                 pages read as one shell. mr-8 keeps the last chip clear of the
                 shell's corner-pinned NotificationBell. */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
-                <h1 className="text-base sm:text-lg font-semibold text-heading tracking-[-0.01em]">
-                    Attendance Management
-                </h1>
+                <div className="flex min-w-0 items-center gap-2.5">
+                    {returnTo && (
+                        <button
+                            type="button"
+                            onClick={() => router.push(returnTo)}
+                            aria-label="Back"
+                            title={returnTo.startsWith("/lms/pages/dashboard") ? "Back to dashboard" : "Back"}
+                            className="grid h-9 w-9 shrink-0 place-items-center rounded-control border border-hairline-strong bg-surface text-subtle transition-colors hover:bg-row-hover hover:text-heading"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                        </button>
+                    )}
+                    <h1 className="text-base sm:text-lg font-semibold text-heading tracking-[-0.01em]">
+                        Attendance Management
+                    </h1>
+                </div>
                 <div className="mr-8 flex flex-wrap items-center gap-2">
                     {!isLoading && (
                         <span

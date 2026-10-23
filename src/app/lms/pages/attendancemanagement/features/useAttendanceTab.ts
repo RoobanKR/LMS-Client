@@ -233,7 +233,11 @@ export function useAttendanceTab(courseId: string) {
       return;
     }
     if (!selectedBatchId || !visibleBatches.some((b) => b._id === selectedBatchId)) {
-      setSelectedBatchId(visibleBatches[0]?._id ?? null);
+      // A link may name the batch (?batchId= — the dashboard's "Mark
+      // attendance" on one batch); otherwise the first visible one.
+      const wanted = searchParams.get("batchId");
+      const named = wanted && visibleBatches.some((b) => b._id === wanted) ? wanted : null;
+      setSelectedBatchId(named ?? visibleBatches[0]?._id ?? null);
     }
     // selectedBatchId is deliberately read, not depended on — this effect only
     // repairs an invalid selection when the batch list itself changes.

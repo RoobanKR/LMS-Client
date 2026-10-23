@@ -261,10 +261,13 @@ export function TrainerQuickActions({
   model,
   permissionKeys,
   className,
+  markAttendanceHref,
 }: {
   model: DashboardModel;
   permissionKeys: Set<string>;
   className?: string;
+  /** Where "Mark attendance" goes — the first batch still to mark today. */
+  markAttendanceHref?: string;
 }) {
   const reduce = useReducedMotion();
 
@@ -274,7 +277,7 @@ export function TrainerQuickActions({
       hint: "Today's batches and registers",
       icon: CalendarCheck,
       tone: "info",
-      href: "/lms/pages/attendancemanagement",
+      href: markAttendanceHref || `/lms/pages/attendancemanagement?returnTo=${encodeURIComponent("/lms/pages/dashboard")}`,
       badge: model.pendingBatches,
       needs: "attendancemanagement",
     },

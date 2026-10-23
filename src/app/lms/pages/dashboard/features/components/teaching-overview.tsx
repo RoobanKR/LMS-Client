@@ -9,7 +9,7 @@ import { Chip, Meter, SectionCard } from "@/features/ld-dashboard/components/ui-
 import { EmptyState } from "@/features/ld-dashboard/components/states";
 import type { StudentRow } from "@/features/ld-dashboard/types";
 import type { WorkSummary, WorkCategory } from "@/features/ld-dashboard/lib/work-summary";
-import type { UseTrainerDashboard } from "../hooks/use-trainer-dashboard";
+import { attendanceListHref, markAttendanceHref, type UseTrainerDashboard } from "../hooks/use-trainer-dashboard";
 import { TrainerQuickActions } from "./trainer-panels";
 
 const actionClass = "inline-flex items-center gap-1.5 rounded-control border border-brand-500/30 px-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:text-brand-400 dark:hover:bg-brand-500/10";
@@ -144,7 +144,12 @@ export function TeachingOverview({ data }: { data: UseTrainerDashboard }) {
   if (!model) return null;
   const pending = batchesToday.filter((batch) => !batch.marked).length;
   const finished = learners.filter((student) => student.overall >= 100).length;
-  const attendanceHref = permissionKeys.has("attendancemanagement") ? "/lms/pages/attendancemanagement" : "#todays-batches";
+  const canMark = permissionKeys.has("attendancemanagement");
+  const attendanceHref = canMark ? attendanceListHref() : "#todays-batches";
+  // Quick Actions' "Mark attendance": the first batch still to mark today,
+  // else the attendance list.
+  const firstPending = batchesToday.find((batch) => !batch.marked);
+  const markHref = canMark ? (firstPending ? markAttendanceHref(firstPending) : attendanceListHref()) : undefined;
   const scopeCards = [
     { icon: BookOpen, value: count(model.courses), label: "My courses", detail: "On your teaching roster", href: "#course-performance" },
     { icon: GraduationCap, value: count(model.students), label: "Student enrolments", detail: "Across the selected courses", href: "#at-risk" },
@@ -159,7 +164,7 @@ export function TeachingOverview({ data }: { data: UseTrainerDashboard }) {
           <div>
             <h3 className="font-semibold text-heading">{pending ? `${pluralBatches(pending)} need attendance` : "Today’s attendance"}</h3>
             <p className="mt-1 text-xs text-subtle">{batchesToday.length ? `${batchesToday.length - pending} of ${batchesToday.length} batches marked` : "No batches scheduled today"}</p>
-            <a className={`${actionClass} mt-3`} href={attendanceHref}>{permissionKeys.has("attendancemanagement") ? "Open attendance" : "View batches"}<ArrowRight size={13} aria-hidden />
+            <a className={`${actionClass} mt-3`} href={attendanceHref}>{canMark ? "View list" : "View batches"}<ArrowRight size={13} aria-hidden />
             </a>
           </div>
         </div>
@@ -219,13 +224,13 @@ export function TeachingOverview({ data }: { data: UseTrainerDashboard }) {
                 <td className="px-3 py-3">
                   <Chip tone={batch.marked ? "success" : "warning"}>{batch.marked ? "Marked" : "Pending"}</Chip>
                 </td>{permissionKeys.has("attendancemanagement") && <td className="px-3 py-3">
-                  <Link className={actionClass} href={attendanceHref}>{batch.marked ? "View register" : "Mark attendance"}</Link>
+                  <Link className={actionClass} href={markAttendanceHref(batch)}>{batch.marked ? "View register" : "Mark attendance"}</Link>
                 </td>}</tr>)}</tbody>
             </table>
           </div>}
         </SectionCard>
       </div>
-      <TrainerQuickActions model={model} permissionKeys={permissionKeys} />
+      <TrainerQuickActions model={model} permissionKeys={permissionKeys} markAttendanceHref={markHref} />
     </div>
 
     <div className="grid gap-4 @5xl:grid-cols-2">
