@@ -369,23 +369,7 @@ export default function CourseReport() {
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hairline bg-surface px-3 py-2.5 shadow-xs">
-        {/* One exercise is already open on E2, so only Batch and Search
-            apply there. */}
-        {!currentExercise && (
-          <SelectField
-            label="Activity"
-            value={activity}
-            onChange={(v) => setActivity(v as Activity)}
-            allLabel="All activities"
-            options={activityOptions}
-          />
-        )}
-        {!currentExercise && showSubcategory && (
-          <SelectField label="Subcategory" value={subcategory} onChange={setSubcategory} allLabel="All subcategories" options={subcategoryOptions} />
-        )}
-        {batchOptions.length > 0 && (
-          <SelectField label="Batch" value={batch} onChange={setBatch} allLabel="All batches" options={batchOptions} />
-        )}
+        {/* Search first, then the narrowing filters. */}
         <label className="flex min-w-[220px] flex-1 flex-col gap-1">
           <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Search</span>
           <span className="relative">
@@ -403,6 +387,23 @@ export default function CourseReport() {
             )}
           </span>
         </label>
+        {/* One exercise is already open on E2, so only Batch and Search
+            apply there. */}
+        {!currentExercise && (
+          <SelectField
+            label="Activity"
+            value={activity}
+            onChange={(v) => setActivity(v as Activity)}
+            allLabel="All activities"
+            options={activityOptions}
+          />
+        )}
+        {!currentExercise && showSubcategory && (
+          <SelectField label="Subcategory" value={subcategory} onChange={setSubcategory} allLabel="All subcategories" options={subcategoryOptions} />
+        )}
+        {batchOptions.length > 0 && (
+          <SelectField label="Batch" value={batch} onChange={setBatch} allLabel="All batches" options={batchOptions} />
+        )}
       </div>
 
       {/* ── Body ── */}
