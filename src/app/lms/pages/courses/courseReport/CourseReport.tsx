@@ -10,8 +10,7 @@ import {
 } from "lucide-react";
 import { MappingMultiFilter } from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
 import {
-  NextStepGlow, REPORT_FIELD, REPORT_PRIMARY_BTN, ReportEmptyState, chipLabel,
-  useNextStepNudge, type ReportChip,
+  NextStepGlow, REPORT_FIELD, REPORT_PRIMARY_BTN, ReportEmptyState, useNextStepNudge,
 } from "@/app/lms/shared/report/reportKit";
 import { phaseOrdinal } from "@/lib/phaseGroups";
 import { PrintPreviewModal } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
@@ -330,7 +329,6 @@ export default function CourseReport() {
     () => (!applied ? [] : appliedBatches.length ? students.filter((s) => s.batchIds.some((id) => appliedBatches.includes(id))) : students),
     [applied, appliedBatches, students],
   );
-  const batchName = appliedBatches.map((id) => batchNameById.get(id)).filter(Boolean).join(", ");
 
   const setPick = (key: ChipKey, value: string[]) => setDraft((d) => ({ ...d, [key]: value }));
   const draftTouched = Object.values(draft).some((v) => v.length > 0);
@@ -347,19 +345,6 @@ export default function CourseReport() {
     nudge.clear();
   };
 
-  // "Showing:" — one chip per filter; × drops it and regenerates.
-  const optionLabels = (values: string[], options: { value: string; label: string }[]) =>
-    values.map((v) => options.find((o) => o.value === v)?.label || v);
-  const chips: ReportChip<ChipKey>[] = applied ? ([
-    ...(phaseOptions.length ? [{ key: "phases" as const, title: "Phase", all: "All phases", options: phaseOptions }] : []),
-    { key: "batches" as const, title: "Batch", all: "All batches", options: batchOptions },
-    { key: "activities" as const, title: "Activity", all: "All activities", options: (Object.keys(ACTIVITY_LABEL) as ActivityType[]).map((t) => ({ value: t, label: ACTIVITY_LABEL[t] })) },
-    ...(showSubcategory ? [{ key: "subcategories" as const, title: "Subcategory", all: "All subcategories", options: exercises.map((e) => ({ value: e.subcategoryKey, label: e.subcategory })) }] : []),
-    { key: "exerciseIds" as const, title: "Exercises", all: "All exercises", options: exercises.map((e) => ({ value: e.id, label: e.name })) },
-  ]).map((c) => {
-    const values = applied.draft[c.key];
-    return { key: c.key, title: c.title, label: chipLabel(optionLabels(values, c.options), values.length > 0, c.all), narrowed: values.length > 0 };
-  }) : [];
 
   /** The roster students an exercise is set for. */
   const rosterFor = useCallback(
@@ -397,25 +382,46 @@ export default function CourseReport() {
 
   // ── Print ──
   const { letterhead, initialFormat } = usePrintSetup();
-  // The full-width line under the title: what the sheet is about, then what
-  // it was narrowed by.
+  // The full-width line under the title, in plain words: what the sheet is
+  // about, then each filter by name —
+  //   "Phase: Phase III  |  Batch: Batch I  |  Activity: Assignment (We Do)"
+  // A filter left at "all" is not mentioned.
   const filterWords = (job: PrintJob) => {
-    const parts = [
-      // One exercise's sheet: only who it covers (phase / batch) applies.
-      ...chips
-        .filter((c) => c.narrowed && (!job.byExercise || c.key === "phases" || c.key === "batches"))
-        .map((c) => `${c.title}: ${c.label}`),
-      job.scopeNote,
-    ].filter(Boolean);
-    return [job.subject, parts.length ? `Filtered by  ·  ${parts.join("  ·  ")}` : ""].filter(Boolean).join("  ·  ");
+    const d = applied?.draft;
+    // Up to three picks by name, then a count.
+    const named = (values: string[], label: (v: string) => string, noun: string) =>
+      values.length > 3 ? `${values.length} ${noun}` : values.map(label).join(", ");
+    const batchText = (id: string) => {
+      const meta = batchMeta.get(id);
+      if (!meta) return batchNameById.get(id) || "Batch";
+      // The phase is already on the line when it was filtered on.
+      return meta.phase && !d?.phases.length ? `${meta.name} (${meta.phase})` : meta.name;
+    };
+    const parts: string[] = [];
+    if (d?.phases.length) parts.push(`Phase: ${d.phases.join(", ")}`);
+    if (d?.batches.length) parts.push(`Batch: ${named(d.batches, batchText, "batches")}`);
+    // One exercise's sheet: only who it covers (phase / batch) applies.
+    if (d && !job.byExercise) {
+      if (d.activities.length) parts.push(`Activity: ${d.activities.map((a) => ACTIVITY_LABEL[a as ActivityType] || a).join(", ")}`);
+      if (d.subcategories.length) {
+        parts.push(`Subcategory: ${named(d.subcategories, (k) => exercises.find((e) => e.subcategoryKey === k)?.subcategory || k, "subcategories")}`);
+      }
+      if (d.exerciseIds.length) {
+        parts.push(`Exercises: ${named(d.exerciseIds, (id) => exercises.find((e) => e.id === id)?.name || "Exercise", "exercises")}`);
+      }
+    }
+    if (job.scopeNote) parts.push(`Printed for: ${job.scopeNote}`);
+    return [job.subject, ...parts].filter(Boolean).join("   |   ");
   };
   const printMeta = useMemo(() => ({
     title: printJob?.title || "Course Report",
-    scope: [courseName, batchName || "All batches"].join(" · "),
+    // The course alone — the letterhead adds "· Generated …" after it, and
+    // the phase / batch picks are on the filter line.
+    scope: courseName,
     generated: new Date().toLocaleString(),
     filters: printJob ? filterWords(printJob) : "",
     ...letterhead,
-  }), [printJob, courseName, batchName, letterhead]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [printJob, courseName, letterhead, applied]); // eslint-disable-line react-hooks/exhaustive-deps
   const printSnapshot = useMemo(
     () => ({ draft: {}, rows: [] as ServiceMapping[], generated: printMeta.generated }),
     [printMeta.generated],
@@ -754,7 +760,7 @@ export default function CourseReport() {
             layout: "exercise-questions",
             blocks: exerciseBlocks("exercise-questions", exercise, [student], printSources),
             title: `${exercise.type} Report`,
-            subject: `Exercise: ${exercise.name}  ·  Student: ${student.name}`,
+            subject: `Exercise: ${exercise.name}   |   Student: ${student.name}`,
             byExercise: true,
             fileBase: `${courseName}-${exercise.name}-${student.name}`,
             scopeNote: "",
