@@ -10,7 +10,7 @@
 const PHASE_ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 }
 
 /** "Phase II" → 2, "Phase 3" → 3; anything else sorts after, in arrival order. */
-const phaseOrdinal = (name: string): number => {
+export const phaseOrdinal = (name: string): number => {
   const m = name.trim().toLowerCase().match(/(\d+|[ivx]+)$/)
   if (!m) return Infinity
   return /\d/.test(m[1]) ? Number(m[1]) : (PHASE_ROMAN[m[1]] ?? Infinity)

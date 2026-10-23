@@ -21,6 +21,7 @@ import {
 } from "./reportData";
 
 export type PrintLayout =
+  | "exercise-list"
   | "exercise-summary"
   | "exercise-questions"
   | "student-totals"
@@ -28,6 +29,7 @@ export type PrintLayout =
   | "student-questions";
 
 export const LAYOUT_LABEL: Record<PrintLayout, { label: string; hint: string }> = {
+  "exercise-list": { label: "Exercise list", hint: "One row per exercise, with how the students did" },
   "exercise-summary": { label: "Summary", hint: "One row per student" },
   "exercise-questions": { label: "With question details", hint: "Every question for each student" },
   "student-totals": { label: "Totals only", hint: "One row per student, all exercises summed" },
@@ -56,6 +58,21 @@ const QUESTION_FIELDS: FieldRow[] = [
 ];
 
 export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: Set<string> }> = {
+  "exercise-list": {
+    fields: [
+      { key: "exercise", label: "Exercise", required: true, scope: "client", column: "Exercise", dataKey: "client" },
+      { key: "type", label: "Type", scope: "client", column: "Type", dataKey: "business" },
+      { key: "subcategory", label: "Subcategory", scope: "client", column: "Subcategory", dataKey: "subcategory" },
+      { key: "location", label: "Module › Topic", scope: "client", column: "Module › Topic", dataKey: "location" },
+      { key: "dates", label: "Dates", scope: "client", column: "Dates", dataKey: "dates" },
+      { key: "questions", label: "Questions", scope: "service", column: "Questions", dataKey: "questions" },
+      { key: "totalMarks", label: "Total Marks", scope: "service", column: "Total Marks", dataKey: "totalMarks" },
+      { key: "attempted", label: "Attempted", scope: "service", column: "Attempted", dataKey: "attempted" },
+      { key: "completed", label: "Completed", scope: "service", column: "Completed", dataKey: "completed" },
+      { key: "avg", label: "Average %", scope: "service", column: "Avg %", dataKey: "avg" },
+    ],
+    defaults: new Set(["exercise", "type", "location", "questions", "totalMarks", "attempted", "completed", "avg"]),
+  },
   "exercise-summary": {
     fields: [
       ...STUDENT_FIELDS,
@@ -155,6 +172,29 @@ export interface PrintSources {
   totalsOf: (student: ReportStudent) => StudentTotals;
   /** Whether the exercise is set for the student's batch. */
   appliesTo: (exercise: ReportExercise, student: ReportStudent) => boolean;
+}
+
+/** By Exercise list: one line per exercise with the roster's figures. */
+export function exerciseListBlocks(
+  exercises: ReportExercise[],
+  tally: (exercise: ReportExercise) => { students: number; attempted: number; completed: number; avg: number | null },
+  dates: (exercise: ReportExercise) => string,
+): ReportClientBlock[] {
+  return exercises.map((ex) => {
+    const t = tally(ex);
+    return {
+      client: ex.name,
+      business: ex.type,
+      clientExtras: { subcategory: ex.subcategory || "—", location: ex.location || "—", dates: dates(ex) },
+      services: [{
+        questions: String(ex.questionCount),
+        totalMarks: String(round1(ex.totalMarks)),
+        attempted: `${t.attempted} / ${t.students}`,
+        completed: `${t.completed} / ${t.students}`,
+        avg: formatPercent(t.avg),
+      }],
+    };
+  });
 }
 
 /** By Exercise: the chosen students in ONE exercise. */

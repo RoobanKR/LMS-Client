@@ -99,20 +99,25 @@ export function SelectField({
 /** The Preview & Print button. With one layout it opens straight away; with
  *  several it asks which, since that choice decides the columns on the sheet. */
 export function PrintMenu({
-  layouts, onPick, scopeLabel, disabled,
+  layouts, onPick, scopeLabel, disabled, outline,
 }: {
   layouts: PrintLayout[];
   onPick: (layout: PrintLayout) => void;
   /** "All 32 students" / "3 selected" — what the printout will cover. */
   scopeLabel: string;
   disabled?: boolean;
+  /** Orange outline instead of solid — beside a solid Generate Report. */
+  outline?: boolean;
 }) {
   const button = (
     <button
       type="button"
       disabled={disabled}
       onClick={layouts.length === 1 ? () => onPick(layouts[0]) : undefined}
-      className="inline-flex h-9 items-center gap-1.5 rounded-control bg-brand-strong px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
+      title={disabled ? "Generate the report first" : undefined}
+      className={outline
+        ? "inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-brand-300 bg-surface px-3.5 text-xs font-semibold text-brand-strong transition-colors hover:border-brand-400 hover:bg-brand-wash disabled:cursor-not-allowed disabled:border-[#e2dbd3] disabled:text-faint"
+        : "inline-flex h-9 items-center gap-1.5 rounded-control bg-brand-strong px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"}
     >
       <Printer size={14} /> Preview &amp; Print
       {layouts.length > 1 && <ChevronDown size={13} />}

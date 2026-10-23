@@ -5,8 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, Eye, Loader2, Search, SearchX, UsersRound, X,
+  ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, Eye, FileText, Flag, Layers, Loader2, RotateCcw,
+  Search, SearchX, Tags, UsersRound, X,
 } from "lucide-react";
+import { MappingMultiFilter } from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
+import {
+  FilterLabel, NextStepGlow, REPORT_FIELD, REPORT_PRIMARY_BTN, ReportEmptyState, ReportShowingRow, chipLabel,
+  useNextStepNudge, type ReportChip,
+} from "@/app/lms/shared/report/reportKit";
+import { phaseOrdinal } from "@/lib/phaseGroups";
 import { PrintPreviewModal } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
 import type { ServiceMapping } from "@/app/lms/pages/servicemapping/api/serviceMappingService";
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
@@ -17,7 +24,7 @@ import {
 } from "./reportData";
 import { fetchReportPayload, liveBatches } from "./reportApi";
 import {
-  exerciseBlocks, LAYOUT_FIELDS, studentBlocks,
+  exerciseBlocks, exerciseListBlocks, LAYOUT_FIELDS, studentBlocks,
   type PrintLayout, type PrintSources,
 } from "./courseReportPrint";
 import { usePrintSetup } from "./usePrintSetup";
@@ -41,7 +48,18 @@ import {
 // Dashboard's own marks functions.
 
 type Tab = "exercise" | "student";
-type Activity = "" | ActivityType;
+
+// The report's picks. Like Business Reports, they are a draft until
+// Generate Report applies them; empty means "all".
+interface Draft {
+  phases: string[];
+  batches: string[];
+  activities: string[];
+  subcategories: string[];
+  exerciseIds: string[];
+}
+const EMPTY_DRAFT: Draft = { phases: [], batches: [], activities: [], subcategories: [], exerciseIds: [] };
+type ChipKey = keyof Draft;
 
 const ACTIVITY_LABEL: Record<ActivityType, string> = {
   Assignment: "Assignment (We Do)",
@@ -90,9 +108,12 @@ export default function CourseReport() {
   const [studentId, setStudentId] = useState(params.get("studentId") || "");
   const [drawer, setDrawer] = useState<{ exerciseId: string; studentId: string } | null>(null);
 
-  const [activity, setActivity] = useState<Activity>("");
-  const [subcategory, setSubcategory] = useState("");
-  const [batch, setBatch] = useState("");
+  // Nothing is listed until Generate Report. Opening a link straight to one
+  // exercise or student (a refresh on that screen) reports on everything.
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [applied, setApplied] = useState<{ draft: Draft; generated: string } | null>(() =>
+    params.get("exerciseId") || params.get("studentId") ? { draft: EMPTY_DRAFT, generated: new Date().toLocaleString() } : null);
+  const nudge = useNextStepNudge(draft);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -177,32 +198,73 @@ export default function CourseReport() {
       .map((b) => ({ value: String(b._id), label: batchLabel(b) || "Batch" }))
       .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   }, [courseData, students]);
-  const batchName = batchOptions.find((o) => o.value === batch)?.label || "";
   const batchNameById = useMemo(() => new Map(batchOptions.map((o) => [o.value, o.label])), [batchOptions]);
-  const inBatch = useCallback(
-    (ex: ReportExercise) => !batch || !ex.batchIds || ex.batchIds.has(batch),
-    [batch],
-  );
 
+  // ── Phases — "the students of Phase III": a batch belongs to its phase,
+  //    an exercise to its module's. A module saved before phases existed
+  //    ("") counts as the first phase, as the course sidebars show it. ──
+  const batchPhaseById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of liveBatches(courseData)) m.set(String(b._id), String(b.phase || "").trim());
+    return m;
+  }, [courseData]);
+  const phaseNames = useMemo(() => {
+    const names = new Set<string>([
+      ...((courseData?.phaseNames || []) as unknown[]).map((p) => String(p || "").trim()),
+      ...batchPhaseById.values(),
+      ...exercises.map((ex) => ex.phase),
+    ].filter(Boolean));
+    return [...names].sort((a, b) => phaseOrdinal(a) - phaseOrdinal(b) || a.localeCompare(b));
+  }, [courseData, batchPhaseById, exercises]);
+  const phaseOptions = useMemo(() => phaseNames.map((p) => ({ value: p, label: p })), [phaseNames]);
+  const phaseOfBatch = useCallback((id: string) => batchPhaseById.get(id) || phaseNames[0] || "", [batchPhaseById, phaseNames]);
+  const phaseOfExercise = useCallback((ex: ReportExercise) => ex.phase || phaseNames[0] || "", [phaseNames]);
+
+  /** The batches a set of picks covers; [] = every batch. */
+  const batchesFor = useCallback(
+    (d: Draft) => (d.batches.length
+      ? d.batches
+      : d.phases.length ? batchOptions.filter((b) => d.phases.includes(phaseOfBatch(b.value))).map((b) => b.value) : []),
+    [batchOptions, phaseOfBatch],
+  );
+  /** Phase + batch scope of an exercise. */
+  const inScope = useCallback((ex: ReportExercise, d: Draft) => {
+    const batches = batchesFor(d);
+    return (!d.phases.length || d.phases.includes(phaseOfExercise(ex)))
+      && (!batches.length || !ex.batchIds || batches.some((b) => ex.batchIds!.has(b)));
+  }, [batchesFor, phaseOfExercise]);
+
+  // Options for the filter menus, each narrowed by the other picks.
+  const draftBatchOptions = useMemo(
+    () => (draft.phases.length ? batchOptions.filter((b) => draft.phases.includes(phaseOfBatch(b.value))) : batchOptions),
+    [draft.phases, batchOptions, phaseOfBatch],
+  );
   const activityOptions = useMemo(() => {
-    const present = new Set(
-      exercises.filter((ex) => inBatch(ex) && (!subcategory || ex.subcategoryKey === subcategory)).map((ex) => ex.type),
-    );
+    const present = new Set(exercises
+      .filter((ex) => inScope(ex, draft) && (!draft.subcategories.length || draft.subcategories.includes(ex.subcategoryKey)))
+      .map((ex) => ex.type));
     return (Object.keys(ACTIVITY_LABEL) as ActivityType[])
       .filter((t) => present.has(t))
       .map((t) => ({ value: t, label: ACTIVITY_LABEL[t] }));
-  }, [exercises, inBatch, subcategory]);
-
+  }, [exercises, inScope, draft]);
   const subcategoryOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const ex of exercises) {
-      if (!inBatch(ex) || (activity && ex.type !== activity)) continue;
+      if (!inScope(ex, draft) || (draft.activities.length && !draft.activities.includes(ex.type))) continue;
       if (!seen.has(ex.subcategoryKey)) seen.set(ex.subcategoryKey, ex.subcategory);
     }
     return [...seen.entries()]
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [exercises, inBatch, activity]);
+  }, [exercises, inScope, draft]);
+  const exerciseOptions = useMemo(
+    () => exercises
+      .filter((ex) => inScope(ex, draft)
+        && (!draft.activities.length || draft.activities.includes(ex.type))
+        && (!draft.subcategories.length || draft.subcategories.includes(ex.subcategoryKey)))
+      .map((ex) => ({ value: ex.id, label: ex.name })),
+    [exercises, inScope, draft],
+  );
 
   // Subcategory only says something when an activity has more than one —
   // otherwise it repeats Type, so its filter and columns stay hidden.
@@ -215,25 +277,56 @@ export default function CourseReport() {
     return [...byType.values()].some((keys) => keys.size > 1);
   }, [exercises]);
 
-  // A pick the other filters no longer offer would filter everything out
-  // with nothing on screen explaining why.
-  useEffect(() => {
-    if (activity && !activityOptions.some((o) => o.value === activity)) setActivity("");
-  }, [activity, activityOptions]);
-  useEffect(() => {
-    if (subcategory && (!showSubcategory || !subcategoryOptions.some((o) => o.value === subcategory))) setSubcategory("");
-  }, [subcategory, subcategoryOptions, showSubcategory]);
-
-  const filteredExercises = useMemo(
-    () => exercises.filter((ex) => inBatch(ex)
-      && (!activity || ex.type === activity)
-      && (!subcategory || ex.subcategoryKey === subcategory)),
-    [exercises, inBatch, activity, subcategory],
-  );
+  // ── What was generated ──
+  const filteredExercises = useMemo(() => {
+    if (!applied) return [];
+    const d = applied.draft;
+    return exercises.filter((ex) => inScope(ex, d)
+      && (!d.activities.length || d.activities.includes(ex.type))
+      && (!d.subcategories.length || d.subcategories.includes(ex.subcategoryKey))
+      && (!d.exerciseIds.length || d.exerciseIds.includes(ex.id)));
+  }, [applied, exercises, inScope]);
+  const appliedBatches = useMemo(() => (applied ? batchesFor(applied.draft) : []), [applied, batchesFor]);
   const roster = useMemo(
-    () => students.filter((s) => !batch || s.batchIds.includes(batch)),
-    [students, batch],
+    () => (!applied ? [] : appliedBatches.length ? students.filter((s) => s.batchIds.some((id) => appliedBatches.includes(id))) : students),
+    [applied, appliedBatches, students],
   );
+  const batchName = appliedBatches.map((id) => batchNameById.get(id)).filter(Boolean).join(", ");
+
+  const setPick = (key: ChipKey, value: string[]) => setDraft((d) => ({ ...d, [key]: value }));
+  const draftTouched = Object.values(draft).some((v) => v.length > 0);
+  const generate = (from: Draft = draft) => {
+    setApplied({ draft: from, generated: new Date().toLocaleString() });
+    setSelected(new Set());
+    nudge.markGenerated(from);
+  };
+  const resetReport = () => {
+    setDraft(EMPTY_DRAFT);
+    setApplied(null);
+    setSearch("");
+    setSelected(new Set());
+    nudge.clear();
+  };
+
+  // "Showing:" — one chip per filter; × drops it and regenerates.
+  const optionLabels = (values: string[], options: { value: string; label: string }[]) =>
+    values.map((v) => options.find((o) => o.value === v)?.label || v);
+  const chips: ReportChip<ChipKey>[] = applied ? ([
+    ...(phaseOptions.length ? [{ key: "phases" as const, title: "Phase", all: "All phases", options: phaseOptions }] : []),
+    { key: "batches" as const, title: "Batch", all: "All batches", options: batchOptions },
+    { key: "activities" as const, title: "Activity", all: "All activities", options: (Object.keys(ACTIVITY_LABEL) as ActivityType[]).map((t) => ({ value: t, label: ACTIVITY_LABEL[t] })) },
+    ...(showSubcategory ? [{ key: "subcategories" as const, title: "Subcategory", all: "All subcategories", options: exercises.map((e) => ({ value: e.subcategoryKey, label: e.subcategory })) }] : []),
+    { key: "exerciseIds" as const, title: "Exercises", all: "All exercises", options: exercises.map((e) => ({ value: e.id, label: e.name })) },
+  ]).map((c) => {
+    const values = applied.draft[c.key];
+    return { key: c.key, title: c.title, label: chipLabel(optionLabels(values, c.options), values.length > 0, c.all), narrowed: values.length > 0 };
+  }) : [];
+  const removeChip = (key: ChipKey) => {
+    const next = { ...draft, [key]: [] };
+    setDraft(next);
+    generate(next);
+  };
+
   /** The roster students an exercise is set for. */
   const rosterFor = useCallback(
     (ex: ReportExercise) => roster.filter((s) => appliesTo(ex, s)),
@@ -265,9 +358,10 @@ export default function CourseReport() {
   // it was narrowed by.
   const filterWords = (job: PrintJob) => {
     const parts = [
-      !job.byExercise && activity && `Activity: ${ACTIVITY_LABEL[activity]}`,
-      !job.byExercise && subcategory && `Subcategory: ${subcategoryOptions.find((o) => o.value === subcategory)?.label || subcategory}`,
-      batchName && `Batch: ${batchName}`,
+      // One exercise's sheet: only who it covers (phase / batch) applies.
+      ...chips
+        .filter((c) => c.narrowed && (!job.byExercise || c.key === "phases" || c.key === "batches"))
+        .map((c) => `${c.title}: ${c.label}`),
       job.scopeNote,
     ].filter(Boolean);
     return [job.subject, parts.length ? `Filtered by  ·  ${parts.join("  ·  ")}` : ""].filter(Boolean).join("  ·  ");
@@ -291,6 +385,50 @@ export default function CourseReport() {
   const scopeNote = (count: number, total: number, noun: string) =>
     count && count < total ? `${count} selected ${noun}${count === 1 ? "" : "s"}` : "";
 
+  // Average over COMPLETED attempts only: a half-done attempt's percentage
+  // is not a result yet and would drag the figure down.
+  const tallies = (ex: ReportExercise) => {
+    let attempted = 0, completed = 0, pctSum = 0, pctN = 0;
+    const set = rosterFor(ex);
+    for (const s of set) {
+      const r = resultOf(ex.id, s.id);
+      if (r.status !== "not-started") attempted += 1;
+      if (r.status === "completed") {
+        completed += 1;
+        if (r.percent != null) { pctSum += r.percent; pctN += 1; }
+      }
+    }
+    return { students: set.length, attempted, completed, avg: pctN ? pctSum / pctN : null };
+  };
+  const visibleExercises = filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.subcategory));
+  const visibleStudents = roster.filter((s) => matches(q, s.name, s.regNo, s.email));
+  /** Preview & Print of the generated list (the action row's button). */
+  const printList = (layout: PrintLayout) => {
+    if (tab === "exercise") {
+      setPrintJob({
+        layout,
+        blocks: exerciseListBlocks(visibleExercises, tallies, (ex) =>
+          ex.startDate || ex.endDate ? `${formatDate(ex.startDate)} – ${formatDate(ex.endDate)}` : "—"),
+        title: "Exercise Report",
+        subject: "",
+        byExercise: false,
+        fileBase: `${courseName}-Exercise-Report`,
+        scopeNote: "",
+      });
+      return;
+    }
+    const chosen = pickedOr(visibleStudents);
+    setPrintJob({
+      layout,
+      blocks: studentBlocks(layout as "student-totals" | "student-exercises" | "student-questions", chosen, filteredExercises, printSources),
+      title: "Student Report",
+      subject: "",
+      byExercise: false,
+      fileBase: `${courseName}-Student-Report`,
+      scopeNote: scopeNote(chosen.length, visibleStudents.length, "student"),
+    });
+  };
+
   // ── Navigation ──
   const goBack = () => {
     if (tab === "exercise" && exerciseId) { setExerciseId(""); return; }
@@ -311,21 +449,6 @@ export default function CourseReport() {
     );
   }
 
-  // Average over COMPLETED attempts only: a half-done attempt's percentage
-  // is not a result yet and would drag the figure down.
-  const tallies = (ex: ReportExercise) => {
-    let attempted = 0, completed = 0, pctSum = 0, pctN = 0;
-    const set = rosterFor(ex);
-    for (const s of set) {
-      const r = resultOf(ex.id, s.id);
-      if (r.status !== "not-started") attempted += 1;
-      if (r.status === "completed") {
-        completed += 1;
-        if (r.percent != null) { pctSum += r.percent; pctN += 1; }
-      }
-    }
-    return { students: set.length, attempted, completed, avg: pctN ? pctSum / pctN : null };
-  };
   const batchesOf = (ex: ReportExercise) =>
     ex.batchIds && batchOptions.length > 1
       ? [...ex.batchIds].map((id) => batchNameById.get(id)).filter(Boolean).join(", ")
@@ -367,44 +490,130 @@ export default function CourseReport() {
         </div>
       </div>
 
-      {/* ── Filters ── */}
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hairline bg-surface px-3 py-2.5 shadow-xs">
-        {/* Search first, then the narrowing filters. */}
-        <label className="flex min-w-[220px] flex-1 flex-col gap-1">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Search</span>
-          <span className="relative">
-            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={tab === "exercise" && !currentExercise ? "Search exercises…" : currentStudent ? "Search exercises…" : "Search students…"}
-              className="h-9 w-full rounded-control border border-hairline-strong bg-surface pl-8 pr-8 text-xs text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
-            />
-            {search && (
-              <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-faint hover:text-heading">
-                <X size={14} />
-              </button>
+      {/* ── Filters ──
+           The lists (exercise list, student list): Search, then the report
+           filters, then Reset · Preview & Print · Generate Report — nothing
+           is listed until Generate. On one exercise or one student only
+           Search applies. */}
+      {currentExercise || currentStudent ? (
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hairline bg-surface px-3 py-2.5 shadow-xs">
+          <label className="flex min-w-[220px] flex-1 flex-col gap-1">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Search</span>
+            <span className="relative">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={currentStudent ? "Search exercises…" : "Search students…"}
+                className="h-9 w-full rounded-control border border-hairline-strong bg-surface pl-8 pr-8 text-xs text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+              />
+              {search && (
+                <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-faint hover:text-heading">
+                  <X size={14} />
+                </button>
+              )}
+            </span>
+          </label>
+        </div>
+      ) : (
+        <div className="shrink-0 rounded-xl border border-hairline bg-surface px-4 py-3 shadow-xs">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="sm:col-span-2 lg:col-span-3 xl:col-span-2">
+              <FilterLabel icon={Search} tone="text-subtle">Search</FilterLabel>
+              <span className="relative block">
+                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={tab === "exercise" ? "Search the exercises in the report…" : "Search the students in the report…"}
+                  className="h-9 w-full rounded-[10px] border border-[#e7ddd1] bg-surface pl-8 pr-8 text-xs text-body shadow-xs focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+                />
+                {search && (
+                  <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-faint hover:text-heading">
+                    <X size={14} />
+                  </button>
+                )}
+              </span>
+            </div>
+            {phaseOptions.length > 0 && (
+              <div className={REPORT_FIELD}>
+                <FilterLabel icon={Flag} tone="text-violet-500">Phase</FilterLabel>
+                <MappingMultiFilter label="Phases" options={phaseOptions} value={draft.phases} onChange={(v) => setPick("phases", v)} placeholder="All phases" />
+              </div>
             )}
-          </span>
-        </label>
-        {/* One exercise is already open on E2, so only Batch and Search
-            apply there. */}
-        {!currentExercise && (
-          <SelectField
-            label="Activity"
-            value={activity}
-            onChange={(v) => setActivity(v as Activity)}
-            allLabel="All activities"
-            options={activityOptions}
-          />
-        )}
-        {!currentExercise && showSubcategory && (
-          <SelectField label="Subcategory" value={subcategory} onChange={setSubcategory} allLabel="All subcategories" options={subcategoryOptions} />
-        )}
-        {batchOptions.length > 0 && (
-          <SelectField label="Batch" value={batch} onChange={setBatch} allLabel="All batches" options={batchOptions} />
-        )}
-      </div>
+            {batchOptions.length > 0 && (
+              <div className={REPORT_FIELD}>
+                <FilterLabel icon={UsersRound} tone="text-emerald-500">Batch</FilterLabel>
+                <MappingMultiFilter
+                  label="Batches"
+                  options={draftBatchOptions}
+                  value={draft.batches.filter((b) => draftBatchOptions.some((o) => o.value === b))}
+                  onChange={(v) => setPick("batches", v)}
+                  placeholder="All batches"
+                  emptyLabel="No batches in the selected phases"
+                />
+              </div>
+            )}
+            <div className={REPORT_FIELD}>
+              <FilterLabel icon={Layers} tone="text-brand-500">Activity</FilterLabel>
+              <MappingMultiFilter label="Activities" options={activityOptions} value={draft.activities} onChange={(v) => setPick("activities", v)} placeholder="All activities" />
+            </div>
+            {showSubcategory && (
+              <div className={REPORT_FIELD}>
+                <FilterLabel icon={Tags} tone="text-brand-500">Subcategory</FilterLabel>
+                <MappingMultiFilter label="Subcategories" options={subcategoryOptions} value={draft.subcategories} onChange={(v) => setPick("subcategories", v)} placeholder="All subcategories" />
+              </div>
+            )}
+            <div className={REPORT_FIELD}>
+              <FilterLabel icon={ClipboardList} tone="text-sky-500">Exercises</FilterLabel>
+              <MappingMultiFilter
+                label="Exercises"
+                options={exerciseOptions}
+                value={draft.exerciseIds.filter((id) => exerciseOptions.some((o) => o.value === id))}
+                onChange={(v) => setPick("exerciseIds", v)}
+                placeholder="All exercises"
+                emptyLabel="No exercises for these filters"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[#ece3d8] pt-3">
+            <p className="text-2xs text-subtle">
+              {tab === "exercise"
+                ? "Lists every exercise in scope, with how many students attempted and completed it."
+                : "Lists every student in scope, with their totals across the chosen exercises — tick students to print only them."}
+            </p>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={resetReport}
+                disabled={!draftTouched && !applied}
+                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-[#e2dbd3] bg-surface px-3.5 text-xs font-medium text-body transition-colors hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw size={14} className="text-subtle" /> Reset
+              </button>
+              <NextStepGlow active={nudge.isFresh && !nudge.seen}>
+                <PrintMenu
+                  outline
+                  layouts={tab === "exercise" ? ["exercise-list"] : ["student-totals", "student-exercises", "student-questions"]}
+                  scopeLabel={tab === "exercise"
+                    ? `${visibleExercises.length} exercise${visibleExercises.length === 1 ? "" : "s"}`
+                    : selected.size ? `${pickedOr(visibleStudents).length} selected` : `all ${visibleStudents.length}`}
+                  disabled={!applied || (tab === "exercise" ? !visibleExercises.length : !visibleStudents.length)}
+                  onPick={(layout) => { nudge.markSeen(); printList(layout); }}
+                />
+              </NextStepGlow>
+              <button type="button" className={REPORT_PRIMARY_BTN} onClick={() => generate()} disabled={isLoading || !courseData}>
+                <FileText className="size-4" strokeWidth={2.25} /> Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {applied && !currentExercise && !currentStudent && (
+        <ReportShowingRow chips={chips} onRemove={removeChip} loading={false} />
+      )}
 
       {/* ── Body ── */}
       {isLoading ? (
@@ -413,9 +622,11 @@ export default function CourseReport() {
         </div>
       ) : isError || !courseData ? (
         <Centered icon={<SearchX size={20} />} title="Couldn't load this course" body="Check the connection and reload the page." />
+      ) : !applied && !currentExercise && !currentStudent ? (
+        <ReportEmptyState />
       ) : tab === "exercise" && !currentExercise ? (
         <ExerciseList
-          rows={filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.subcategory))}
+          rows={visibleExercises}
           tallies={tallies}
           batchesOf={batchesOf}
           showSubcategory={showSubcategory}
@@ -447,7 +658,7 @@ export default function CourseReport() {
         />
       ) : tab === "student" && !currentStudent ? (
         <StudentList
-          rows={roster.filter((s) => matches(q, s.name, s.regNo, s.email))}
+          rows={visibleStudents}
           batchOptions={batchOptions}
           totalsOf={totalsOf}
           exerciseCount={filteredExercises.length}
@@ -836,12 +1047,6 @@ function StudentList({
                 {allCollapsed ? "Expand all" : "Collapse all"}
               </button>
             )}
-            <PrintMenu
-              layouts={["student-totals", "student-exercises", "student-questions"]}
-              scopeLabel={sel.picked ? `${sel.picked} selected` : `all ${rows.length}`}
-              disabled={rows.length === 0}
-              onPick={(layout) => onPrint(layout, rows)}
-            />
           </div>
         </>
       )}

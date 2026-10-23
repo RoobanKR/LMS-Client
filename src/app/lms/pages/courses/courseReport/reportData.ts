@@ -40,6 +40,9 @@ export interface ReportExercise {
   /** "Coding Test" — the key made readable. */
   subcategory: string;
   module: string;
+  /** The module's phase name ("Phase III"); "" for a module saved before
+   *  phases existed, which the report counts as the first phase. */
+  phase: string;
   subModule: string;
   topic: string;
   subTopic: string;
@@ -192,7 +195,7 @@ const miniCourseFor = (section: Section, exercise: Loose): Loose => ({
 
 // ─── Exercises ──────────────────────────────────────────────────────────────
 
-type Place = { module: string; subModule: string; topic: string; subTopic: string };
+type Place = { module: string; phase: string; subModule: string; topic: string; subTopic: string };
 
 /** Every We Do / You Do exercise in the course, in syllabus order, as the
  *  batches see them. `views` is one course payload per batch (or a single
@@ -284,20 +287,21 @@ function collectView(view: ExerciseView, viewIdx: number, byId: Map<string, Repo
 
   for (const mod of courseData.modules as Loose[]) {
     const module = text(mod?.title);
-    take(mod?.pedagogy, { module, subModule: "", topic: "", subTopic: "" });
+    const phase = text(mod?.phase);
+    take(mod?.pedagogy, { module, phase, subModule: "", topic: "", subTopic: "" });
     const topicsUnder = (topics: Loose[] | undefined, subModule: string) => {
       for (const topic of topics || []) {
         const topicName = text(topic?.title);
-        take(topic?.pedagogy, { module, subModule, topic: topicName, subTopic: "" });
+        take(topic?.pedagogy, { module, phase, subModule, topic: topicName, subTopic: "" });
         for (const st of topic?.subTopics || []) {
-          take(st?.pedagogy, { module, subModule, topic: topicName, subTopic: text(st?.title) });
+          take(st?.pedagogy, { module, phase, subModule, topic: topicName, subTopic: text(st?.title) });
         }
       }
     };
     topicsUnder(mod?.topics, "");
     for (const sub of mod?.subModules || []) {
       const subModule = text(sub?.title);
-      take(sub?.pedagogy, { module, subModule, topic: "", subTopic: "" });
+      take(sub?.pedagogy, { module, phase, subModule, topic: "", subTopic: "" });
       topicsUnder(sub?.topics, subModule);
     }
   }
