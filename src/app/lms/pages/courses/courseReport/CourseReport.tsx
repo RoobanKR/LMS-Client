@@ -27,6 +27,7 @@ import {
   type PrintLayout, type PrintSources, type StudentLine,
 } from "./courseReportPrint";
 import { usePrintSetup } from "./usePrintSetup";
+import { exportExerciseWorkbook, exportTotalsWorkbook, type CourseExcelBase } from "./courseReportExcel";
 import {
   Checkbox, Dash, PrintMenu, QuestionTable, SelectField, Stat, StatusChip, TD, TD_NUM, TH, TypeChip,
 } from "./ReportUi";
@@ -72,6 +73,9 @@ const EMPTY_RESULT: StudentResult = {
 interface PrintJob {
   layout: PrintLayout;
   blocks: ReportClientBlock[];
+  /** The laid-out workbook for Excel (courseReportExcel.ts); without it the
+   *  modal writes its flat table. */
+  excel?: (filename: string) => Promise<void>;
   /** Short on purpose — the default letterhead sets the title beside the
    *  scope line, so a long one runs into it. What the sheet is about goes
    *  in `subject`, which prints on the full-width line below. */
@@ -118,6 +122,12 @@ function studentLines(
   }
   return out;
 }
+
+/** A user's role words, whatever shape the role was saved in. */
+const roleWords = (user: Record<string, any>): string =>
+  typeof user?.role === "string"
+    ? user.role
+    : [user?.role?.originalRole, user?.role?.renameRole, user?.role?.roleValue, user?.role?.roleName].filter(Boolean).join(" ");
 
 const matches = (q: string, ...fields: (string | undefined)[]) =>
   !q || fields.some((f) => (f || "").toLowerCase().includes(q));
@@ -250,10 +260,15 @@ export default function CourseReport() {
   const phaseOfExercise = useCallback((ex: ReportExercise) => ex.phase || phaseNames[0] || "", [phaseNames]);
   /** Each batch's phase and its own name, for the student list's columns. */
   const batchMeta = useMemo(() => {
-    const m = new Map<string, { phase: string; name: string }>();
+    const m = new Map<string, { phase: string; name: string; trainers: string[] }>();
     for (const b of liveBatches(courseData)) {
       const id = String(b._id);
-      m.set(id, { phase: phaseOfBatch(id), name: String(b.batchName || "").trim() || batchLabel(b) || "Batch" });
+      const trainers = ((b.users || []) as Record<string, any>[])
+        .map((p) => p?.user)
+        .filter((u) => u && typeof u === "object" && /trainer/i.test(roleWords(u)))
+        .map((u) => [u.firstName, u.lastName].filter(Boolean).join(" ").trim())
+        .filter(Boolean);
+      m.set(id, { phase: phaseOfBatch(id), name: String(b.batchName || "").trim() || batchLabel(b) || "Batch", trainers });
     }
     return m;
   }, [courseData, phaseOfBatch]);
@@ -358,7 +373,7 @@ export default function CourseReport() {
   );
 
   const placeOf = useCallback((st: ReportStudent) => {
-    const metas = st.batchIds.map((id) => batchMeta.get(id)).filter((m): m is { phase: string; name: string } => Boolean(m));
+    const metas = st.batchIds.map((id) => batchMeta.get(id)).filter((m): m is NonNullable<typeof m> => Boolean(m));
     return {
       phase: [...new Set(metas.map((m) => m.phase).filter(Boolean))].join(", "),
       batch: [...new Set(metas.map((m) => m.name).filter(Boolean))].join(", ") || st.batch,
@@ -449,6 +464,24 @@ export default function CourseReport() {
     }
     return { students: set.length, attempted, completed, avg: pctN ? pctSum / pctN : null };
   };
+  // ── Excel — the laid-out workbook ──
+  // Title band: the client and, for a degree programme, its degree ("STC -
+  // B.Sc"); otherwise the course.
+  const excelTitle = (() => {
+    const client = String(courseData?.clientName || "").trim();
+    const degree = courseData?.studentType === "degree-program" ? String(courseData?.degree || "").trim() : "";
+    return [client, degree].filter(Boolean).join(" - ") || courseName;
+  })();
+  const excelBase = (filename: string): CourseExcelBase => ({
+    title: excelTitle,
+    courseName,
+    showPhase: phaseNames.length > 0,
+    batchInfo: (id) => batchMeta.get(id),
+    phoneOf: (st) => String(st.participant?.user?.phone || "").trim(),
+    filename,
+  });
+  const linesOf = (list: ReportStudent[]) => studentLines(list, batchOptions, batchMeta);
+
   const visibleExercises = filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.subcategory));
   const visibleStudents = roster.filter((s) => matches(q, s.name, s.regNo, s.email));
   /** Preview & Print of the generated list (the action row's button). */
@@ -472,6 +505,15 @@ export default function CourseReport() {
       blocks: layout === "student-totals"
         ? studentTotalsBlocks(studentLines(chosen, batchOptions, batchMeta), printSources, phaseNames.length > 0)
         : studentBlocks(layout as "student-exercises" | "student-questions", chosen, filteredExercises, printSources),
+      excel: layout === "student-totals"
+        ? (filename) => exportTotalsWorkbook({ ...excelBase(filename), lines: linesOf(chosen), totalsOf, exerciseCount: filteredExercises.length })
+        : (filename) => exportExerciseWorkbook({
+          ...excelBase(filename),
+          exercises: filteredExercises,
+          linesFor: (ex) => linesOf(chosen.filter((st) => appliesTo(ex, st))),
+          resultOf,
+          questionsOf: layout === "student-questions" ? questionsOf : undefined,
+        }),
       title: "Student Report",
       subject: "",
       byExercise: false,
@@ -702,6 +744,13 @@ export default function CourseReport() {
             setPrintJob({
               layout,
               blocks: exerciseBlocks(layout as "exercise-summary" | "exercise-questions", currentExercise, chosen, printSources),
+              excel: (filename) => exportExerciseWorkbook({
+                ...excelBase(filename),
+                exercises: [currentExercise],
+                linesFor: () => linesOf(chosen),
+                resultOf,
+                questionsOf: layout === "exercise-questions" ? questionsOf : undefined,
+              }),
               title: `${currentExercise.type} Report`,
               subject: `Exercise: ${currentExercise.name}`,
               byExercise: true,
@@ -735,6 +784,13 @@ export default function CourseReport() {
           onPrint={(layout) => setPrintJob({
             layout,
             blocks: studentBlocks(layout as "student-exercises" | "student-questions", [currentStudent], filteredExercises, printSources),
+            excel: (filename) => exportExerciseWorkbook({
+              ...excelBase(filename),
+              exercises: filteredExercises.filter((ex) => appliesTo(ex, currentStudent)),
+              linesFor: () => linesOf([currentStudent]),
+              resultOf,
+              questionsOf: layout === "student-questions" ? questionsOf : undefined,
+            }),
             title: "Student Report",
             subject: `Student: ${currentStudent.name}${currentStudent.regNo ? ` (${currentStudent.regNo})` : ""}`,
             byExercise: false,
@@ -759,6 +815,13 @@ export default function CourseReport() {
           setPrintJob({
             layout: "exercise-questions",
             blocks: exerciseBlocks("exercise-questions", exercise, [student], printSources),
+            excel: (filename) => exportExerciseWorkbook({
+              ...excelBase(filename),
+              exercises: [exercise],
+              linesFor: () => linesOf([student]),
+              resultOf,
+              questionsOf,
+            }),
             title: `${exercise.type} Report`,
             subject: `Exercise: ${exercise.name}   |   Student: ${student.name}`,
             byExercise: true,
@@ -787,6 +850,8 @@ export default function CourseReport() {
         noFillerRows
         // The totals sheet merges Phase / Batch but numbers every student.
         serialPerRow={printJob?.layout === "student-totals"}
+        // Student sheets download as the laid-out workbook.
+        exportExcel={printJob?.excel ? (_table, _meta, filename) => printJob.excel!(filename) : undefined}
       />
     </div>
   );
@@ -1013,8 +1078,8 @@ function ExerciseResults({
               <th className={TH}>Status</th>
               <th className={`${TH} text-right`}>Attempted</th>
               <th className={`${TH} text-right`}>Marks</th>
-              <th className={`${TH} text-right`}>%</th>
-              <th className={TH}>Scale</th>
+              <th className={`${TH} text-right`}>Marks (100)</th>
+              <th className={TH}>Performance Level</th>
               <th className={`${TH} text-right`}>Action</th>
             </tr>
           </thead>
@@ -1125,7 +1190,7 @@ function StudentList({
             <th className={`${TH} text-right`}>Assessments</th>
             <th className={`${TH} text-right`}>Marks</th>
             <th className={`${TH} text-right`}>Overall %</th>
-            <th className={TH}>Scale</th>
+            <th className={TH}>Performance Level</th>
             <th className={`${TH} text-right`}>Action</th>
           </tr>
         </thead>
@@ -1209,7 +1274,7 @@ function StudentResults({
           <Stat label="Assessments" value={`${totals.assessmentsDone} / ${totals.assessmentsTotal}`} />
           <Stat label="Marks" value={`${round1(totals.scored)} / ${round1(totals.total)}`} />
           <Stat label="Overall" value={formatPercent(totals.percent)} tone="text-brand-strong" />
-          <Stat label="Scale" value={totals.scale || "—"} />
+          <Stat label="Performance Level" value={totals.scale || "—"} />
         </div>
         {totals.open > 0 && (
           <p className="mt-2 text-2xs text-faint">
@@ -1249,8 +1314,8 @@ function StudentResults({
               <th className={TH}>Status</th>
               <th className={`${TH} text-right`}>Attempted</th>
               <th className={`${TH} text-right`}>Marks</th>
-              <th className={`${TH} text-right`}>%</th>
-              <th className={TH}>Scale</th>
+              <th className={`${TH} text-right`}>Marks (100)</th>
+              <th className={TH}>Performance Level</th>
             </tr>
           </thead>
           <tbody>
@@ -1350,7 +1415,7 @@ function StudentDrawer({
               <Stat label="Attempted" value={`${r.attempted} / ${r.totalQuestions}`} />
               <Stat label="Marks" value={formatMarks(r.scored, r.total, r.status !== "not-started")} />
               <Stat label="Percentage" value={formatPercent(r.percent)} tone="text-brand-strong" />
-              <Stat label="Scale" value={r.scale || "—"} />
+              <Stat label="Performance Level" value={r.scale || "—"} />
             </div>
             <div className="min-h-0 flex-1 overflow-auto px-4 pb-4 sm:px-5">
               <QuestionTable rows={questionsOf(exercise, student)} />
