@@ -4,6 +4,7 @@
 // course hierarchy ALONE + identity foot with the account menu. Deliberately NOT the
 // shared StudentSidebar: no Dashboard/Courses/Notifications nav rows, just the tree.
 
+import { CourseRailHeader } from "@/app/lms/shared/ui/CourseRailHeader"
 import React, { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Search, ChevronDown, LogOut, BookOpen, Layers, UserRound, Undo2, ArrowLeft } from "lucide-react"
@@ -110,58 +111,17 @@ export const CourseSidebar: React.FC<CourseSidebarProps> = ({
     // (floating-workspace language); the mobile drawer's own white wrapper
     // still provides a solid surface there.
     <div className="h-full w-full flex flex-col bg-transparent overflow-hidden" style={{ fontFamily: FONT }}>
-      {/* Course card — raised white block on the gray rail, like every shell.
-          Leads with the course (icon + name + module count), matching the
-          upload-resources sidebar, not the app brand. The chevron collapses
-          the rail (same control as the L&D brand card). */}
-      {/* pt-4 = 16px — sits close to the top of the rail with just a
-          little breathing room. */}
-      <div className="flex-shrink-0 px-3 pt-4 pb-1.5">
-        <div className="flex items-center gap-2.5 rounded-[14px] border border-[#E4E7EC] bg-white px-3 py-2 shadow-[0_1px_2px_rgba(16,24,40,.04)]">
-          <div
-            className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center flex-shrink-0 shadow-sm"
-            style={{ background: `linear-gradient(135deg, ${ACCENT}, #FB923C)` }}
-          >
-            <BookOpen className="w-4 h-4 text-white" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-bold tracking-tight text-gray-900 truncate leading-tight m-0">
-              {courseName || "Course"}
-            </p>
-            <div className="flex items-center gap-1 mt-0.5">
-              <Layers className="w-2.5 h-2.5 text-gray-400 flex-shrink-0" strokeWidth={2} />
-              <span className="text-[11px] font-medium text-gray-400 truncate">
-                {moduleCount} module{moduleCount !== 1 ? "s" : ""}
-              </span>
-            </div>
-          </div>
-          {/* Back to the course list — "My Courses" for a student, the
-              course list for staff (one route, role-aware), like the
-              trainer sidebar's back arrow. */}
-          <button
-            type="button"
-            onClick={() => router.push("/lms/pages/courses")}
-            aria-label="Back to courses"
-            title="Back to courses"
-            className="ml-auto inline-grid place-items-center w-6 h-6 rounded-[7px] flex-shrink-0 text-gray-400 hover:bg-[#E9EBF0] hover:text-gray-600 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden />
-          </button>
-          {onCollapse && (
-            <button
-              type="button"
-              onClick={onCollapse}
-              aria-label="Collapse navigation"
-              title="Collapse sidebar"
-              className="inline-grid place-items-center w-6 h-6 rounded-[7px] flex-shrink-0 text-gray-400 hover:bg-[#E9EBF0] hover:text-gray-600 transition-colors"
-            >
-              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M15 6l-6 6 6 6" />
-              </svg>
-            </button>
-          )}
-        </div>
-      </div>
+      {/* "← All courses" on its own row, then the course card with the
+          collapse button — Back and Collapse kept apart (shared with the
+          trainer's Upload Resources rail). Back goes to "My Courses" for a
+          student, the course list for staff (one route, role-aware). */}
+      <CourseRailHeader
+        courseName={courseName || "Course"}
+        moduleCount={moduleCount}
+        onBack={() => router.push("/lms/pages/courses")}
+        backTitle="Back to all courses"
+        onCollapse={onCollapse}
+      />
 
       {/* Menu search — filters the hierarchy */}
       <div className="px-4 pb-2 flex-shrink-0">

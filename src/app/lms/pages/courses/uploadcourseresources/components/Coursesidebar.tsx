@@ -17,6 +17,7 @@ import {
   Search,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { CourseRailHeader } from "@/app/lms/shared/ui/CourseRailHeader";
 import { getToken, clearAllStorage } from "@/lib/session";
 import { postLogout } from "@/app/lms/pages/logs/api/activityLog";
 import { logoutUser } from "@/apiServices/tokenVerify";
@@ -652,66 +653,15 @@ export const CourseSidebar: React.FC<Props> = ({
     >
       <FontImport />
 
-      {/* ── Header — raised white course card on the gray rail ── */}
-      <div style={{ padding: "12px 12px 6px", flexShrink: 0 }}>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10,
-          background: T.surface,
-          border: "1px solid #E4E7EC",
-          borderRadius: 14,
-          boxShadow: "0 1px 2px rgba(16,24,40,.04)",
-          padding: "10px 10px",
-        }}>
-
-          {/* Course icon */}
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: T.accGrad,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <BookOpen size={15} strokeWidth={2} color="#fff" />
-          </div>
-
-          {/* Course name + module count */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontFamily: T.font, fontSize: 14, fontWeight: 700,
-              color: T.text,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              lineHeight: 1.25,
-            }}>
-              {courseName || "Course"}
-            </div>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 4, marginTop: 3,
-            }}>
-              <Layers size={10} color={T.textFaint} strokeWidth={2} />
-              <span style={{
-                fontFamily: T.font, fontSize: 11, fontWeight: 500,
-                color: T.textFaint,
-              }}>
-                {moduleCount} modules
-              </span>
-            </div>
-          </div>
-
-          {/* Back + collapse buttons */}
-          <div style={{ display: "flex", gap: 4 }}>
-            <IconBtn
-              onClick={() => router.push(back.href)}
-              title={back.title}
-            >
-              <ArrowLeft size={12} strokeWidth={2} />
-            </IconBtn>
-            <IconBtn
-              onClick={() => onSidebarWidthChange(COLLAPSED_W)}
-              title="Collapse sidebar"
-            >
-              <ChevronLeft size={12} strokeWidth={2} />
-            </IconBtn>
-          </div>
-        </div>
-      </div>
+      {/* ── Header — "← All courses" on its own row, then the course card
+          with the collapse button (Back and Collapse kept apart). ── */}
+      <CourseRailHeader
+        courseName={courseName || "Course"}
+        moduleCount={moduleCount}
+        onBack={() => router.push(back.href)}
+        backTitle={back.title}
+        onCollapse={() => onSidebarWidthChange(COLLAPSED_W)}
+      />
 
       {/* Search box and Expand/Collapse chips were removed by request — the
           tree is compact enough to browse directly, and collapse lives on the
