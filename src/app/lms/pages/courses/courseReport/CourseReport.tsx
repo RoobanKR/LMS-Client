@@ -24,8 +24,8 @@ import {
 } from "./reportData";
 import { fetchReportPayload, liveBatches } from "./reportApi";
 import {
-  exerciseBlocks, exerciseListBlocks, LAYOUT_FIELDS, studentBlocks,
-  type PrintLayout, type PrintSources,
+  exerciseBlocks, exerciseListBlocks, LAYOUT_FIELDS, studentBlocks, studentTotalsBlocks,
+  type PrintLayout, type PrintSources, type StudentLine,
 } from "./courseReportPrint";
 import { usePrintSetup } from "./usePrintSetup";
 import {
@@ -88,6 +88,36 @@ interface PrintJob {
    *  lower layer than the drawer, so the drawer steps aside while it is open
    *  and comes back when it closes. */
   reopenDrawer?: { exerciseId: string; studentId: string };
+}
+
+/** The student list's lines: one per student per batch, ordered phase →
+ *  batch → name. A student in two batches is listed under each; one with no
+ *  batch comes last. The screen and the printout both read this. */
+function studentLines(
+  rows: ReportStudent[],
+  batchOptions: { value: string; label: string }[],
+  batchMeta: Map<string, { phase: string; name: string }>,
+): StudentLine[] {
+  const metaOf = (id: string) => batchMeta.get(id);
+  const order = [...batchOptions].sort((a, b) => {
+    const pa = metaOf(a.value)?.phase || "";
+    const pb = metaOf(b.value)?.phase || "";
+    return phaseOrdinal(pa) - phaseOrdinal(pb) || pa.localeCompare(pb)
+      || (metaOf(a.value)?.name || a.label).localeCompare(metaOf(b.value)?.name || b.label, undefined, { numeric: true });
+  });
+  const byName = (x: ReportStudent, y: ReportStudent) => x.name.localeCompare(y.name);
+  const out: StudentLine[] = [];
+  for (const b of order) {
+    const meta = metaOf(b.value);
+    for (const st of rows.filter((r) => r.batchIds.includes(b.value)).sort(byName)) {
+      out.push({ student: st, phase: meta?.phase || "", batchId: b.value, batch: meta?.name || b.label });
+    }
+  }
+  const known = new Set(batchOptions.map((b) => b.value));
+  for (const st of rows.filter((r) => !r.batchIds.some((id) => known.has(id))).sort(byName)) {
+    out.push({ student: st, phase: "", batchId: "", batch: "" });
+  }
+  return out;
 }
 
 const matches = (q: string, ...fields: (string | undefined)[]) =>
@@ -347,15 +377,24 @@ export default function CourseReport() {
     [filteredExercises, results],
   );
 
+  const placeOf = useCallback((st: ReportStudent) => {
+    const metas = st.batchIds.map((id) => batchMeta.get(id)).filter((m): m is { phase: string; name: string } => Boolean(m));
+    return {
+      phase: [...new Set(metas.map((m) => m.phase).filter(Boolean))].join(", "),
+      batch: [...new Set(metas.map((m) => m.name).filter(Boolean))].join(", ") || st.batch,
+    };
+  }, [batchMeta]);
   const printSources: PrintSources = useMemo(
-    () => ({ resultOf, questionsOf, totalsOf, appliesTo }),
-    [resultOf, questionsOf, totalsOf],
+    () => ({ placeOf, resultOf, questionsOf, totalsOf, appliesTo }),
+    [placeOf, resultOf, questionsOf, totalsOf],
   );
   const printFields = useMemo(() => {
     if (!printJob) return undefined;
     const { fields } = LAYOUT_FIELDS[printJob.layout];
-    return showSubcategory ? fields : fields.filter((f) => f.key !== "subcategory");
-  }, [printJob, showSubcategory]);
+    // No subcategory column when it would only repeat Type; no Phase column
+    // for a course that does not run in phases.
+    return fields.filter((f) => (showSubcategory || f.key !== "subcategory") && (phaseNames.length > 0 || f.key !== "phase"));
+  }, [printJob, showSubcategory, phaseNames]);
 
   const q = search.trim().toLowerCase();
   const currentExercise = tab === "exercise" && exerciseId ? exercises.find((e) => e.id === exerciseId) || null : null;
@@ -429,7 +468,9 @@ export default function CourseReport() {
     const chosen = pickedOr(visibleStudents);
     setPrintJob({
       layout,
-      blocks: studentBlocks(layout as "student-totals" | "student-exercises" | "student-questions", chosen, filteredExercises, printSources),
+      blocks: layout === "student-totals"
+        ? studentTotalsBlocks(studentLines(chosen, batchOptions, batchMeta), printSources, phaseNames.length > 0)
+        : studentBlocks(layout as "student-exercises" | "student-questions", chosen, filteredExercises, printSources),
       title: "Student Report",
       subject: "",
       byExercise: false,
@@ -681,18 +722,6 @@ export default function CourseReport() {
           selected={selected}
           setSelected={setSelected}
           onView={(id) => setStudentId(id)}
-          onPrint={(layout, visible) => {
-            const chosen = pickedOr(visible);
-            setPrintJob({
-              layout,
-              blocks: studentBlocks(layout as "student-totals" | "student-exercises" | "student-questions", chosen, filteredExercises, printSources),
-              title: "Student Report",
-              subject: "",
-              byExercise: false,
-              fileBase: `${courseName}-Student-Report`,
-              scopeNote: scopeNote(chosen.length, visible.length, "student"),
-            });
-          }}
         />
       ) : currentStudent ? (
         <StudentResults
@@ -757,6 +786,8 @@ export default function CourseReport() {
         filenameBase={printJob ? `${fileSafe(printJob.fileBase)}-${new Date().toISOString().slice(0, 10)}` : undefined}
         keepBlocksTogether
         noFillerRows
+        // The totals sheet merges Phase / Batch but numbers every student.
+        serialPerRow={printJob?.layout === "student-totals"}
       />
     </div>
   );
@@ -1033,34 +1064,13 @@ function StudentList({
   selected: Set<string>;
   setSelected: (s: Set<string>) => void;
   onView: (id: string) => void;
-  onPrint: (layout: PrintLayout, visible: ReportStudent[]) => void;
 }) {
   const sel = useSelection(rows, selected, setSelected);
 
-  // One line per student per batch, ordered phase → batch → name. A student
-  // in two batches is listed under each; one with no batch comes last.
-  const lines = useMemo(() => {
-    const metaOf = (id: string) => batchMeta.get(id);
-    const order = [...batchOptions].sort((a, b) => {
-      const pa = metaOf(a.value)?.phase || "";
-      const pb = metaOf(b.value)?.phase || "";
-      return phaseOrdinal(pa) - phaseOrdinal(pb) || pa.localeCompare(pb)
-        || (metaOf(a.value)?.name || a.label).localeCompare(metaOf(b.value)?.name || b.label, undefined, { numeric: true });
-    });
-    const byName = (x: ReportStudent, y: ReportStudent) => x.name.localeCompare(y.name);
-    const out: { key: string; student: ReportStudent; phase: string; batchId: string; batch: string }[] = [];
-    for (const b of order) {
-      const meta = metaOf(b.value);
-      for (const st of rows.filter((r) => r.batchIds.includes(b.value)).sort(byName)) {
-        out.push({ key: `${b.value}|${st.id}`, student: st, phase: meta?.phase || "", batchId: b.value, batch: meta?.name || b.label });
-      }
-    }
-    const known = new Set(batchOptions.map((b) => b.value));
-    for (const st of rows.filter((r) => !r.batchIds.some((id) => known.has(id))).sort(byName)) {
-      out.push({ key: `none|${st.id}`, student: st, phase: "", batchId: "", batch: "" });
-    }
-    return out;
-  }, [rows, batchOptions, batchMeta]);
+  const lines = useMemo(
+    () => studentLines(rows, batchOptions, batchMeta).map((l) => ({ ...l, key: `${l.batchId || "none"}|${l.student.id}` })),
+    [rows, batchOptions, batchMeta],
+  );
 
   // The same phase (or batch) on consecutive lines is written once, in one
   // cell merged down over them — the way Business Reports merges a client.

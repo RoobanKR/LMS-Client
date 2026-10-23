@@ -43,6 +43,7 @@ const STUDENT_FIELDS: FieldRow[] = [
   { key: "student", label: "Student Name", required: true, scope: "client", column: "Student", dataKey: "client" },
   { key: "regNo", label: "Register No", scope: "client", column: "Reg No", dataKey: "business" },
   { key: "email", label: "Email", scope: "client", column: "Email", dataKey: "email" },
+  { key: "phase", label: "Phase", scope: "client", column: "Phase", dataKey: "phase" },
   { key: "batch", label: "Batch", scope: "client", column: "Batch", dataKey: "batch" },
 ];
 
@@ -96,14 +97,18 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
   },
   "student-totals": {
     fields: [
-      ...STUDENT_FIELDS,
+      { key: "phase", label: "Phase", scope: "client", column: "Phase", dataKey: "client" },
+      { key: "batch", label: "Batch", scope: "service", column: "Batch", dataKey: "batch", mergeGroup: true },
+      { key: "regNo", label: "Register No", scope: "service", column: "Reg No", dataKey: "regNo" },
+      { key: "student", label: "Student Name", required: true, scope: "service", column: "Student", dataKey: "student" },
+      { key: "email", label: "Email", scope: "service", column: "Email", dataKey: "email" },
       { key: "assignments", label: "Assignments Completed", scope: "service", column: "Assignments", dataKey: "assignments" },
       { key: "assessments", label: "Assessments Completed", scope: "service", column: "Assessments", dataKey: "assessments" },
       { key: "marks", label: "Total Marks", scope: "service", column: "Total Marks", dataKey: "marks" },
       { key: "percent", label: "Overall Percentage", scope: "service", column: "Overall %", dataKey: "percent" },
       { key: "scale", label: "Scale", scope: "service", column: "Scale", dataKey: "scale" },
     ],
-    defaults: new Set(["student", "regNo", "batch", "assignments", "assessments", "marks", "percent", "scale"]),
+    defaults: new Set(["phase", "batch", "student", "regNo", "assignments", "assessments", "marks", "percent", "scale"]),
   },
   "student-exercises": {
     fields: [
@@ -138,11 +143,14 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
 
 // ─── Blocks ─────────────────────────────────────────────────────────────────
 
-const studentCells = (s: ReportStudent) => ({
-  client: s.name,
-  business: s.regNo || "—",
-  extras: { email: s.email || "—", batch: s.batch || "—" },
-});
+const studentCells = (s: ReportStudent, src: PrintSources) => {
+  const place = src.placeOf(s);
+  return {
+    client: s.name,
+    business: s.regNo || "—",
+    extras: { email: s.email || "—", phase: place.phase || "—", batch: place.batch || "—" },
+  };
+};
 
 const answered = (r: StudentResult) => r.status !== "not-started";
 
@@ -167,6 +175,8 @@ const questionRows = (r: StudentResult, questions: QuestionRow[]) =>
   !answered(r) ? [NOT_STARTED] : questions.length ? questions.map(questionService) : [NO_QUESTIONS];
 
 export interface PrintSources {
+  /** The student's phase(s) and batch name(s), each on its own. */
+  placeOf: (student: ReportStudent) => { phase: string; batch: string };
   resultOf: (exerciseId: string, studentId: string) => StudentResult;
   questionsOf: (exercise: ReportExercise, student: ReportStudent) => QuestionRow[];
   totalsOf: (student: ReportStudent) => StudentTotals;
@@ -206,7 +216,7 @@ export function exerciseBlocks(
 ): ReportClientBlock[] {
   return students.map((s) => {
     const r = src.resultOf(exercise.id, s.id);
-    const cells = studentCells(s);
+    const cells = studentCells(s, src);
     if (layout === "exercise-summary") {
       return {
         client: cells.client,
@@ -235,33 +245,70 @@ export function exerciseBlocks(
   });
 }
 
+/** One student under one batch — the student list's own line. */
+export interface StudentLine {
+  student: ReportStudent;
+  phase: string;
+  batchId: string;
+  batch: string;
+}
+
+/** By Student, totals: the same lines the list shows, in its order. Each
+ *  PHASE is a block (one Phase cell over its students); the Batch cell
+ *  merges down its students; every student row has its own S. No. (the
+ *  modal is opened with `serialPerRow`). An unphased course is one block
+ *  with no Phase column. */
+export function studentTotalsBlocks(lines: StudentLine[], src: PrintSources, phased: boolean): ReportClientBlock[] {
+  const blocks: ReportClientBlock[] = [];
+  let current: ReportClientBlock | null = null;
+  let currentPhase: string | null = null;
+  for (const l of lines) {
+    const phase = phased ? l.phase || "—" : "";
+    if (!current || currentPhase !== phase) {
+      current = { client: phase, business: "", services: [] };
+      blocks.push(current);
+      currentPhase = phase;
+    }
+    const t = src.totalsOf(l.student);
+    current.services.push({
+      __batchId: l.batchId,
+      batch: l.batch || "No batch",
+      regNo: l.student.regNo || "—",
+      student: l.student.name,
+      email: l.student.email || "—",
+      assignments: `${t.assignmentsDone} / ${t.assignmentsTotal}`,
+      assessments: `${t.assessmentsDone} / ${t.assessmentsTotal}`,
+      marks: `${round1(t.scored)} / ${round1(t.total)}`,
+      percent: formatPercent(t.percent),
+      scale: t.scale || "—",
+    });
+  }
+  // Mark each batch's run of rows so the Batch column merges over it.
+  for (const block of blocks) {
+    const rows = block.services;
+    for (let i = 0; i < rows.length;) {
+      let j = i;
+      while (j < rows.length && rows[j].__batchId === rows[i].__batchId) j++;
+      rows[i][GROUP_SPAN_KEY] = String(j - i);
+      for (let k = i + 1; k < j; k++) rows[k][GROUP_SPAN_KEY] = "0";
+      i = j;
+    }
+  }
+  return blocks;
+}
+
 /** By Student: the chosen students across the filtered exercises (each
  *  student only across the exercises set for their batch). */
 export function studentBlocks(
-  layout: "student-totals" | "student-exercises" | "student-questions",
+  layout: "student-exercises" | "student-questions",
   students: ReportStudent[],
   exercises: ReportExercise[],
   src: PrintSources,
 ): ReportClientBlock[] {
   return students.map((s) => {
-    const cells = studentCells(s);
+    const cells = studentCells(s, src);
     const t = src.totalsOf(s);
     const own = exercises.filter((ex) => src.appliesTo(ex, s));
-
-    if (layout === "student-totals") {
-      return {
-        client: cells.client,
-        business: cells.business,
-        clientExtras: cells.extras,
-        services: [{
-          assignments: `${t.assignmentsDone} / ${t.assignmentsTotal}`,
-          assessments: `${t.assessmentsDone} / ${t.assessmentsTotal}`,
-          marks: `${round1(t.scored)} / ${round1(t.total)}`,
-          percent: formatPercent(t.percent),
-          scale: t.scale || "—",
-        }],
-      };
-    }
 
     if (layout === "student-exercises") {
       return {

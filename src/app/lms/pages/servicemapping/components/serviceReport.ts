@@ -73,6 +73,10 @@ export type ReportTable = {
     /** Leave the space under the last row blank instead of ruling empty
      *  rows down to the table box's edge. Opt-in. */
     noFillerRows?: boolean
+    /** Number every ROW, even while client-scope cells merge down a block
+     *  (Course Report's student list: the blocks are phases, the rows are
+     *  students). Default: one S. No. per block. Opt-in. */
+    serialPerRow?: boolean
 }
 
 export async function loadServiceReport(filters: MappingPageFilters, signal: AbortSignal): Promise<ServiceMapping[]> {

@@ -382,12 +382,15 @@ export function paginateReport(format: ReportFormat, table: ReportTable): Pagina
          * all. Toggling any client column back on flips this behaviour
          * live. */
         const hasClientColumn = columns.some((col) => col.scope === 'client')
+        // `serialPerRow` keeps the client cells merged but numbers rows.
+        const blockSerial = hasClientColumn && !table.serialPerRow
 
         for (const block of table.groups) {
             if (hasClientColumn) {
-                // One serial per CLIENT BLOCK; anchor resets so the
-                // rowspan starts fresh on the new block.
-                serial += 1
+                // One serial per CLIENT BLOCK (unless every row is
+                // numbered); anchor resets so the rowspan starts fresh on
+                // the new block.
+                if (blockSerial) serial += 1
                 anchor = null
             }
             groupAnchor = null
@@ -423,9 +426,9 @@ export function paginateReport(format: ReportFormat, table: ReportTable): Pagina
                     ? { ...rawService, ...Object.fromEntries(columns.filter((c) => c.mergeGroup).map((c) => [c.key, span.source[c.key] ?? ''])) }
                     : rawService
                 const continuesGroup = Boolean(span && span.rowSpan === 0)
-                if (!hasClientColumn) {
-                    // No client column means no block-level serial —
-                    // every row is its own row, its own S. No.
+                if (!blockSerial) {
+                    // No client column (or rows numbered on purpose) means
+                    // no block-level serial — every row its own S. No.
                     serial += 1
                 }
                 /* Estimate how tall this row will actually be after its
@@ -510,15 +513,17 @@ export function paginateReport(format: ReportFormat, table: ReportTable): Pagina
                         : { text: (service[col.key] ?? '') || '—', rowSpan: 1 })
                     current.push({
                         cells: [
-                            null,
+                            blockSerial ? null : { text: String(serial), rowSpan: 1 },
                             ...cells,
                         ],
                     })
-                    // Grow S. No. and every client-scope cell on the
-                    // anchor by one row.
+                    // Grow S. No. (when it is per block) and every
+                    // client-scope cell on the anchor by one row.
                     const anchorCells = anchor.cells!
-                    const snoCell = anchorCells[0] as SpanCell
-                    anchorCells[0] = { text: snoCell.text, rowSpan: snoCell.rowSpan + 1 }
+                    if (blockSerial) {
+                        const snoCell = anchorCells[0] as SpanCell
+                        anchorCells[0] = { text: snoCell.text, rowSpan: snoCell.rowSpan + 1 }
+                    }
                     for (let i = 0; i < columns.length; i++) {
                         if (columns[i].scope !== 'client') continue
                         const cell = anchorCells[1 + i] as SpanCell

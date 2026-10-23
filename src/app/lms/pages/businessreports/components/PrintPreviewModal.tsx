@@ -77,6 +77,8 @@ type Props = {
      *  when it fits, and leave the space under the last row unruled. */
     keepBlocksTogether?: boolean
     noFillerRows?: boolean
+    /** Number every row instead of every block — see ReportTable. */
+    serialPerRow?: boolean
 }
 
 
@@ -252,7 +254,7 @@ export function PrintPreviewModal({
     open, onClose, snapshot, blocks, letterhead, initialFormat, meta,
     fields, defaultEnabled, exportExcel, filenameBase,
     showExport = true, layerClassName = 'z-50',
-    keepBlocksTogether = false, noFillerRows = false,
+    keepBlocksTogether = false, noFillerRows = false, serialPerRow = false,
 }: Props) {
     void snapshot
     void letterhead
@@ -522,8 +524,9 @@ export function PrintPreviewModal({
         const flat: string[][] = []
         let serial = 0
         for (const block of blocks) {
-            serial += 1
+            if (!serialPerRow) serial += 1
             for (const service of block.services) {
+                if (serialPerRow) serial += 1
                 flat.push([
                     String(serial),
                     ...columns.map((col) => col.scope === 'client'
@@ -532,8 +535,8 @@ export function PrintPreviewModal({
                 ])
             }
         }
-        return { headers, rows: flat, groups: blocks, columns, clientColumns, serviceColumns, tableRotated, keepBlocksTogether, noFillerRows }
-    }, [blocks, enabledFields, fieldOrder, tableRotated, effectiveFields, keepBlocksTogether, noFillerRows])
+        return { headers, rows: flat, groups: blocks, columns, clientColumns, serviceColumns, tableRotated, keepBlocksTogether, noFillerRows, serialPerRow }
+    }, [blocks, enabledFields, fieldOrder, tableRotated, effectiveFields, keepBlocksTogether, noFillerRows, serialPerRow])
 
     const paginated = useMemo(() => {
         if (!effectiveFormat || !table) return null
