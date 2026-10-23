@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, Eye, FileText, Flag, Layers, Loader2, RotateCcw,
-  Search, SearchX, Tags, UsersRound, X,
+  ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, Eye, FileText, Info, Loader2, RotateCcw,
+  Search, SearchX, UsersRound, X,
 } from "lucide-react";
 import { MappingMultiFilter } from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
 import {
-  FilterLabel, NextStepGlow, REPORT_FIELD, REPORT_PRIMARY_BTN, ReportEmptyState, ReportShowingRow, chipLabel,
+  NextStepGlow, REPORT_FIELD, REPORT_PRIMARY_BTN, ReportEmptyState, ReportShowingRow, chipLabel,
   useNextStepNudge, type ReportChip,
 } from "@/app/lms/shared/report/reportKit";
 import { phaseOrdinal } from "@/lib/phaseGroups";
@@ -456,18 +456,26 @@ export default function CourseReport() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 px-3 py-3 sm:px-4">
-      {/* ── Header ── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <button type="button" onClick={goBack} className="inline-flex items-center gap-1.5 text-xs text-subtle transition-colors hover:text-heading">
-            <ArrowLeft size={13} />
-            {currentExercise ? "Back to exercises" : currentStudent ? "Back to students" : "Back"}
+      {/* ── Header — back + title + course on the left, the two kinds of
+           list on the right. Kept to one band so the list gets the room. ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <button
+            type="button"
+            onClick={goBack}
+            title={currentExercise ? "Back to exercises" : currentStudent ? "Back to students" : "Back"}
+            aria-label={currentExercise ? "Back to exercises" : currentStudent ? "Back to students" : "Back"}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-control border border-hairline-strong bg-surface text-subtle transition-colors hover:bg-row-hover hover:text-heading"
+          >
+            <ArrowLeft size={15} />
           </button>
-          <h1 className="mt-1 text-base font-semibold tracking-[-0.01em] text-heading sm:text-lg">Course Report</h1>
-          <p className="mt-0.5 truncate text-xs text-subtle" title={courseName}>
-            {courseName}
-            {!isLoading && ` · ${exercises.length} exercise${exercises.length === 1 ? "" : "s"} · ${students.length} student${students.length === 1 ? "" : "s"}`}
-          </p>
+          <div className="min-w-0">
+            <h1 className="text-base font-semibold leading-tight tracking-[-0.01em] text-heading">Course Report</h1>
+            <p className="truncate text-xs text-subtle" title={courseName}>
+              {courseName}
+              {!isLoading && ` · ${exercises.length} exercise${exercises.length === 1 ? "" : "s"} · ${students.length} student${students.length === 1 ? "" : "s"}`}
+            </p>
+          </div>
         </div>
         <div className="inline-flex overflow-hidden rounded-control border border-hairline-strong bg-surface" role="tablist">
           {([
@@ -516,16 +524,16 @@ export default function CourseReport() {
           </label>
         </div>
       ) : (
-        <div className="shrink-0 rounded-xl border border-hairline bg-surface px-4 py-3 shadow-xs">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <div className="sm:col-span-2 lg:col-span-3 xl:col-span-2">
-              <FilterLabel icon={Search} tone="text-subtle">Search</FilterLabel>
+        <div className="shrink-0 rounded-xl border border-hairline bg-surface px-3 pb-2.5 pt-3.5 shadow-xs">
+          {/* One row of fields, each named on its border. */}
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-3.5">
+            <BorderLabel label="Search" className="min-w-[220px] flex-[2_1_240px]">
               <span className="relative block">
                 <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder={tab === "exercise" ? "Search the exercises in the report…" : "Search the students in the report…"}
+                  placeholder={tab === "exercise" ? "Search exercises in the report…" : "Search students in the report…"}
                   className="h-9 w-full rounded-[10px] border border-[#e7ddd1] bg-surface pl-8 pr-8 text-xs text-body shadow-xs focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
                 />
                 {search && (
@@ -534,16 +542,14 @@ export default function CourseReport() {
                   </button>
                 )}
               </span>
-            </div>
+            </BorderLabel>
             {phaseOptions.length > 0 && (
-              <div className={REPORT_FIELD}>
-                <FilterLabel icon={Flag} tone="text-violet-500">Phase</FilterLabel>
+              <BorderLabel label="Phase" className={`${REPORT_FIELD} flex-[1_1_140px] sm:max-w-[200px]`}>
                 <MappingMultiFilter label="Phases" options={phaseOptions} value={draft.phases} onChange={(v) => setPick("phases", v)} placeholder="All phases" />
-              </div>
+              </BorderLabel>
             )}
             {batchOptions.length > 0 && (
-              <div className={REPORT_FIELD}>
-                <FilterLabel icon={UsersRound} tone="text-emerald-500">Batch</FilterLabel>
+              <BorderLabel label="Batch" className={`${REPORT_FIELD} flex-[1_1_150px] sm:max-w-[220px]`}>
                 <MappingMultiFilter
                   label="Batches"
                   options={draftBatchOptions}
@@ -552,20 +558,17 @@ export default function CourseReport() {
                   placeholder="All batches"
                   emptyLabel="No batches in the selected phases"
                 />
-              </div>
+              </BorderLabel>
             )}
-            <div className={REPORT_FIELD}>
-              <FilterLabel icon={Layers} tone="text-brand-500">Activity</FilterLabel>
+            <BorderLabel label="Activity" className={`${REPORT_FIELD} flex-[1_1_150px] sm:max-w-[220px]`}>
               <MappingMultiFilter label="Activities" options={activityOptions} value={draft.activities} onChange={(v) => setPick("activities", v)} placeholder="All activities" />
-            </div>
+            </BorderLabel>
             {showSubcategory && (
-              <div className={REPORT_FIELD}>
-                <FilterLabel icon={Tags} tone="text-brand-500">Subcategory</FilterLabel>
+              <BorderLabel label="Subcategory" className={`${REPORT_FIELD} flex-[1_1_150px] sm:max-w-[220px]`}>
                 <MappingMultiFilter label="Subcategories" options={subcategoryOptions} value={draft.subcategories} onChange={(v) => setPick("subcategories", v)} placeholder="All subcategories" />
-              </div>
+              </BorderLabel>
             )}
-            <div className={REPORT_FIELD}>
-              <FilterLabel icon={ClipboardList} tone="text-sky-500">Exercises</FilterLabel>
+            <BorderLabel label="Exercises" className={`${REPORT_FIELD} flex-[1_1_160px] sm:max-w-[240px]`}>
               <MappingMultiFilter
                 label="Exercises"
                 options={exerciseOptions}
@@ -574,16 +577,22 @@ export default function CourseReport() {
                 placeholder="All exercises"
                 emptyLabel="No exercises for these filters"
               />
-            </div>
+            </BorderLabel>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[#ece3d8] pt-3">
-            <p className="text-2xs text-subtle">
-              {tab === "exercise"
-                ? "Lists every exercise in scope, with how many students attempted and completed it."
-                : "Lists every student in scope, with their totals across the chosen exercises — tick students to print only them."}
-            </p>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
+          {/* What the report shows (once generated) and its actions — one line. */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2.5 border-t border-[#ece3d8] pt-2.5">
+            <div className="min-w-0 flex-1 [&>div]:mb-0">
+              {applied ? (
+                <ReportShowingRow chips={chips} onRemove={removeChip} loading={false} />
+              ) : (
+                <p className="text-xs text-subtle">
+                  Pick what you need, then <span className="font-semibold text-heading">Generate Report</span>
+                  {tab === "student" ? " — e.g. Phase III to list that phase's students." : "."}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={resetReport}
@@ -609,10 +618,6 @@ export default function CourseReport() {
             </div>
           </div>
         </div>
-      )}
-
-      {applied && !currentExercise && !currentStudent && (
-        <ReportShowingRow chips={chips} onRemove={removeChip} loading={false} />
       )}
 
       {/* ── Body ── */}
@@ -747,6 +752,19 @@ export default function CourseReport() {
 }
 
 // ─── Pieces ─────────────────────────────────────────────────────────────────
+
+/** A filter field with its name on the top border — keeps the filter bar
+ *  to one row instead of a label line over every field. */
+function BorderLabel({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={`relative ${className || ""}`}>
+      {children}
+      <span className="pointer-events-none absolute -top-[7px] left-2.5 z-[1] bg-surface px-1 text-[10.5px] font-medium leading-[14px] text-subtle">
+        {label}
+      </span>
+    </div>
+  );
+}
 
 function Centered({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
@@ -1035,7 +1053,12 @@ function StudentList({
             {sel.picked ? `${sel.picked} of ${rows.length} selected` : `${rows.length} student${rows.length === 1 ? "" : "s"}`}
             {groups.length > 1 && ` in ${groups.length} batches`}
             {` · totals over ${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"}`}
-            <span className="block text-2xs text-faint">Marks count exercises that are due or started; ones still open and not started are left out.</span>
+            <span
+              title="Marks count exercises that are due or started; ones still open and not started are left out."
+              className="ml-1 inline-flex cursor-help align-[-2px] text-faint"
+            >
+              <Info size={13} />
+            </span>
           </span>
           <div className="flex items-center gap-2">
             {groups.length > 1 && (
