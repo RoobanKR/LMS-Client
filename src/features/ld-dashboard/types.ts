@@ -36,8 +36,11 @@ export interface CourseRow {
   name: string;
   code: string;
   client: string;
+  /** Every student in the course's batches. */
   students: number;
-  /** Mean completion % across enrolled students. */
+  /** Of those, the ones who have opened the course. */
+  started: number;
+  /** Mean completion % across enrolled students (not started = 0%). */
   avg: number;
   done: number;
   prog: number;

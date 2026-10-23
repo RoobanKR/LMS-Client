@@ -130,6 +130,8 @@ export function parseAnalytics(j: any): { rows: CourseRow[]; students: StudentRo
       code: co.courseCode || "—",
       client: co.clientName || "Unassigned",
       students: num(s.totalStudents ?? co.totalStudents),
+      // Older payloads counted only students who had opened the course.
+      started: num(s.startedStudents ?? s.totalStudents ?? co.totalStudents),
       avg: num(s.averageProgress),
       done: num(s.completedStudents),
       prog: num(s.inProgressStudents),

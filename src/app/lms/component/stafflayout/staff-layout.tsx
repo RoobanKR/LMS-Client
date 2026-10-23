@@ -29,7 +29,6 @@ import { ArrowLeft, BookOpen, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { StaffSidebar } from "./staff-sidebar"
 import { useSyncPermissions } from "@/hooks/useSyncPermissions"
-import NotificationBell from "../NotificationBell"
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -167,8 +166,6 @@ function PanelStrip({
         ) : null}
 
         <div className="flex-1" />
-
-        <NotificationBell />
       </div>
 
       {/* Log Activity tabs — writes ?tab= (the logs page reads it). Sits on
@@ -312,20 +309,9 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
                   <BookOpen className="h-4 w-4 text-white" />
                 </div>
                 <span className="min-w-0 flex-1 truncate text-sm font-bold tracking-[-0.01em] text-heading">SmartCliff</span>
-                {!hideCornerBell && <NotificationBell />}
               </div>
-              {/* Notifications sit inside the panel's top-right corner.
-                  z-40: must beat in-page chrome like the uploadcourseresources
-                  tab bar, which stacks at z-30 with a solid background.
-                  fullBleed pages own their own scroll, so the bell stays
-                  pinned (absolute on the panel); non-fullBleed pages get the
-                  bell inside the scroll flow so it scrolls up with content
-                  instead of hovering over it. */}
-              {!hideCornerBell && fullBleed && (
-                <div className="absolute top-3 right-4 z-40 max-lg:hidden">
-                  <NotificationBell />
-                </div>
-              )}
+              {/* No corner bell: the sidebar's Notification entry carries the
+                  unread count. */}
             </>
           )}
 
@@ -342,9 +328,6 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
               {noBuiltInPadding ? (
                 !hideCornerBell ? (
                   <div className="relative h-full">
-                    <div className="absolute top-3 right-4 z-40 max-lg:hidden">
-                      <NotificationBell />
-                    </div>
                     {children}
                   </div>
                 ) : (
@@ -354,9 +337,6 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
                 <div className="p-3 sm:p-4 md:px-6 md:py-5">
                   {!hideCornerBell ? (
                     <div className="relative min-h-full">
-                      <div className="absolute -top-1 right-0 z-40 max-lg:hidden">
-                        <NotificationBell />
-                      </div>
                       {children}
                     </div>
                   ) : (

@@ -292,7 +292,10 @@ export function TeachingOverview({ data }: { data: UseTrainerDashboard }) {
             </thead>
             <tbody>{coursePerf.map((row) => <tr key={row.id} className="border-b border-hairline last:border-0 hover:bg-row-hover">
               <th scope="row" className="px-3 py-3 font-medium text-heading">{row.name}</th>
-              <td className="px-3 py-3 tabular-nums text-body">{count(row.students)}</td>
+              <td className="px-3 py-3 tabular-nums text-body">
+                {count(row.students)}
+                <span className="block text-2xs text-subtle">{count(row.started)} started</span>
+              </td>
               <td className="px-3 py-3">
                 <div className="flex items-center gap-3">
                   <Meter className="w-20" value={row.avg} tone="brand" label={`${row.name} learning progress`} />

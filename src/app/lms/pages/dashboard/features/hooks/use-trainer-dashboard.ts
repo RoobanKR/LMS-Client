@@ -49,6 +49,8 @@ export interface CoursePerfRow {
   name: string;
   code: string;
   students: number;
+  /** Students who have opened the course. */
+  started: number;
   /** Mean completion %; null when the course has no learners. */
   avg: number | null;
   score: number | null;
@@ -303,6 +305,7 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
           name: r.name,
           code: r.code,
           students: r.students,
+          started: r.started,
           avg: r.students > 0 ? r.avg : null,
           score: sc && sc.n ? Math.round(sc.s / sc.n) : null,
           weDoWork: combineWork(studs.filter((student) => student.courseId === r.id).map((student) => student.weDoWork)),
