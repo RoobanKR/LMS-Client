@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { MappingMultiFilter } from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
 import {
-  NextStepGlow, REPORT_FIELD, REPORT_PRIMARY_BTN, ReportEmptyState, ReportShowingRow, chipLabel,
+  NextStepGlow, REPORT_FIELD, REPORT_PRIMARY_BTN, ReportEmptyState, chipLabel,
   useNextStepNudge, type ReportChip,
 } from "@/app/lms/shared/report/reportKit";
 import { phaseOrdinal } from "@/lib/phaseGroups";
@@ -360,11 +360,6 @@ export default function CourseReport() {
     const values = applied.draft[c.key];
     return { key: c.key, title: c.title, label: chipLabel(optionLabels(values, c.options), values.length > 0, c.all), narrowed: values.length > 0 };
   }) : [];
-  const removeChip = (key: ChipKey) => {
-    const next = { ...draft, [key]: [] };
-    setDraft(next);
-    generate(next);
-  };
 
   /** The roster students an exercise is set for. */
   const rosterFor = useCallback(
@@ -632,10 +627,8 @@ export default function CourseReport() {
 
           {/* What the report shows (once generated) and its actions — one line. */}
           <div className="mt-2.5 flex flex-wrap items-center gap-2.5 border-t border-[#ece3d8] pt-2.5">
-            <div className="min-w-0 flex-1 [&>div]:mb-0">
-              {applied ? (
-                <ReportShowingRow chips={chips} onRemove={removeChip} loading={false} />
-              ) : (
+            <div className="min-w-0 flex-1">
+              {!applied && (
                 <p className="text-xs text-subtle">
                   Pick what you need, then <span className="font-semibold text-heading">Generate Report</span>
                   {tab === "student" ? " — e.g. Phase III to list that phase's students." : "."}
@@ -1118,10 +1111,10 @@ function StudentList({
           <tr>
             <th className={`${TH} w-10`}><Checkbox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all students" disabled={!rows.length} /></th>
             <th className={`${TH} w-10 text-right`}>#</th>
-            {showPhase && <th className={TH}>Phase</th>}
-            <th className={TH}>Batch</th>
             <th className={TH}>Reg No</th>
             <th className={TH}>Student</th>
+            {showPhase && <th className={TH}>Phase</th>}
+            <th className={TH}>Batch</th>
             <th className={`${TH} text-right`}>Assignments</th>
             <th className={`${TH} text-right`}>Assessments</th>
             <th className={`${TH} text-right`}>Marks</th>
@@ -1145,6 +1138,11 @@ function StudentList({
               >
                 <td className={TD} onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(s.id)} onChange={(c) => sel.toggle(s.id, c)} label={`Select ${s.name}`} /></td>
                 <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
+                <td className={`${TD} whitespace-nowrap`}>{s.regNo || <Dash />}</td>
+                <td className={`${TD} max-w-[260px]`}>
+                  <span className="block truncate font-semibold text-heading" title={s.name}>{s.name}</span>
+                  {s.email && <span className="block truncate text-2xs text-faint" title={s.email}>{s.email}</span>}
+                </td>
                 {showPhase && spans.phase[i] > 0 && (
                   <td rowSpan={spans.phase[i]} className={`${GROUP_TD} cursor-default whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
                     {l.phase || <Dash />}
@@ -1158,11 +1156,6 @@ function StudentList({
                     </span>
                   </td>
                 )}
-                <td className={`${TD} whitespace-nowrap`}>{s.regNo || <Dash />}</td>
-                <td className={`${TD} max-w-[260px]`}>
-                  <span className="block truncate font-semibold text-heading" title={s.name}>{s.name}</span>
-                  {s.email && <span className="block truncate text-2xs text-faint" title={s.email}>{s.email}</span>}
-                </td>
                 <td className={TD_NUM}>{t.assignmentsDone} / {t.assignmentsTotal}</td>
                 <td className={TD_NUM}>{t.assessmentsDone} / {t.assessmentsTotal}</td>
                 <td className={`${TD_NUM} font-semibold text-heading`}>{round1(t.scored)} / {round1(t.total)}</td>

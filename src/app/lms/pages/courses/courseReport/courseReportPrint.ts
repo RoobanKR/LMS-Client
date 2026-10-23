@@ -40,11 +40,11 @@ export const LAYOUT_LABEL: Record<PrintLayout, { label: string; hint: string }> 
 // `client` / `business` are the two block fields the modal reads directly;
 // every other block-level column comes off `clientExtras` by its key.
 const STUDENT_FIELDS: FieldRow[] = [
-  { key: "student", label: "Student Name", required: true, scope: "client", column: "Student", dataKey: "client" },
   { key: "regNo", label: "Register No", scope: "client", column: "Reg No", dataKey: "business" },
-  { key: "email", label: "Email", scope: "client", column: "Email", dataKey: "email" },
+  { key: "student", label: "Student Name", required: true, scope: "client", column: "Student", dataKey: "client" },
   { key: "phase", label: "Phase", scope: "client", column: "Phase", dataKey: "phase" },
   { key: "batch", label: "Batch", scope: "client", column: "Batch", dataKey: "batch" },
+  { key: "email", label: "Email", scope: "client", column: "Email", dataKey: "email" },
 ];
 
 const QUESTION_FIELDS: FieldRow[] = [
@@ -97,10 +97,10 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
   },
   "student-totals": {
     fields: [
-      { key: "phase", label: "Phase", scope: "client", column: "Phase", dataKey: "client" },
-      { key: "batch", label: "Batch", scope: "service", column: "Batch", dataKey: "batch", mergeGroup: true },
       { key: "regNo", label: "Register No", scope: "service", column: "Reg No", dataKey: "regNo" },
       { key: "student", label: "Student Name", required: true, scope: "service", column: "Student", dataKey: "student" },
+      { key: "phase", label: "Phase", scope: "client", column: "Phase", dataKey: "client" },
+      { key: "batch", label: "Batch", scope: "service", column: "Batch", dataKey: "batch", mergeGroup: true },
       { key: "email", label: "Email", scope: "service", column: "Email", dataKey: "email" },
       { key: "assignments", label: "Assignments Completed", scope: "service", column: "Assignments", dataKey: "assignments" },
       { key: "assessments", label: "Assessments Completed", scope: "service", column: "Assessments", dataKey: "assessments" },
