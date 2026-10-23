@@ -9,6 +9,8 @@ import { GROUP_SPAN_KEY } from "@/app/lms/pages/businessreports/groupSpans";
 import { phaseOrdinal } from "@/lib/phaseGroups";
 import { parseKey, toDayKey, type Student } from "@/app/lms/pages/attendancemanagement/features/attendanceReportShared";
 import type { useAttendanceReport } from "@/app/lms/pages/attendancemanagement/features/useAttendanceReport";
+import { attendanceApi } from "@/app/lms/pages/attendancemanagement/api/attendanceApi";
+import { downloadAttendanceWorkbook } from "@/app/lms/pages/attendancemanagement/features/attendanceWorkbook";
 
 type Report = ReturnType<typeof useAttendanceReport>;
 
@@ -109,6 +111,34 @@ export function attendancePrintBlocks(r: Report, phased: boolean): ReportClientB
         }
     }
     return blocks;
+}
+
+/** Excel — the "Attendance Summary" workbook for the generated report. The
+ *  cells (with their leave reasons) are fetched for exactly these students
+ *  and dates, rather than read off the screen's grid. */
+export async function downloadReportWorkbook(r: Report): Promise<void> {
+    const ids = r.filteredStudents.map((s) => s._id);
+    const records = ids.length
+        ? await attendanceApi.list(r.courseId, r.appliedFrom, r.appliedTo, undefined, undefined, ids)
+        : [];
+    await downloadAttendanceWorkbook({
+        courseName: r.course?.courseName || "Course",
+        clientName: r.rosterInfo?.clientName,
+        degree: r.rosterInfo?.degree,
+        studentType: r.rosterInfo?.studentType,
+        batchGroups: r.batchGroups,
+        students: r.filteredStudents,
+        batchIds: r.appliedBatches,
+        from: r.appliedFrom,
+        to: r.appliedTo,
+        days: r.workingDayList,
+        records: records.map((rec) => ({
+            studentId: String(rec.studentId),
+            date: toDayKey(new Date(rec.date)),
+            status: rec.status,
+            reason: rec.reason,
+        })),
+    });
 }
 
 /** The line under the sheet's title, in plain words:

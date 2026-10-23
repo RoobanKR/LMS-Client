@@ -36,6 +36,7 @@ import {
     attendancePrintBlocks,
     attendancePrintDefaults,
     attendancePrintFields,
+    downloadReportWorkbook,
 } from "@/app/lms/pages/attendancemanagement/features/attendanceReportPrint";
 import { MappingMultiFilter } from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
 import { PrintPreviewModal } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
@@ -324,7 +325,7 @@ export default function AttendanceReportPage() {
                     <AttendanceReportTable
                         {...report}
                         loading={loading}
-                        onExcel={exports.handleExcel}
+                        onExcel={() => downloadReportWorkbook(report)}
                         onSummaryPdf={exports.handlePdf}
                         onSummaryPrint={openPreview}
                     />
@@ -345,6 +346,8 @@ export default function AttendanceReportPage() {
                 fields={printFields}
                 defaultEnabled={printDefaults}
                 filenameBase={fileBase}
+                // Excel is the team's "Attendance Summary" workbook, not the flat sheet.
+                exportExcel={() => downloadReportWorkbook(report)}
                 keepBlocksTogether
                 noFillerRows
                 serialPerRow

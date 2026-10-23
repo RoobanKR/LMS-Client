@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import ExcelJS from "exceljs";
-import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { useCourseBatchGroupsQuery, useAttendanceRecordsQuery } from "@/app/lms/pages/attendancemanagement/queries/attendance";
+import { useCourseBatchGroupsQuery, useAttendanceRecordsQuery, useCourseRosterInfoQuery } from "@/app/lms/pages/attendancemanagement/queries/attendance";
+import { downloadAttendanceWorkbook } from "@/app/lms/pages/attendancemanagement/features/attendanceWorkbook";
 import { courseStructuresSummaryQuery } from "@/app/lms/pages/coursestructure/api/createCourseStucture";
 import type { CourseStructure } from "@/app/lms/pages/coursestructure/coursestructurecomponents/types";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -107,6 +106,7 @@ export function useAttendanceReportModal({
     // gives this view its batch-grouped shape without a second fetch.
     const { data: batchGroups = [], isLoading: studentsLoading } =
         useCourseBatchGroupsQuery(courseId, open);
+    const { data: rosterInfo } = useCourseRosterInfoQuery(courseId, open);
 
     // Flatten by batch scope + dedupe (a student can appear in >1 batch); the
     // scope collapses to a single roster the rest of the modal reads from.
@@ -256,48 +256,27 @@ export function useAttendanceReportModal({
         }
     };
 
+    // The hand-kept "Attendance Summary" workbook (attendanceWorkbook.ts) for
+    // the students and dates in scope.
     const downloadExcel = async () => {
-        const wb = new ExcelJS.Workbook();
-        // Sheet 1: roster table (same as before).
-        const ws = wb.addWorksheet("Attendance");
-        const header = ["#", "Student", ...activeCols.map((c) => c.label)];
-        ws.addRow(header);
-        ws.getRow(1).font = { bold: true };
-        for (const row of buildTableRows()) ws.addRow(header.map((h) => row[h] ?? ""));
-        ws.columns.forEach((c) => (c.width = Math.max(12, (c.header as string)?.length || 12)));
-
-        // Extra sheets carrying the numbers behind whichever charts the user
-        // has on the canvas — Excel can't easily embed live charts, but the
-        // raw data lets them re-plot in Excel with two clicks.
-        if (views.has("pie")) {
-            const s = wb.addWorksheet("Status share");
-            s.addRow(["Status", "Days marked"]);
-            s.getRow(1).font = { bold: true };
-            s.addRow(["Present",    totals.P]);
-            s.addRow(["Absent",     totals.A]);
-            s.addRow(["Half-day",   totals.H]);
-            s.addRow(["Not marked", totals.N]);
-            s.columns.forEach((c) => (c.width = 16));
-        }
-        if (views.has("bar")) {
-            const s = wb.addWorksheet("Per-student %");
-            s.addRow(["Student", "Enrollment", "Attendance %"]);
-            s.getRow(1).font = { bold: true };
-            for (const r of perStudent) {
-                s.addRow([`${r.student.firstName} ${r.student.lastName}`.trim(), r.student.userId || "", Math.round(r.pct * 10) / 10]);
-            }
-            s.columns.forEach((c) => (c.width = 22));
-        }
-        if (views.has("line")) {
-            const s = wb.addWorksheet("Daily trend");
-            s.addRow(["Day", "Attendance %", "Marks recorded"]);
-            s.getRow(1).font = { bold: true };
-            for (const r of dailyTrend) s.addRow([r.key, r.pct, r.marks]);
-            s.columns.forEach((c) => (c.width = 16));
-        }
-
-        const buf = await wb.xlsx.writeBuffer();
-        saveAs(new Blob([buf], { type: "application/octet-stream" }), `attendance-${course?.courseCode || courseId}-${from}-to-${to}.xlsx`);
+        await downloadAttendanceWorkbook({
+            courseName: course?.courseName || "Course",
+            clientName: rosterInfo?.clientName,
+            degree: rosterInfo?.degree,
+            studentType: rosterInfo?.studentType,
+            batchGroups,
+            students,
+            batchIds: batchSel === ALL_BATCHES ? [] : [batchSel],
+            from,
+            to,
+            days: workingDays,
+            records: records.map((r) => ({
+                studentId: String(r.studentId),
+                date: toDayKey(new Date(r.date)),
+                status: r.status,
+                reason: r.reason,
+            })),
+        });
         setDownloadOpen(false);
     };
 

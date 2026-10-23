@@ -29,6 +29,9 @@ export type Student = {
   lastName: string;
   email: string;
   userId: string;
+  /** Register number (rollNumber), else the user id — for the workbook. */
+  regNo?: string;
+  phone?: string;
 };
 
 export type BatchGroup = {
@@ -36,6 +39,8 @@ export type BatchGroup = {
   name: string;
   /** The batch's phase ("Phase III"); "" on an unphased course. */
   phase: string;
+  /** Trainers enrolled on the batch, by name. */
+  trainers: string[];
   students: Student[];
 };
 
@@ -48,7 +53,17 @@ const toStudent = (user: any): Student => ({
   lastName: user.lastName || "",
   email: user.email || "",
   userId: user.userId || user.employeeId || "",
+  regNo: String(user.rollNumber || user.userId || user.employeeId || "").trim(),
+  phone: String(user.phone || "").trim(),
 });
+
+const isTrainer = (user: any): boolean => {
+  const role = user?.role;
+  const words = typeof role === "string"
+    ? role
+    : [role?.renameRole, role?.originalRole, role?.roleValue, role?.name].filter(Boolean).join(" ");
+  return /trainer/i.test(String(words));
+};
 
 const isStudent = (user: any): boolean => {
   const role =
@@ -73,6 +88,11 @@ const toBatchGroups = (roster: CourseRoster): BatchGroup[] =>
     id: String(b?._id || b?.batchName || Math.random()),
     name: String(b?.batchName || "Batch"),
     phase: String((b as { phase?: unknown })?.phase || "").trim(),
+    trainers: (b?.users || [])
+      .map((e) => (e?.user || e) as any)
+      .filter((u) => u && typeof u === "object" && isTrainer(u))
+      .map((u) => `${u.firstName || ""} ${u.lastName || ""}`.trim())
+      .filter(Boolean),
     students: (b?.users || [])
       .map((e) => (e?.user || e) as any)
       .filter(isStudent)
@@ -95,6 +115,18 @@ export const useCourseBatchGroupsQuery = (courseId: string, enabled = true) =>
     ...courseRosterQuery(courseId, enabled),
     select: (roster: CourseRoster) =>
       toBatchGroups(roster).filter((g) => g.students.length > 0),
+  });
+
+/** The course's client and degree, for the attendance workbook's title band. */
+export type RosterInfo = { clientName: string; degree: string; studentType: string };
+export const useCourseRosterInfoQuery = (courseId: string, enabled = true) =>
+  useQuery({
+    ...courseRosterQuery(courseId, enabled),
+    select: (roster: CourseRoster): RosterInfo => ({
+      clientName: String(roster?.clientName || "").trim(),
+      degree: String(roster?.degree || "").trim(),
+      studentType: String(roster?.studentType || "").trim(),
+    }),
   });
 
 export const useAttendanceRecordsQuery = (

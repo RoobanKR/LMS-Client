@@ -7,6 +7,7 @@ import { courseStructuresSummaryQuery } from "@/app/lms/pages/coursestructure/ap
 import {
     useCourseStudentsQuery,
     useCourseBatchGroupsQuery,
+    useCourseRosterInfoQuery,
     useAttendanceSummaryQuery,
     useAttendanceRecordsForQuery,
 } from "@/app/lms/pages/attendancemanagement/queries/attendance";
@@ -77,6 +78,7 @@ export function useAttendanceReport() {
     // and one records fetch per course/range across all three views.
     const { data: students = [], isLoading: studentsLoading } = useCourseStudentsQuery(courseId);
     const { data: batchGroups = [] } = useCourseBatchGroupsQuery(courseId);
+    const { data: rosterInfo } = useCourseRosterInfoQuery(courseId);
 
     /** The students of the given batches (every batch when none), once each. */
     const studentsOfBatches = (ids: string[]): Student[] => {
@@ -367,7 +369,7 @@ export function useAttendanceReport() {
         pendingStudent, setPendingStudent, pendingStatus, setPendingStatus,
         appliedFrom, appliedTo, appliedStudent, appliedStatus,
         viewMode, setViewMode, canExport,
-        batchGroups, pendingBatches, setPendingBatches, appliedBatches, generated, pickerStudents, studentPlace,
+        batchGroups, pendingBatches, setPendingBatches, appliedBatches, generated, pickerStudents, studentPlace, rosterInfo,
         course, students, studentsLoading, summaryLoading,
         workingDayList, workingDays, rowStats, filteredStudents, totals, bestDay, totalStudents, trend,
         grid,
