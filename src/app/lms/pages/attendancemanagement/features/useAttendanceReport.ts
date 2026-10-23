@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { courseStructuresSummaryQuery } from "@/app/lms/pages/coursestructure/api/createCourseStucture";
 import {
     useCourseStudentsQuery,
+    useCourseBatchGroupsQuery,
     useAttendanceSummaryQuery,
     useAttendanceRecordsForQuery,
 } from "@/app/lms/pages/attendancemanagement/queries/attendance";
@@ -52,6 +53,12 @@ export function useAttendanceReport() {
     const [appliedStudent, setAppliedStudent] = useState<StudentFilter>("all");
     const [appliedStatus, setAppliedStatus] = useState<StatusFilter>("all");
 
+    // Batch filter (empty = every batch), and whether a report has been
+    // generated — like Service Mapping, nothing loads until Generate Report.
+    const [pendingBatches, setPendingBatches] = useState<string[]>([]);
+    const [appliedBatches, setAppliedBatches] = useState<string[]>([]);
+    const [generated, setGenerated] = useState(false);
+
     const [viewMode, setViewMode] = useState<ViewMode>("daily");
 
     // ── Data fetches ─────────────────────────────────────────────────────
@@ -69,6 +76,40 @@ export function useAttendanceReport() {
     // Shared with the Analytics page and the Report modal — one roster fetch
     // and one records fetch per course/range across all three views.
     const { data: students = [], isLoading: studentsLoading } = useCourseStudentsQuery(courseId);
+    const { data: batchGroups = [] } = useCourseBatchGroupsQuery(courseId);
+
+    /** The students of the given batches (every batch when none), once each. */
+    const studentsOfBatches = (ids: string[]): Student[] => {
+        if (!batchGroups.length) return students;
+        const groups = ids.length ? batchGroups.filter((g) => ids.includes(g.id)) : batchGroups;
+        const seen = new Map<string, Student>();
+        for (const g of groups) for (const s of g.students) if (!seen.has(s._id)) seen.set(s._id, s);
+        return [...seen.values()];
+    };
+    // The Students picker offers only the batches already picked.
+    const pickerStudents = useMemo(
+        () => studentsOfBatches(pendingBatches),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [batchGroups, students, pendingBatches]
+    );
+    const batchStudentIds = useMemo(
+        () => new Set(studentsOfBatches(appliedBatches).map((s) => s._id)),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [batchGroups, students, appliedBatches]
+    );
+    /** Each student's batch name(s) and phase(s), for the report's columns. */
+    const studentPlace = useMemo(() => {
+        const m = new Map<string, { batches: string[]; phases: string[] }>();
+        for (const g of batchGroups) {
+            for (const s of g.students) {
+                const e = m.get(s._id) || { batches: [], phases: [] };
+                if (!e.batches.includes(g.name)) e.batches.push(g.name);
+                if (g.phase && !e.phases.includes(g.phase)) e.phases.push(g.phase);
+                m.set(s._id, e);
+            }
+        }
+        return m;
+    }, [batchGroups]);
 
     // ── The aggregates, computed in Mongo ────────────────────────────────
     // This page used to fetch EVERY attendance record in the range and build a
@@ -91,8 +132,9 @@ export function useAttendanceReport() {
     // roster puts both sides of that division on the same people.
     // Verified by server/scripts/verifyAttendanceReport.js --break=scoped_off.
     const rosterIds = useMemo(
-        () => Array.from(new Set(students.map((s) => s._id))),
-        [students]
+        () => Array.from(new Set(students.map((s) => s._id)))
+            .filter((id) => !appliedBatches.length || batchStudentIds.has(id)),
+        [students, appliedBatches, batchStudentIds]
     );
     // The applied student list narrows the summary studentIds. "all" (or an
     // empty list) falls back to the whole roster, which is what the summary
@@ -111,7 +153,7 @@ export function useAttendanceReport() {
     // ungated request would answer a not-yet-loaded roster with the whole
     // course. There is nothing to total before the roster lands in any case.
     const { data: summary, isLoading: summaryLoading } = useAttendanceSummaryQuery(
-        courseId, appliedFrom, appliedTo, summaryScope, scopedStudentIds.length > 0
+        courseId, appliedFrom, appliedTo, summaryScope, generated && scopedStudentIds.length > 0
     );
 
     // ── Derived data ─────────────────────────────────────────────────────
@@ -166,11 +208,19 @@ export function useAttendanceReport() {
     };
 
     // Apply student filter first, then compute stats.
+    // One row per student (a student in two batches is one person), in the
+    // picked batches.
     const visibleStudents = useMemo(() => {
-        if (appliedStudent === "all" || appliedStudent.length === 0) return students;
+        const seen = new Set<string>();
+        const base = students.filter((s) => {
+            if (seen.has(s._id)) return false;
+            seen.add(s._id);
+            return !appliedBatches.length || batchStudentIds.has(s._id);
+        });
+        if (appliedStudent === "all" || appliedStudent.length === 0) return base;
         const set = new Set(appliedStudent);
-        return students.filter((s) => set.has(s._id));
-    }, [students, appliedStudent]);
+        return base.filter((s) => set.has(s._id));
+    }, [students, appliedStudent, appliedBatches, batchStudentIds]);
 
     // Apply status filter — hides rows where student has no cell matching the status
     // "Keep a student with at least one matching cell" — the same rule, read
@@ -250,7 +300,7 @@ export function useAttendanceReport() {
         return best;
     }, [workingDayList, filteredStudents.length, perDayMap]);
 
-    const totalStudents = students.length;
+    const totalStudents = rosterIds.length;
 
     // Attendance trend per working day (for line chart)
     const trend = useMemo(() => {
@@ -268,7 +318,7 @@ export function useAttendanceReport() {
     // Cells for every student the filters keep — the table lists them all.
     const filteredIds = useMemo(() => filteredStudents.map((s) => s._id), [filteredStudents]);
     const { data: records = [] } = useAttendanceRecordsForQuery(
-        courseId, appliedFrom, appliedTo, filteredIds
+        courseId, appliedFrom, appliedTo, filteredIds, generated
     );
 
     // studentId → dateKey → status, for the filtered students.
@@ -297,6 +347,8 @@ export function useAttendanceReport() {
         }
         setAppliedStudent(pendingStudent);
         setAppliedStatus(pendingStatus);
+        setAppliedBatches(pendingBatches);
+        setGenerated(true);
     };
     const resetFilters = () => {
         setPendingMode("single");
@@ -305,6 +357,8 @@ export function useAttendanceReport() {
         setPendingStudent("all"); setPendingStatus("all");
         setAppliedFrom(todayKey); setAppliedTo(todayKey);
         setAppliedStudent("all"); setAppliedStatus("all");
+        setPendingBatches([]); setAppliedBatches([]);
+        setGenerated(false);
     };
 
     return {
@@ -313,6 +367,7 @@ export function useAttendanceReport() {
         pendingStudent, setPendingStudent, pendingStatus, setPendingStatus,
         appliedFrom, appliedTo, appliedStudent, appliedStatus,
         viewMode, setViewMode, canExport,
+        batchGroups, pendingBatches, setPendingBatches, appliedBatches, generated, pickerStudents, studentPlace,
         course, students, studentsLoading, summaryLoading,
         workingDayList, workingDays, rowStats, filteredStudents, totals, bestDay, totalStudents, trend,
         grid,

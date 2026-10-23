@@ -15,6 +15,7 @@ import {
     Calendar as CalendarIcon,
     ChevronLeft,
     ChevronRight,
+    ClipboardCheck,
     Download as DownloadIcon,
     Loader2,
     MessageSquareWarning,
@@ -162,13 +163,14 @@ export default function AttendanceManagementLayout({ children }: { children: Rea
     const rawReturnTo = searchParams.get("returnTo") || "";
     const returnTo = rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//") ? rawReturnTo : "";
     const courseQuery = `courseId=${encodeURIComponent(courseId)}${fromLdc ? "&from=ldc" : ""}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`;
-    const openReports = () => router.push(`/lms/pages/attendancemanagement/report?${courseQuery}`);
+    // Mark attendance and Report are two tabs of the course, so Back leaves
+    // the course from either one.
     const backToPicker = () =>
-        router.push(
-            isReportPage
-                ? `/lms/pages/attendancemanagement?${courseQuery}`
-                : returnTo || (fromLdc ? `/lms/pages/lddashboard#attendance` : `/lms/pages/attendancemanagement`)
-        );
+        router.push(returnTo || (fromLdc ? `/lms/pages/lddashboard#attendance` : `/lms/pages/attendancemanagement`));
+    const pageTabs = [
+        { key: "mark", label: fromLdc || !canEdit ? "Attendance" : "Mark attendance", icon: ClipboardCheck, href: `/lms/pages/attendancemanagement?${courseQuery}`, active: isMarkingPage },
+        { key: "report", label: "Report", icon: BarChart3, href: `/lms/pages/attendancemanagement/report?${courseQuery}`, active: isReportPage },
+    ];
 
     // Day nav (only shown when Management tab is active) — one date at a time.
     const dateParam = searchParams.get("date");
@@ -238,6 +240,26 @@ export default function AttendanceManagementLayout({ children }: { children: Rea
                                         </span>
                                     )}
                                 </div>
+                                {/* Mark attendance | Report — the report is its own tab,
+                                    like Service Mapping's Report. */}
+                                {canReports && (isMarkingPage || isReportPage) && (
+                                    <div role="tablist" aria-label="Attendance views" className="inline-flex shrink-0 items-center gap-0.5 rounded-control bg-surface-sunken/70 p-0.5">
+                                        {pageTabs.map(({ key, label, icon: Icon, href, active }) => (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                role="tab"
+                                                aria-selected={active}
+                                                onClick={() => { if (!active) router.push(href); }}
+                                                className={`inline-flex h-7 items-center gap-1.5 rounded-[6px] px-2.5 text-xs font-semibold transition-colors ${active
+                                                    ? "bg-surface text-brand-strong shadow-xs"
+                                                    : "text-subtle hover:text-heading"}`}
+                                            >
+                                                <Icon className="h-3.5 w-3.5" /> {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Right cluster — day nav on the left, then Today
@@ -305,15 +327,6 @@ export default function AttendanceManagementLayout({ children }: { children: Rea
                                             title="Reset attendance for this day"
                                         >
                                             <RotateCcw className="h-3.5 w-3.5" /> Reset day
-                                        </button>
-                                    )}
-                                    {canReports && isMarkingPage && (
-                                        <button
-                                            onClick={openReports}
-                                            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-control border border-info-500/30 bg-surface hover:bg-info-50 text-info-700 text-xs font-semibold transition-colors"
-                                            title="Open the attendance report for this course"
-                                        >
-                                            <BarChart3 className="h-3.5 w-3.5" /> Reports
                                         </button>
                                     )}
                                     {canReports && !isReportPage && (

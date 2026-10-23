@@ -34,6 +34,8 @@ export type Student = {
 export type BatchGroup = {
   id: string;
   name: string;
+  /** The batch's phase ("Phase III"); "" on an unphased course. */
+  phase: string;
   students: Student[];
 };
 
@@ -70,6 +72,7 @@ const toBatchGroups = (roster: CourseRoster): BatchGroup[] =>
   (roster?.batchAndParticipants || []).map((b) => ({
     id: String(b?._id || b?.batchName || Math.random()),
     name: String(b?.batchName || "Batch"),
+    phase: String((b as { phase?: unknown })?.phase || "").trim(),
     students: (b?.users || [])
       .map((e) => (e?.user || e) as any)
       .filter(isStudent)

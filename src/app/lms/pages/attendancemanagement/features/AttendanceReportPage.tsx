@@ -1,40 +1,27 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Attendance Report — course-scoped read-only report with filters, stats,
-// summary table (Daily/Summary view), and 3 chart cards. The Export menu
-// prints or downloads (PDF / Excel) the report for the applied filters.
+// Attendance Report — the course's Report tab, laid out like Service Mapping's
+// report: pick Date / Batch / Students / Status, press Generate Report, and the
+// stats + student list appear; Preview Report opens the shared Preview & Print
+// sheet (Reg No · Student · Phase · Batch, Phase and Batch merged). Nothing
+// loads until Generate.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Poppins } from "next/font/google";
-import { toast } from "react-hot-toast";
 import {
     AlertTriangle,
     CalendarDays,
-    ChevronDown,
     Circle,
     Clock,
-    Download,
-    FileText,
-    Filter,
     Loader2,
-    Printer,
-    RotateCcw,
     TrendingUp,
     Users,
     UserX,
     UserCheck,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-    FilterField,
     StatCard,
     bandOf,
     type StatusFilter,
@@ -44,7 +31,23 @@ import { createReportExports } from "@/app/lms/pages/attendancemanagement/featur
 import AttendanceReportTable from "@/app/lms/pages/attendancemanagement/features/AttendanceReportTable";
 import AttendanceReportCharts, { AttendanceReportInsights } from "@/app/lms/pages/attendancemanagement/features/AttendanceReportCharts";
 import AttendanceReportStudentSelect from "@/app/lms/pages/attendancemanagement/features/AttendanceReportStudentSelect";
-import PrintPreviewModal from "@/app/lms/component/live-print/PrintPreviewModal";
+import {
+    attendanceFilterWords,
+    attendancePrintBlocks,
+    attendancePrintDefaults,
+    attendancePrintFields,
+} from "@/app/lms/pages/attendancemanagement/features/attendanceReportPrint";
+import { MappingMultiFilter } from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
+import { PrintPreviewModal } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
+import { usePrintSetup } from "@/app/lms/pages/courses/courseReport/usePrintSetup";
+import {
+    REPORT_FIELD,
+    ReportActionRow,
+    ReportEmptyState,
+    ReportNoMatches,
+    useNextStepNudge,
+} from "@/app/lms/shared/report/reportKit";
+import { phaseOrdinal } from "@/lib/phaseGroups";
 
 const poppins = Poppins({
     subsets: ["latin"],
@@ -52,43 +55,84 @@ const poppins = Poppins({
     display: "swap",
 });
 
+const FIELD_BOX = "h-9 rounded-[10px] border border-[#e7ddd1] bg-surface shadow-xs";
+
 // ── Component ──────────────────────────────────────────────────────────────
 export default function AttendanceReportPage() {
     const report = useAttendanceReport();
     const {
-        courseId, todayKey,
+        courseId, todayKey, course,
         pendingMode, setPendingMode, pendingDate, setPendingDate, pendingFrom, setPendingFrom, pendingTo, setPendingTo,
         pendingStudent, setPendingStudent, pendingStatus, setPendingStatus,
-        canExport, filteredStudents,
-        students, studentsLoading, summaryLoading,
-        workingDays, totals, totalStudents,
+        batchGroups, pendingBatches, setPendingBatches, generated, pickerStudents,
+        filteredStudents, studentsLoading, summaryLoading,
+        workingDays, workingDayList, totals, totalStudents,
         applyFilters, resetFilters,
     } = report;
     const exports = createReportExports(report);
-    const [overallBusy, setOverallBusy] = useState<"print" | "pdf" | null>(null);
-    // Print runs through the "pick a saved layout, tweak, then print" modal.
-    // The report body is a plain-HTML rebuild of the report (scope, stat
-    // cards, summary table, trend, insights) — text only, no page-UI
-    // snapshot — so the printed sheet stays crisp and doesn't depend on
-    // html2canvas.
-    const [printModalOpen, setPrintModalOpen] = useState(false);
-    const [printBodyHtml, setPrintBodyHtml] = useState<string>("");
-    const runOverall = async (kind: "print" | "pdf") => {
-        setOverallBusy(kind);
-        try {
-            if (kind === "print") {
-                setPrintBodyHtml(exports.buildReportBodyHtml());
-                setPrintModalOpen(true);
-            } else {
-                await exports.handleOverallPdf();
-            }
-        } catch (err) {
-            console.error(err);
-            toast.error("Could not export the attendance report");
-        } finally {
-            setOverallBusy(null);
-        }
+
+    // ── Batch options — "Batch I (Phase III)", phases in order ───────────
+    const phased = batchGroups.some((g) => g.phase);
+    const batchLabel = (id: string) => {
+        const g = batchGroups.find((b) => b.id === id);
+        if (!g) return "Batch";
+        return g.phase ? `${g.name} (${g.phase})` : g.name;
     };
+    const batchOptions = useMemo(
+        () => [...batchGroups]
+            .sort((a, b) =>
+                phaseOrdinal(a.phase) - phaseOrdinal(b.phase) ||
+                a.phase.localeCompare(b.phase) ||
+                a.name.localeCompare(b.name, undefined, { numeric: true }))
+            .map((g) => ({ value: g.id, label: g.phase ? `${g.name} (${g.phase})` : g.name })),
+        [batchGroups]
+    );
+
+    // ── Generate / Reset, and the "Preview next" glow ────────────────────
+    const draft = useMemo(
+        () => ({ pendingMode, pendingDate, pendingFrom, pendingTo, pendingStudent, pendingStatus, pendingBatches }),
+        [pendingMode, pendingDate, pendingFrom, pendingTo, pendingStudent, pendingStatus, pendingBatches]
+    );
+    const nudge = useNextStepNudge(draft);
+    const generate = () => {
+        applyFilters();
+        nudge.markGenerated(draft);
+    };
+    const reset = () => {
+        resetFilters();
+        nudge.clear();
+    };
+    const draftTouched =
+        pendingMode !== "single" || pendingDate !== todayKey || pendingStudent !== "all" ||
+        pendingStatus !== "all" || pendingBatches.length > 0;
+
+    // ── Preview & Print ──────────────────────────────────────────────────
+    const { letterhead, initialFormat } = usePrintSetup();
+    const [printOpen, setPrintOpen] = useState(false);
+    const openPreview = () => {
+        nudge.markSeen();
+        setPrintOpen(true);
+    };
+    const printFields = useMemo(() => attendancePrintFields(workingDayList), [workingDayList]);
+    const printDefaults = useMemo(() => attendancePrintDefaults(workingDayList, phased), [workingDayList, phased]);
+    const printBlocks = useMemo(
+        () => (printOpen ? attendancePrintBlocks(report, phased) : []),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [printOpen, filteredStudents, report.grid, workingDays, phased]
+    );
+    const printMeta = useMemo(() => ({
+        title: "Attendance Report",
+        scope: course?.courseName || "Course",
+        generated: new Date().toLocaleString(),
+        filters: attendanceFilterWords(report, batchLabel),
+        ...letterhead,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [printOpen, course?.courseName, letterhead]);
+    const printSnapshot = useMemo(
+        () => ({ draft: {}, rows: [], generated: printMeta.generated }),
+        [printMeta.generated]
+    );
+    const fileBase = `attendance-${(course?.courseCode || course?.courseName || "course").replace(/[^\w-]+/g, "-")}-${report.appliedFrom}${report.appliedTo !== report.appliedFrom ? `_${report.appliedTo}` : ""}`;
 
     // ── Render ───────────────────────────────────────────────────────────
     if (!courseId) {
@@ -102,236 +146,221 @@ export default function AttendanceReportPage() {
         );
     }
 
-    const loading = studentsLoading || summaryLoading;
+    const loading = generated && (studentsLoading || summaryLoading);
+    const hasRows = generated && !loading && filteredStudents.length > 0;
 
     return (
         <div className={`${poppins.className} h-full overflow-y-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 space-y-4`}>
-            <div className="space-y-4">
-                        {/* Filters */}
-                        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
-                            {/* col spans sum to 12: Date=3, Student=3, Status=2, Buttons=4.
-                                Buttons column carries two side-by-side buttons — at col-span-3
-                                and a narrow embedding pane (e.g. inside the L&D dashboard's
-                                Attendance tab), Reset overflowed. col-span-4 fits both here
-                                and on the standalone /attendancemanagement/report page. */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
-                                <div className="lg:col-span-3">
-                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
-                                        <span className="text-[11px] font-medium text-gray-600">Date</span>
-                                        <label className="inline-flex items-center gap-1 text-[11px] text-gray-700 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="report-date-mode"
-                                                checked={pendingMode === "single"}
-                                                onChange={() => setPendingMode("single")}
-                                                className="h-3 w-3 accent-indigo-600 cursor-pointer"
-                                            />
-                                            Single Date
-                                        </label>
-                                        <label className="inline-flex items-center gap-1 text-[11px] text-gray-700 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="report-date-mode"
-                                                checked={pendingMode === "range"}
-                                                onChange={() => setPendingMode("range")}
-                                                className="h-3 w-3 accent-indigo-600 cursor-pointer"
-                                            />
-                                            Date Range
-                                        </label>
-                                    </div>
-                                    {pendingMode === "single" ? (
-                                        <input
-                                            type="date"
-                                            value={pendingDate}
-                                            max={todayKey}
-                                            onChange={(e) => e.target.value && setPendingDate(e.target.value)}
-                                            className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-[12px]"
-                                        />
-                                    ) : (
-                                        <div className="flex items-center gap-1.5">
-                                            <input
-                                                type="date"
-                                                value={pendingFrom}
-                                                max={todayKey}
-                                                onChange={(e) => e.target.value && setPendingFrom(e.target.value)}
-                                                className="h-9 flex-1 min-w-0 rounded-md border border-gray-300 bg-white px-2 text-[12px]"
-                                                title="Start date"
-                                            />
-                                            <span className="text-gray-400 shrink-0">–</span>
-                                            <input
-                                                type="date"
-                                                value={pendingTo}
-                                                max={todayKey}
-                                                onChange={(e) => e.target.value && setPendingTo(e.target.value)}
-                                                className="h-9 flex-1 min-w-0 rounded-md border border-gray-300 bg-white px-2 text-[12px]"
-                                                title="End date"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="lg:col-span-3">
-                                    <FilterField label="Student">
-                                        <AttendanceReportStudentSelect
-                                            students={students}
-                                            value={pendingStudent}
-                                            onChange={setPendingStudent}
-                                        />
-                                    </FilterField>
-                                </div>
-                                <div className="lg:col-span-2">
-                                    <FilterField label="Status">
-                                        <select
-                                            value={pendingStatus}
-                                            onChange={(e) => setPendingStatus(e.target.value as StatusFilter)}
-                                            className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-[12.5px]"
-                                        >
-                                            <option value="all">All</option>
-                                            <option value="P">Present</option>
-                                            <option value="A">Absent</option>
-                                            <option value="H">Half-day</option>
-                                            <option value="N">Not Marked</option>
-                                        </select>
-                                    </FilterField>
-                                </div>
-                                <div className="lg:col-span-4 flex items-center gap-2 min-w-0 attm-hide-in-export">
-                                    <Button
-                                        onClick={applyFilters}
-                                        className="h-9 flex-1 min-w-0 bg-indigo-600 hover:bg-indigo-700 text-white text-[12.5px] font-semibold whitespace-nowrap"
+            {/* Filters — one row, each named on its border */}
+            <div className="rounded-xl border border-hairline bg-surface px-3 pb-2.5 pt-3.5 shadow-xs">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-3.5">
+                    <BorderLabel label={pendingMode === "single" ? "Date" : "Date range"} className="min-w-[260px] flex-[2_1_300px]">
+                        <div className={`${FIELD_BOX} flex items-center gap-2 pl-1 pr-2`}>
+                            <div className="inline-flex shrink-0 rounded-[7px] bg-canvas p-0.5" role="tablist" aria-label="Date mode">
+                                {(["single", "range"] as const).map((mode) => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={pendingMode === mode}
+                                        onClick={() => setPendingMode(mode)}
+                                        className={`h-7 rounded-[6px] px-2.5 text-[11px] font-semibold transition-colors ${pendingMode === mode
+                                            ? "bg-surface text-brand-strong shadow-xs"
+                                            : "text-subtle hover:text-heading"}`}
                                     >
-                                        <Filter className="h-3.5 w-3.5 mr-1.5 shrink-0" /> Apply Filters
-                                    </Button>
-                                    <Button
-                                        onClick={resetFilters}
-                                        variant="outline"
-                                        className="h-9 shrink-0 border-gray-300 text-gray-700 text-[12.5px] font-semibold whitespace-nowrap"
-                                    >
-                                        <RotateCcw className="h-3.5 w-3.5 mr-1.5 shrink-0" /> Reset
-                                    </Button>
-                                </div>
+                                        {mode === "single" ? "Day" : "Range"}
+                                    </button>
+                                ))}
                             </div>
-                            {canExport && (
-                                <div className="mt-3 flex justify-end border-t border-gray-100 pt-3 attm-hide-in-export">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                disabled={!!overallBusy || loading || filteredStudents.length === 0}
-                                                title="Export the whole report — filters, stats, table, charts and insights"
-                                                className="h-9 border-indigo-200 text-indigo-700 text-[12.5px] font-semibold whitespace-nowrap"
-                                            >
-                                                {overallBusy ? (
-                                                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                                ) : (
-                                                    <Download className="h-3.5 w-3.5 mr-1.5" />
-                                                )}
-                                                {overallBusy ? "Preparing…" : "Export report"}
-                                                <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" sideOffset={4} className="w-48">
-                                            <DropdownMenuItem onClick={() => void runOverall("print")} className="text-[12.5px] cursor-pointer">
-                                                <Printer className="h-3.5 w-3.5" /> Print
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={() => void runOverall("pdf")}
-                                                title="Download the report as a PDF that matches the page UI"
-                                                className="text-[12.5px] cursor-pointer"
-                                            >
-                                                <FileText className="h-3.5 w-3.5 text-red-600" /> Download PDF
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
+                            {pendingMode === "single" ? (
+                                <input
+                                    type="date"
+                                    value={pendingDate}
+                                    max={todayKey}
+                                    onChange={(e) => e.target.value && setPendingDate(e.target.value)}
+                                    className="min-w-0 flex-1 bg-transparent text-xs text-body outline-none"
+                                />
+                            ) : (
+                                <>
+                                    <input
+                                        type="date"
+                                        value={pendingFrom}
+                                        max={todayKey}
+                                        onChange={(e) => e.target.value && setPendingFrom(e.target.value)}
+                                        className="min-w-0 flex-1 bg-transparent text-xs text-body outline-none"
+                                        title="Start date"
+                                    />
+                                    <span className="shrink-0 text-faint">–</span>
+                                    <input
+                                        type="date"
+                                        value={pendingTo}
+                                        max={todayKey}
+                                        onChange={(e) => e.target.value && setPendingTo(e.target.value)}
+                                        className="min-w-0 flex-1 bg-transparent text-xs text-body outline-none"
+                                        title="End date"
+                                    />
+                                </>
                             )}
                         </div>
-
-
-                        {/* Stat cards */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <StatCard
-                                iconBg="bg-indigo-50 text-indigo-600"
-                                icon={<Users className="h-5 w-5" />}
-                                label="Total Students"
-                                value={String(totalStudents)}
+                    </BorderLabel>
+                    {batchOptions.length > 0 && (
+                        <BorderLabel label="Batch" className={`${REPORT_FIELD} flex-[1_1_170px] sm:max-w-[240px]`}>
+                            <MappingMultiFilter
+                                label="Batches"
+                                options={batchOptions}
+                                value={pendingBatches}
+                                onChange={setPendingBatches}
+                                placeholder="All batches"
                             />
-                            <StatCard
-                                iconBg="bg-violet-50 text-violet-600"
-                                icon={<CalendarDays className="h-5 w-5" />}
-                                label="Total Working Days"
-                                value={String(workingDays)}
-                                sub="(excl. weekends)"
-                            />
-                            <StatCard
-                                iconBg="bg-emerald-50 text-emerald-600"
-                                icon={<TrendingUp className="h-5 w-5" />}
-                                label="Class Average"
-                                value={`${totals.avgAttendance.toFixed(2)}%`}
-                                sub={bandOf(totals.avgAttendance).label}
-                            />
-                            <StatCard
-                                iconBg="bg-rose-50 text-rose-600"
-                                icon={<AlertTriangle className="h-5 w-5" />}
-                                label="At Risk (< 75%)"
-                                value={String(totals.atRisk)}
-                                sub={totals.atRisk === 1 ? "student" : "students"}
-                            />
-                            <StatCard
-                                iconBg="bg-emerald-50 text-emerald-600"
-                                icon={<UserCheck className="h-5 w-5" />}
-                                label="Present"
-                                value={String(totals.P)}
-                                sub={`(${totals.pPct.toFixed(2)}%)`}
-                            />
-                            <StatCard
-                                iconBg="bg-red-50 text-red-600"
-                                icon={<UserX className="h-5 w-5" />}
-                                label="Absent"
-                                value={String(totals.A)}
-                                sub={`(${totals.aPct.toFixed(2)}%)`}
-                            />
-                            <StatCard
-                                iconBg="bg-amber-50 text-amber-600"
-                                icon={<Clock className="h-5 w-5" />}
-                                label="Half-day"
-                                value={String(totals.H)}
-                                sub={`(${totals.hPct.toFixed(2)}%)`}
-                            />
-                            <StatCard
-                                iconBg="bg-gray-100 text-gray-500"
-                                icon={<Circle className="h-5 w-5" />}
-                                label="Not Marked"
-                                value={String(totals.N)}
-                                sub={`(${totals.nPct.toFixed(2)}%)`}
-                            />
-                        </div>
-
-                        {/* Attendance Summary */}
-                        <AttendanceReportTable
-                            {...report}
-                            loading={loading}
-                            onExcel={exports.handleExcel}
-                            onSummaryPdf={exports.handlePdf}
-                            onSummaryPrint={() => {
-                                setPrintBodyHtml(exports.buildSummaryBodyHtml());
-                                setPrintModalOpen(true);
-                            }}
+                        </BorderLabel>
+                    )}
+                    <BorderLabel
+                        label="Students"
+                        className="min-w-0 flex-[1_1_190px] sm:max-w-[260px] [&>div>button]:h-9 [&>div>button]:rounded-[10px] [&>div>button]:border-[#e7ddd1] [&>div>button]:text-xs [&>div>button]:shadow-xs"
+                    >
+                        <AttendanceReportStudentSelect
+                            students={pickerStudents}
+                            value={pendingStudent}
+                            onChange={setPendingStudent}
                         />
+                    </BorderLabel>
+                    <BorderLabel label="Status" className="min-w-0 flex-[1_1_140px] sm:max-w-[180px]">
+                        <select
+                            value={pendingStatus}
+                            onChange={(e) => setPendingStatus(e.target.value as StatusFilter)}
+                            className={`${FIELD_BOX} w-full px-2.5 text-xs text-body outline-none focus:border-brand-400`}
+                        >
+                            <option value="all">All statuses</option>
+                            <option value="P">Present</option>
+                            <option value="A">Absent</option>
+                            <option value="H">Half-day</option>
+                            <option value="N">Not marked</option>
+                        </select>
+                    </BorderLabel>
+                </div>
 
-                        {/* Bottom charts */}
-                        <AttendanceReportCharts {...report} />
-
-                        {/* Key insights */}
-                        <AttendanceReportInsights {...report} />
+                <ReportActionRow
+                    onReset={reset}
+                    resetDisabled={!draftTouched && !generated}
+                    onPreview={openPreview}
+                    previewDisabled={!hasRows}
+                    nudge={hasRows && nudge.isFresh && !nudge.seen}
+                    onGenerate={generate}
+                    generateDisabled={studentsLoading}
+                    loading={loading}
+                />
             </div>
 
+            {!generated ? (
+                <ReportEmptyState />
+            ) : loading ? (
+                <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-subtle">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Generating the report…
+                </div>
+            ) : filteredStudents.length === 0 ? (
+                <ReportNoMatches />
+            ) : (
+                <>
+                    {/* Stat cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <StatCard
+                            iconBg="bg-indigo-50 text-indigo-600"
+                            icon={<Users className="h-5 w-5" />}
+                            label="Total Students"
+                            value={String(totalStudents)}
+                        />
+                        <StatCard
+                            iconBg="bg-violet-50 text-violet-600"
+                            icon={<CalendarDays className="h-5 w-5" />}
+                            label="Total Working Days"
+                            value={String(workingDays)}
+                            sub="(excl. weekends)"
+                        />
+                        <StatCard
+                            iconBg="bg-emerald-50 text-emerald-600"
+                            icon={<TrendingUp className="h-5 w-5" />}
+                            label="Class Average"
+                            value={`${totals.avgAttendance.toFixed(2)}%`}
+                            sub={bandOf(totals.avgAttendance).label}
+                        />
+                        <StatCard
+                            iconBg="bg-rose-50 text-rose-600"
+                            icon={<AlertTriangle className="h-5 w-5" />}
+                            label="At Risk (< 75%)"
+                            value={String(totals.atRisk)}
+                            sub={totals.atRisk === 1 ? "student" : "students"}
+                        />
+                        <StatCard
+                            iconBg="bg-emerald-50 text-emerald-600"
+                            icon={<UserCheck className="h-5 w-5" />}
+                            label="Present"
+                            value={String(totals.P)}
+                            sub={`(${totals.pPct.toFixed(2)}%)`}
+                        />
+                        <StatCard
+                            iconBg="bg-red-50 text-red-600"
+                            icon={<UserX className="h-5 w-5" />}
+                            label="Absent"
+                            value={String(totals.A)}
+                            sub={`(${totals.aPct.toFixed(2)}%)`}
+                        />
+                        <StatCard
+                            iconBg="bg-amber-50 text-amber-600"
+                            icon={<Clock className="h-5 w-5" />}
+                            label="Half-day"
+                            value={String(totals.H)}
+                            sub={`(${totals.hPct.toFixed(2)}%)`}
+                        />
+                        <StatCard
+                            iconBg="bg-gray-100 text-gray-500"
+                            icon={<Circle className="h-5 w-5" />}
+                            label="Not Marked"
+                            value={String(totals.N)}
+                            sub={`(${totals.nPct.toFixed(2)}%)`}
+                        />
+                    </div>
+
+                    {/* The student list — Daily / Summary, with its own Excel / PDF */}
+                    <AttendanceReportTable
+                        {...report}
+                        loading={loading}
+                        onExcel={exports.handleExcel}
+                        onSummaryPdf={exports.handlePdf}
+                        onSummaryPrint={openPreview}
+                    />
+
+                    <AttendanceReportCharts {...report} />
+                    <AttendanceReportInsights {...report} />
+                </>
+            )}
+
             <PrintPreviewModal
-                open={printModalOpen}
-                onClose={() => setPrintModalOpen(false)}
-                title={exports.printJobTitle()}
-                heading="Attendance Report"
-                bodyHtml={printBodyHtml}
-                onPrint={(setting) => exports.printWithSetting(setting, printBodyHtml)}
+                open={printOpen}
+                onClose={() => setPrintOpen(false)}
+                snapshot={printSnapshot}
+                blocks={printBlocks}
+                letterhead={letterhead}
+                initialFormat={initialFormat}
+                meta={printMeta}
+                fields={printFields}
+                defaultEnabled={printDefaults}
+                filenameBase={fileBase}
+                keepBlocksTogether
+                noFillerRows
+                serialPerRow
             />
+        </div>
+    );
+}
+
+/** A field named on its top border (the Course Report's filter style). */
+function BorderLabel({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+    return (
+        <div className={`relative ${className || ""}`}>
+            {children}
+            <span className="pointer-events-none absolute -top-[7px] left-2.5 z-[1] bg-surface px-1 text-[10.5px] font-medium leading-[14px] text-subtle">
+                {label}
+            </span>
         </div>
     );
 }
