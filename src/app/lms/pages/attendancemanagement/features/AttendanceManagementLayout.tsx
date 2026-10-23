@@ -23,7 +23,7 @@ import {
 import { courseStructuresSummaryQuery } from "@/app/lms/pages/coursestructure/api/createCourseStucture";
 import { attendanceApi } from "@/app/lms/pages/attendancemanagement/api/attendanceApi";
 import { useInvalidateAttendance } from "@/app/lms/pages/attendancemanagement/queries/attendance";
-import DashboardLayout from "@/app/lms/component/layout";
+import { AdminOrStaffLayout } from "@/app/lms/pages/logs/features/AdminOrStaffLayout";
 import LDLayout from "@/app/lms/component/ldshell/LDLayout";
 import type { CourseStructure } from "@/app/lms/pages/coursestructure/coursestructurecomponents/types";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -62,7 +62,12 @@ function AttmShell({ fromLdc, children }: { fromLdc: boolean; children: React.Re
     useEffect(() => { setLdRole(isLdRole()); }, []);
     const useLd = fromLdc || ldRole;
     if (useLd) return <LDLayout active="attendance">{children}</LDLayout>;
-    return <DashboardLayout>{children}</DashboardLayout>;
+    // Everyone else in the shell of their own role: an admin's rail, or the
+    // trainer's — the page used to pin the admin DashboardLayout, so a trainer
+    // opening Attendance saw their sidebar change (Grade back, Reports and
+    // the theme row gone). No built-in padding: these views size themselves,
+    // as they did inside DashboardLayout.
+    return <AdminOrStaffLayout noBuiltInPadding>{children}</AdminOrStaffLayout>;
 }
 
 const poppins = Poppins({
