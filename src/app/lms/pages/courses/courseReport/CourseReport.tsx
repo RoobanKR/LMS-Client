@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, Eye, FileText, Info, Loader2, RotateCcw,
+  ArrowLeft, BookOpen, ChevronRight, ClipboardList, Eye, FileText, Info, Loader2, RotateCcw,
   Search, SearchX, UsersRound, X,
 } from "lucide-react";
 import { MappingMultiFilter } from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
@@ -219,6 +219,15 @@ export default function CourseReport() {
   const phaseOptions = useMemo(() => phaseNames.map((p) => ({ value: p, label: p })), [phaseNames]);
   const phaseOfBatch = useCallback((id: string) => batchPhaseById.get(id) || phaseNames[0] || "", [batchPhaseById, phaseNames]);
   const phaseOfExercise = useCallback((ex: ReportExercise) => ex.phase || phaseNames[0] || "", [phaseNames]);
+  /** Each batch's phase and its own name, for the student list's columns. */
+  const batchMeta = useMemo(() => {
+    const m = new Map<string, { phase: string; name: string }>();
+    for (const b of liveBatches(courseData)) {
+      const id = String(b._id);
+      m.set(id, { phase: phaseOfBatch(id), name: String(b.batchName || "").trim() || batchLabel(b) || "Batch" });
+    }
+    return m;
+  }, [courseData, phaseOfBatch]);
 
   /** The batches a set of picks covers; [] = every batch. */
   const batchesFor = useCallback(
@@ -665,6 +674,8 @@ export default function CourseReport() {
         <StudentList
           rows={visibleStudents}
           batchOptions={batchOptions}
+          batchMeta={batchMeta}
+          showPhase={phaseNames.length > 0}
           totalsOf={totalsOf}
           exerciseCount={filteredExercises.length}
           selected={selected}
@@ -1010,10 +1021,13 @@ function ExerciseResults({
 
 // S1 ────────────────────────────────────────────────────────────────────────
 function StudentList({
-  rows, batchOptions, totalsOf, exerciseCount, selected, setSelected, onView, onPrint,
+  rows, batchOptions, batchMeta, showPhase, totalsOf, exerciseCount, selected, setSelected, onView,
 }: {
   rows: ReportStudent[];
   batchOptions: { value: string; label: string }[];
+  batchMeta: Map<string, { phase: string; name: string }>;
+  /** The course runs in phases — show the Phase column. */
+  showPhase: boolean;
   totalsOf: (s: ReportStudent) => ReturnType<typeof totalsFor>;
   exerciseCount: number;
   selected: Set<string>;
@@ -1022,63 +1036,80 @@ function StudentList({
   onPrint: (layout: PrintLayout, visible: ReportStudent[]) => void;
 }) {
   const sel = useSelection(rows, selected, setSelected);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  // One group per batch, in the batch filter's order — the batch is said
-  // once, as a header row across the table, not on every student's row. A
-  // student in two batches is listed under each; one with no batch goes
-  // last under "No batch".
-  const groups = useMemo(() => {
-    const out = batchOptions
-      .map((b) => ({ id: b.value, label: b.label, rows: rows.filter((s) => s.batchIds.includes(b.value)) }))
-      .filter((g) => g.rows.length > 0);
-    const loose = rows.filter((s) => !s.batchIds.some((id) => batchOptions.some((b) => b.value === id)));
-    if (loose.length) out.push({ id: "__none", label: "No batch", rows: loose });
+  // One line per student per batch, ordered phase → batch → name. A student
+  // in two batches is listed under each; one with no batch comes last.
+  const lines = useMemo(() => {
+    const metaOf = (id: string) => batchMeta.get(id);
+    const order = [...batchOptions].sort((a, b) => {
+      const pa = metaOf(a.value)?.phase || "";
+      const pb = metaOf(b.value)?.phase || "";
+      return phaseOrdinal(pa) - phaseOrdinal(pb) || pa.localeCompare(pb)
+        || (metaOf(a.value)?.name || a.label).localeCompare(metaOf(b.value)?.name || b.label, undefined, { numeric: true });
+    });
+    const byName = (x: ReportStudent, y: ReportStudent) => x.name.localeCompare(y.name);
+    const out: { key: string; student: ReportStudent; phase: string; batchId: string; batch: string }[] = [];
+    for (const b of order) {
+      const meta = metaOf(b.value);
+      for (const st of rows.filter((r) => r.batchIds.includes(b.value)).sort(byName)) {
+        out.push({ key: `${b.value}|${st.id}`, student: st, phase: meta?.phase || "", batchId: b.value, batch: meta?.name || b.label });
+      }
+    }
+    const known = new Set(batchOptions.map((b) => b.value));
+    for (const st of rows.filter((r) => !r.batchIds.some((id) => known.has(id))).sort(byName)) {
+      out.push({ key: `none|${st.id}`, student: st, phase: "", batchId: "", batch: "" });
+    }
     return out;
-  }, [rows, batchOptions]);
+  }, [rows, batchOptions, batchMeta]);
 
-  const toggle = (id: string) => setCollapsed((c) => {
-    const n = new Set(c);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    return n;
-  });
-  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.id));
-  const COLS = 10;
+  // The same phase (or batch) on consecutive lines is written once, in one
+  // cell merged down over them — the way Business Reports merges a client.
+  const spans = useMemo(() => {
+    const phase = new Array<number>(lines.length).fill(0);
+    const batch = new Array<number>(lines.length).fill(0);
+    for (let i = 0; i < lines.length;) {
+      let j = i;
+      while (j < lines.length && lines[j].phase === lines[i].phase) j++;
+      phase[i] = j - i;
+      i = j;
+    }
+    for (let i = 0; i < lines.length;) {
+      let j = i;
+      while (j < lines.length && lines[j].batchId === lines[i].batchId && lines[j].phase === lines[i].phase) j++;
+      batch[i] = j - i;
+      i = j;
+    }
+    return { phase, batch };
+  }, [lines]);
+
+  const batchCount = new Set(lines.map((l) => l.batchId)).size;
+  const COLS = showPhase ? 12 : 11;
+  // A merged group cell: read as a label, not a row to open.
+  const GROUP_TD = "border-x border-hairline bg-[#fbf8f4] px-3 py-2.5 align-top text-xs font-semibold text-heading dark:bg-white/[0.03]";
 
   return (
     <Card
       toolbar={(
-        <>
-          <span className="text-xs text-subtle">
-            {sel.picked ? `${sel.picked} of ${rows.length} selected` : `${rows.length} student${rows.length === 1 ? "" : "s"}`}
-            {groups.length > 1 && ` in ${groups.length} batches`}
-            {` · totals over ${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"}`}
-            <span
-              title="Marks count exercises that are due or started; ones still open and not started are left out."
-              className="ml-1 inline-flex cursor-help align-[-2px] text-faint"
-            >
-              <Info size={13} />
-            </span>
+        <span className="text-xs text-subtle">
+          {sel.picked ? `${sel.picked} of ${rows.length} selected` : `${rows.length} student${rows.length === 1 ? "" : "s"}`}
+          {batchCount > 1 && ` in ${batchCount} batches`}
+          {` · totals over ${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"}`}
+          <span
+            title="Marks count exercises that are due or started; ones still open and not started are left out."
+            className="ml-1 inline-flex cursor-help align-[-2px] text-faint"
+          >
+            <Info size={13} />
           </span>
-          <div className="flex items-center gap-2">
-            {groups.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.id)))}
-                className="inline-flex h-8 items-center rounded-control border border-hairline-strong bg-surface px-3 text-xs font-medium text-body transition-colors hover:bg-row-hover hover:text-heading"
-              >
-                {allCollapsed ? "Expand all" : "Collapse all"}
-              </button>
-            )}
-          </div>
-        </>
+        </span>
       )}
     >
-      <table className="w-full min-w-[860px] border-collapse lg:min-w-0">
+      <table className="w-full min-w-[980px] border-collapse lg:min-w-0">
         <thead className={THEAD}>
           <tr>
             <th className={`${TH} w-10`}><Checkbox checked={sel.all} indeterminate={sel.some} onChange={sel.toggleAll} label="Select all students" disabled={!rows.length} /></th>
             <th className={`${TH} w-10 text-right`}>#</th>
+            {showPhase && <th className={TH}>Phase</th>}
+            <th className={TH}>Batch</th>
             <th className={TH}>Reg No</th>
             <th className={TH}>Student</th>
             <th className={`${TH} text-right`}>Assignments</th>
@@ -1089,56 +1120,49 @@ function StudentList({
             <th className={`${TH} text-right`}>Action</th>
           </tr>
         </thead>
-        {rows.length === 0 && (
-          <tbody><EmptyRow colSpan={COLS} text="No students match." /></tbody>
-        )}
-        {groups.map((g) => {
-          const open = !collapsed.has(g.id);
-          const pcts = g.rows.map((s) => totalsOf(s).percent).filter((p): p is number => p != null);
-          const avg = pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null;
-          return (
-            <tbody key={g.id}>
-              {/* The batch — one header row across the table; click to fold. */}
-              <tr className="border-t border-hairline">
-                <td colSpan={COLS} className="bg-[#fbf3ea] p-0 dark:bg-white/[0.04]">
-                  <button
-                    type="button"
-                    onClick={() => toggle(g.id)}
-                    aria-expanded={open}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left"
-                  >
-                    {open ? <ChevronDown size={15} className="text-brand-strong" /> : <ChevronRight size={15} className="text-brand-strong" />}
-                    <span className="text-xs font-semibold text-heading">{g.label}</span>
-                    <span className="rounded-full bg-surface px-2 py-0.5 text-2xs font-medium text-body ring-1 ring-hairline">
-                      {g.rows.length} student{g.rows.length === 1 ? "" : "s"}
+        <tbody>
+          {lines.length === 0 && <EmptyRow colSpan={COLS} text="No students match." />}
+          {lines.map((l, i) => {
+            const s = l.student;
+            const t = totalsOf(s);
+            // A new batch starts on this line: a firmer rule above it.
+            const groupStart = i > 0 && spans.batch[i] > 0;
+            return (
+              <tr
+                key={l.key}
+                onClick={() => onView(s.id)}
+                className={`cursor-pointer transition-colors hover:bg-row-hover ${groupStart ? "border-t-2 border-[#e9dfd3]" : "border-t border-hairline"} ${selected.has(s.id) ? "bg-brand-wash/40" : ""}`}
+              >
+                <td className={TD} onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(s.id)} onChange={(c) => sel.toggle(s.id, c)} label={`Select ${s.name}`} /></td>
+                <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
+                {showPhase && spans.phase[i] > 0 && (
+                  <td rowSpan={spans.phase[i]} className={`${GROUP_TD} cursor-default whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
+                    {l.phase || <Dash />}
+                  </td>
+                )}
+                {spans.batch[i] > 0 && (
+                  <td rowSpan={spans.batch[i]} className={`${GROUP_TD} max-w-[180px] cursor-default`} onClick={(e) => e.stopPropagation()}>
+                    <span className="block truncate" title={l.batch}>{l.batch || "No batch"}</span>
+                    <span className="mt-0.5 block text-2xs font-normal text-subtle">
+                      {spans.batch[i]} student{spans.batch[i] === 1 ? "" : "s"}
                     </span>
-                    <span className="text-2xs text-subtle">Average {formatPercent(avg)}</span>
-                  </button>
+                  </td>
+                )}
+                <td className={`${TD} whitespace-nowrap`}>{s.regNo || <Dash />}</td>
+                <td className={`${TD} max-w-[260px]`}>
+                  <span className="block truncate font-semibold text-heading" title={s.name}>{s.name}</span>
+                  {s.email && <span className="block truncate text-2xs text-faint" title={s.email}>{s.email}</span>}
                 </td>
+                <td className={TD_NUM}>{t.assignmentsDone} / {t.assignmentsTotal}</td>
+                <td className={TD_NUM}>{t.assessmentsDone} / {t.assessmentsTotal}</td>
+                <td className={`${TD_NUM} font-semibold text-heading`}>{round1(t.scored)} / {round1(t.total)}</td>
+                <td className={TD_NUM}>{formatPercent(t.percent)}</td>
+                <td className={TD}>{t.scale || <Dash />}</td>
+                <td className={`${TD} text-right`}><ViewButton onClick={() => onView(s.id)} label={`View ${s.name}`} /></td>
               </tr>
-              {open && g.rows.map((s, i) => {
-                const t = totalsOf(s);
-                return (
-                  <tr key={s.id} onClick={() => onView(s.id)} className={`cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover ${selected.has(s.id) ? "bg-brand-wash/40" : ""}`}>
-                    <td className={TD} onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(s.id)} onChange={(c) => sel.toggle(s.id, c)} label={`Select ${s.name}`} /></td>
-                    <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
-                    <td className={`${TD} whitespace-nowrap`}>{s.regNo || <Dash />}</td>
-                    <td className={`${TD} max-w-[260px]`}>
-                      <span className="block truncate font-semibold text-heading" title={s.name}>{s.name}</span>
-                      {s.email && <span className="block truncate text-2xs text-faint" title={s.email}>{s.email}</span>}
-                    </td>
-                    <td className={TD_NUM}>{t.assignmentsDone} / {t.assignmentsTotal}</td>
-                    <td className={TD_NUM}>{t.assessmentsDone} / {t.assessmentsTotal}</td>
-                    <td className={`${TD_NUM} font-semibold text-heading`}>{round1(t.scored)} / {round1(t.total)}</td>
-                    <td className={TD_NUM}>{formatPercent(t.percent)}</td>
-                    <td className={TD}>{t.scale || <Dash />}</td>
-                    <td className={`${TD} text-right`}><ViewButton onClick={() => onView(s.id)} label={`View ${s.name}`} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          );
-        })}
+            );
+          })}
+        </tbody>
       </table>
     </Card>
   );
