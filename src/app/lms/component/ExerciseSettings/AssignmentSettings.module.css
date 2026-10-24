@@ -241,7 +241,7 @@
 .fieldNote { margin: 6px 0 0; font-size: 14px; color: #68727a; font-weight: 400; }
 .fieldError { margin: 6px 0 0; color: #b42318; font-size: 14px; }
 .skill { display: inline-flex; align-items: center; gap: 6px; color: #263746; font-size: 18px; font-weight: 400; }
-.skill img { width: 18px; height: 18px; object-fit: contain; }
+.skill img { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
 .editorField { max-width: 850px; }
 .editorField :global(.ProseMirror) { font-size: 18px !important; font-weight: 400; line-height: 1.6; }
 
@@ -335,6 +335,7 @@
 .compact .fieldRow { grid-template-columns: 180px minmax(0, 1fr); column-gap: 20px; padding-bottom: 12px; }
 .compact .fieldLabel, .compact .dateLabel { min-height: 32px; gap: 8px; }
 .compact .fieldLabel label, .compact .fieldControl, .compact .dateLabel, .compact .skill { font-size: 13px; font-weight: 400; }
+.compact .skill img { width: 14px; height: 14px; }
 .compact .required { font-size: 12px; }
 .compact .fieldNote, .compact .fieldError, .compact .dateError { font-size: 11px; margin-top: 4px; line-height: 1.5; }
 .compact .shortInput { width: 180px; }

@@ -210,10 +210,10 @@ const ManualSettings: React.FC<ManualSettingsProps> = ({
 
     const moduleLanguages: Record<string, { name: string; icon: string }[]> = {
         'Core Programming': [
-            { name: 'C', icon: '/active-images/c.png' },
+            { name: 'C', icon: '/active-images/C.png' },
             { name: 'C++', icon: '/active-images/cpp.png' },
-            { name: 'Java', icon: '/active-images/java.png' },
-            { name: 'Python', icon: '/active-images/python.png' },
+            { name: 'Java', icon: '/active-images/Java.png' },
+            { name: 'Python', icon: '/active-images/Python.png' },
             { name: 'C#', icon: '/active-images/csharp.png' }
         ],
         'Frontend': [
