@@ -538,6 +538,7 @@ const ExerciseSettings: React.FC<ExerciseSettingsProps> = ({
     instructions: '',
     exerciseLevel: '' as 'beginner' | 'intermediate' | 'expert',
     isGraded: false,
+    isTimeBased: false,
     totalDuration: 0, totalMarks: 0, totalMarksMCQ: 0, totalMarksProgramming: 0,
     mcqConfig: {
       questionConfigType: 'general' as const, generalQuestionCount: 0,
@@ -798,6 +799,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       instructions: typeof ex.instructions === 'string' ? ex.instructions : (prev.instructions ?? ''),
       exerciseLevel: (info.exerciseLevel as any) ?? 'intermediate',
       totalDuration: info.totalDuration ?? 0,
+      isTimeBased: info.isTimeBased !== undefined ? info.isTimeBased !== false : Number(info.totalDuration) > 0,
       totalMarks: info.totalMarks ?? 0,
       totalMarksMCQ: info.totalMarksMCQ ?? 0,
       totalMarksProgramming: info.totalMarksProgramming ?? 0,
@@ -981,6 +983,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
       instructions: typeof ex.instructions === 'string' ? ex.instructions : (prev.instructions ?? ''),
       exerciseLevel: (info.exerciseLevel as any) ?? 'intermediate',
       totalDuration: info.totalDuration ?? 0,
+      isTimeBased: info.isTimeBased !== undefined ? info.isTimeBased !== false : Number(info.totalDuration) > 0,
       totalMarks: info.totalMarks ?? 0,
       totalMarksMCQ: info.totalMarksMCQ ?? 0,
       totalMarksProgramming: info.totalMarksProgramming ?? 0,
@@ -1170,7 +1173,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
           if (!formData.exerciseType) { filled = false; break; }
           if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') &&
             (!formData.selectedModule || formData.selectedLanguages.length === 0)) { filled = false; break; }
-          const base = !!(formData.exerciseName?.trim() && formData.totalDuration > 0);
+          const base = !!(formData.exerciseName?.trim() && (!formData.isTimeBased || formData.totalDuration > 0));
           filled = formData.isGraded === false ? base
             : formData.exerciseType === 'Combined'
               ? base && formData.totalMarksMCQ > 0 && formData.totalMarksProgramming > 0
@@ -1244,7 +1247,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
 
     setCompletedSteps(new Set(ids));
 
-  }, [isEditing, initialData, formData.exerciseType, formData.exerciseName, formData.totalDuration,
+  }, [isEditing, initialData, formData.exerciseType, formData.exerciseName, formData.totalDuration, formData.isTimeBased,
     formData.totalMarks, formData.totalMarksMCQ, formData.totalMarksProgramming,
     formData.selectedModule, formData.selectedLanguages, formData.mcqConfig.generalQuestionCount,
     formData.programmingConfig, formData.othersConfig, formData.schedule, formData.grades]);
@@ -1759,7 +1762,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     if (!formData.exerciseName.trim()) e.exerciseName = 'Exercise name is required';
     if (!formData.exerciseLevel) e.exerciseLevel = 'Difficulty level is required';  // ← add this
 
-    if (formData.totalDuration <= 0) e.totalDuration = 'Duration must be greater than 0';
+    if (formData.isTimeBased && formData.totalDuration <= 0) e.totalDuration = 'Duration must be greater than 0';
 
     // Skip marks validation for Non-Graded exercises
     if (formData.isGraded === false) return e;
@@ -1775,7 +1778,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
     }
 
     return e;
-  }, [formData.exerciseName, formData.exerciseLevel, formData.totalDuration, formData.totalMarks, formData.exerciseType, formData.totalMarksMCQ, formData.totalMarksProgramming, formData.isGraded]);
+  }, [formData.exerciseName, formData.exerciseLevel, formData.totalDuration, formData.isTimeBased, formData.totalMarks, formData.exerciseType, formData.totalMarksMCQ, formData.totalMarksProgramming, formData.isGraded]);
 
   const validateMCQConfiguration = useCallback((): ValidationErrors => {
     const e: ValidationErrors = {};
@@ -2142,7 +2145,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         if (!formData.exerciseType) return false;
         if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') &&
           (!formData.selectedModule || formData.selectedLanguages.length === 0)) return false;
-        const base = !!(formData.exerciseName?.trim() && formData.totalDuration > 0);
+        const base = !!(formData.exerciseName?.trim() && (!formData.isTimeBased || formData.totalDuration > 0));
         if (formData.exerciseType === 'Combined') {
           return base && formData.totalMarksMCQ > 0 && formData.totalMarksProgramming > 0;
         }
@@ -2325,7 +2328,8 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         exerciseName: formData.exerciseName,
         description: formData.description || '',
         exerciseLevel: formData.exerciseLevel || 'beginner',
-        totalDuration: formData.totalDuration || 0,
+        totalDuration: formData.isTimeBased ? formData.totalDuration || 0 : 0,
+        isTimeBased: !!formData.isTimeBased,
         totalMarks: formData.isGraded === false ? null : formData.exerciseType === 'Combined'
           ? (formData.totalMarksMCQ + formData.totalMarksProgramming)
           : formData.totalMarks,
@@ -2772,7 +2776,7 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
         if ((formData.exerciseType === 'Programming' || formData.exerciseType === 'Combined') &&
           (!formData.selectedModule || formData.selectedLanguages.length === 0)) return false;
 
-        const base = !!(formData.exerciseName?.trim() && formData.totalDuration > 0);
+        const base = !!(formData.exerciseName?.trim() && (!formData.isTimeBased || formData.totalDuration > 0));
         if (formData.exerciseType === 'Combined')
           return base && formData.totalMarksMCQ > 0 && formData.totalMarksProgramming > 0;
         return base && formData.totalMarks > 0;
@@ -5978,7 +5982,7 @@ const renderNotifications = useCallback(() => (
                 <dt style={{ color: '#57606E' }}>Name</dt><dd style={{ margin: 0, fontWeight: 600 }}>{formData.exerciseName || '—'}</dd>
                 <dt style={{ color: '#57606E' }}>Type</dt><dd style={{ margin: 0, fontWeight: 600 }}>{formData.exerciseType || '—'}</dd>
                 <dt style={{ color: '#57606E' }}>Difficulty</dt><dd style={{ margin: 0, fontWeight: 600, textTransform: 'capitalize' }}>{formData.exerciseLevel || '—'}</dd>
-                <dt style={{ color: '#57606E' }}>Duration</dt><dd style={{ margin: 0, fontWeight: 600 }}>{formData.totalDuration || 0} minutes</dd>
+                <dt style={{ color: '#57606E' }}>Duration</dt><dd style={{ margin: 0, fontWeight: 600 }}>{formData.isTimeBased ? `${formData.totalDuration || 0} minutes` : 'Not time based'}</dd>
                 {formData.isGraded !== false && (
                   <>
                     <dt style={{ color: '#57606E' }}>Total marks</dt>

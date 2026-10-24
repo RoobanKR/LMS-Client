@@ -307,7 +307,18 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
         onChange={value => { setFormData((previous: any) => ({ ...previous, exerciseLevel: value })); if (value) clearError('exerciseLevel'); }}
         onBlur={() => markTouched('exerciseLevel')} />
     </FormRow>
-    <FormRow label="Duration" required htmlFor="exercise-duration" help="Total time allowed in minutes" error={errorFor('totalDuration')}>
+    <FormRow label="Time based" htmlFor="exercise-time-based" help="Tick to give students a countdown timer">
+      <div className={styles.inlineControls}>
+        <input id="exercise-time-based" type="checkbox" style={{ accentColor: MC.orange, width: 16, height: 16 }}
+          checked={!!formData.isTimeBased}
+          onChange={event => {
+            const checked = event.target.checked;
+            setFormData((previous: any) => ({ ...previous, isTimeBased: checked, ...(checked ? {} : { totalDuration: 0 }) }));
+            if (!checked) clearError('totalDuration');
+          }} />
+      </div>
+    </FormRow>
+    {formData.isTimeBased && <FormRow label="Duration" required htmlFor="exercise-duration" help="Total time allowed in minutes" error={errorFor('totalDuration')}>
       <div className={styles.inlineControls}>
         <input id="exercise-duration" type="number" className={styles.numberInput} min={0} value={formData.totalDuration || ''}
           onChange={event => {
@@ -317,7 +328,7 @@ export const ExerciseDetailsStep: React.FC<ExerciseDetailsStepProps> = ({
           }} onBlur={() => markTouched('totalDuration')} />
         <span>minutes</span>
       </div>
-    </FormRow>
+    </FormRow>}
     <FormRow label="Grading" htmlFor="exercise-grading" help={`Graded ${nouns} record marks; non-graded ${nouns} track completion`}>
       <FormSelect id="exercise-grading" value={isGraded ? 'graded' : 'non-graded'} disabled={gradedLocked} width={190}
         options={[{ value: 'non-graded', label: 'Non-graded' }, { value: 'graded', label: 'Graded' }]}

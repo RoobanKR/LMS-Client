@@ -2189,7 +2189,9 @@ export default function MultiFileCodeEditor({
   useEffect(() => {
     if (examMode) return
     const totalDuration = exData?.exerciseInformation?.totalDuration
-    if (!totalDuration || totalDuration <= 0) { setExerciseTimeLeft(null); return }
+    // Time based unticked in Exercise Settings → no timer at all.
+    const timeBased = exData?.exerciseInformation?.isTimeBased !== false
+    if (!timeBased || !totalDuration || totalDuration <= 0) { setExerciseTimeLeft(null); return }
     setExerciseTimeLeft(totalDuration * 60)
     const timer = setInterval(() => {
       setExerciseTimeLeft((prev) => {
@@ -2204,7 +2206,7 @@ export default function MultiFileCodeEditor({
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [exData?.exerciseInformation?.totalDuration, examMode])
+  }, [exData?.exerciseInformation?.totalDuration, exData?.exerciseInformation?.isTimeBased, examMode])
 
   // ─── Resize handler ──────────────────────────────────────────────────────────
   // Delta-based: each drag adjusts the width/height by (current pointer -
