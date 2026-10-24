@@ -38,7 +38,7 @@ import { exerciseLanguageVersion } from "@/lib/pistonVersions"
 import axios from "axios"
 import toast from "react-hot-toast"
 import {
-  Loader2, CheckCircle, X, ChevronRight, ChevronLeft, ClipboardCheck,
+  Loader2, CheckCircle, X, ChevronRight, ChevronLeft, ClipboardCheck, Sparkles,
   Award, Clock, Search, ArrowUpDown, FileCode, Info,
   FileText, Eye, Play, Square,
   AlertCircle,
@@ -75,6 +75,7 @@ import { Files as FilesIcon, Search as SearchIcon } from "lucide-react"
 import MonacoTabs from "./multi-file/MonacoTabs"
 import { type TermLine } from "./multi-file/RunTerminal"
 import BottomPanel, { TestResultsDrawer, type SubmitStatus, type TestResultCase, type TestResultState } from "./multi-file/BottomPanel"
+import { AiReviewPrompt, requestAiCodeReview, type AiReviewState } from "./multi-file/AiCodeReview"
 import TraceVisualizer from "./multi-file/TraceVisualizer"
 import { useAssignmentPresence } from "./useAssignmentPresence"
 import { previewEvaluation } from "./multi-file/previewEvaluation"
@@ -320,6 +321,14 @@ export default function MultiFileCodeEditor({
   // Run tests / Submit show their results in a side drawer; the bottom panel
   // is the Console alone.
   const [resultsOpen, setResultsOpen] = useState(false)
+  // Submit asks "Evaluate your code with AI?"; a Yes adds an AI code review
+  // (complexity, parameters, suggestions) as the drawer's second tab.
+  const [aiPromptOpen, setAiPromptOpen] = useState(false)
+  const [aiReview, setAiReview] = useState<AiReviewState | null>(null)
+  const [resultsView, setResultsView] = useState<"tests" | "ai">("tests")
+  // The question a running review belongs to — a late answer for a question
+  // the student has moved off is dropped.
+  const aiReviewFor = useRef("")
   const [testResult, setTestResult] = useState<TestResultState | null>(null)
   const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0)
   // Monotonic counter bumped on every question switch AND on component
@@ -674,6 +683,9 @@ export default function MultiFileCodeEditor({
     setSelectedCaseIndex(0)
     setBottomTab('terminal')
     setResultsOpen(false)
+    setAiReview(null)
+    setResultsView('tests')
+    aiReviewFor.current = ''
 
     // Load per-question notes from localStorage for the freshly-selected
     // question. Miss = blank scratchpad. Storage key includes both
@@ -2030,6 +2042,38 @@ export default function MultiFileCodeEditor({
     }
   }
 
+  // Submit first asks whether to add an AI review. Nothing to submit (empty
+  // or unchanged code) goes straight to submitQuestion, which says why.
+  const askThenSubmit = () => {
+    if (isSubmitQuestionGuardRef.current) return
+    if (codeIsEmpty || unchangedSinceSubmit) { void submitQuestion(); return }
+    setAiPromptOpen(true)
+  }
+  const startAiReview = async () => {
+    const q: any = currentQuestion
+    const questionId = q?._id ? String(q._id) : "q"
+    aiReviewFor.current = questionId
+    setAiReview({ status: "loading" })
+    setResultsView("ai")
+    setResultsOpen(true)
+    // The whole project, each file under its path — the shape the AI grader sees.
+    const code = files.map((f) => `// ── ${f.path || f.filename} ──\n${f.content || ""}`).join("\n\n")
+    try {
+      const data = await requestAiCodeReview({
+        code,
+        language: selectedLanguage,
+        question: {
+          title: q?.title || "",
+          description: typeof q?.description === "string" ? q.description : q?.description?.text || "",
+          constraints: q?.constraints || [],
+        },
+      })
+      if (aiReviewFor.current === questionId) setAiReview({ status: "done", data })
+    } catch (e: any) {
+      if (aiReviewFor.current === questionId) setAiReview({ status: "error", error: e?.message || "AI review failed." })
+    }
+  }
+
   // Evaluation preview only: never available for manual grading.
   const runTestCases = async () => {
     if (isManualEval || isRunTestCasesGuardRef.current) return
@@ -2489,7 +2533,7 @@ export default function MultiFileCodeEditor({
   const submitAction = (<>
               {exercise && (
                 <button
-                  onClick={() => void submitQuestion()}
+                  onClick={askThenSubmit}
                   // Off while busy, while the question loads, for an empty
                   // answer, and for code identical to the last submission —
                   // any edit turns it back on.
@@ -3112,10 +3156,28 @@ export default function MultiFileCodeEditor({
                     collapsed={!showTerminal}
                     onExpand={() => setShowTerminal(true)}
                     // Reopens the results drawer once tests have run.
-                    headerAction={testResult && !isManualEval ? (
+                    headerAction={(testResult && !isManualEval) || aiReview ? (<>
+                      {aiReview && (
+                        <button
+                          type="button"
+                          onClick={() => { setResultsView("ai"); setResultsOpen(true) }}
+                          title="Open the AI code review"
+                          className="hover:bg-[#F4F3FF]"
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 10px",
+                            borderRadius: 6, border: "1px solid #D9D6FE", background: "#FFFFFF", color: "#6941C6",
+                            fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                          }}
+                        >
+                          {aiReview.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                          AI review
+                          {aiReview.status === "done" && <span>{aiReview.data.overallScore}/100</span>}
+                        </button>
+                      )}
+                      {testResult && !isManualEval && (
                       <button
                         type="button"
-                        onClick={() => setResultsOpen(true)}
+                        onClick={() => { setResultsView("tests"); setResultsOpen(true) }}
                         title="Open test results"
                         className="hover:bg-[#FFF4ED]"
                         style={{
@@ -3134,7 +3196,8 @@ export default function MultiFileCodeEditor({
                           </span>
                         )}
                       </button>
-                    ) : undefined}
+                      )}
+                    </>) : undefined}
                     // Non-graded: pass/fail and feedback, no marks.
                     showScore={isGradedExercise}
                     activeTab={bottomTab}
@@ -3443,12 +3506,34 @@ export default function MultiFileCodeEditor({
       {/* Run tests / Submit results — overview, then Test case | Status rows
           that open to each case's detail. */}
       <TestResultsDrawer
-        open={resultsOpen && !isManualEval}
+        open={resultsOpen && (!isManualEval || !!aiReview)}
         onClose={() => setResultsOpen(false)}
-        state={testResult}
+        state={isManualEval ? null : testResult}
+        aiReview={aiReview}
+        onRetryAiReview={() => void startAiReview()}
+        view={resultsView}
+        onViewChange={setResultsView}
         onRetry={() => { if (lastEvaluationWasPreview.current) void runTestCases(); else void submitQuestion({ force: true }) }}
         isSubmitting={isSubmittingQuestion || isRunningTestCases}
         showScore={isGradedExercise}
+      />
+
+      {/* Submit → "Evaluate your code with AI?" */}
+      <AiReviewPrompt
+        open={aiPromptOpen}
+        onClose={() => setAiPromptOpen(false)}
+        onSubmitOnly={() => {
+          setAiPromptOpen(false)
+          // An earlier review was of earlier code.
+          setAiReview(null)
+          setResultsView("tests")
+          void submitQuestion()
+        }}
+        onSubmitWithAi={() => {
+          setAiPromptOpen(false)
+          void startAiReview()
+          void submitQuestion()
+        }}
       />
     </div>
   )

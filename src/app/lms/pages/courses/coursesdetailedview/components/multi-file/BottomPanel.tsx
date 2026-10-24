@@ -19,6 +19,7 @@ import {
   ChevronDown, ChevronUp,
 } from "lucide-react"
 import RunTerminal, { type TermLine } from "./RunTerminal"
+import { AiCodeReviewView, type AiReviewState } from "./AiCodeReview"
 
 export type SubmitStatus =
   | 'evaluating'
@@ -657,6 +658,7 @@ export function TestResultView({
 
 export function TestResultsDrawer({
   open, onClose, state, onRetry, isSubmitting, showScore = true,
+  aiReview = null, onRetryAiReview, view = 'tests', onViewChange,
 }: {
   open: boolean
   onClose: () => void
@@ -664,17 +666,98 @@ export function TestResultsDrawer({
   onRetry?: () => void
   isSubmitting?: boolean
   showScore?: boolean
+  /** The AI code review the student asked for on Submit — its own tab. */
+  aiReview?: AiReviewState | null
+  onRetryAiReview?: () => void
+  view?: 'tests' | 'ai'
+  onViewChange?: (v: 'tests' | 'ai') => void
 }) {
-  const [openCase, setOpenCase] = React.useState<number | null>(null)
-  // A new evaluation closes whichever case was open.
-  React.useEffect(() => { setOpenCase(null) }, [state?.cases])
   React.useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
-  if (!open || !state) return null
+  if (!open || (!state && !aiReview)) return null
+
+  const showAi = !!aiReview && (view === 'ai' || !state)
+  const bothTabs = !!state && !!aiReview
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1150, fontFamily: FONT }} role="dialog" aria-modal="true" aria-label={showAi ? 'AI code review' : 'Test results'}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(16,24,40,0.28)' }} />
+      <aside
+        className="animate-in slide-in-from-right duration-200"
+        style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 'min(480px, 100vw)',
+          background: '#FFFFFF', boxShadow: '-12px 0 32px rgba(16,24,40,0.18)',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: bothTabs ? 'none' : '1px solid #EAECF0', flexShrink: 0 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: showAi ? '#F4F3FF' : '#FFF4ED', color: showAi ? '#6941C6' : '#FF641A' }}>
+            {showAi ? <Sparkles size={16} /> : <ClipboardCheck size={16} />}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#101828' }}>{showAi ? 'AI Code Review' : 'Test Results'}</div>
+            <div style={{ fontSize: 12, color: '#667085' }}>{showAi ? 'Complexity, parameters and suggestions for your code' : 'Click a test case to see its details'}</div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="hover:bg-[#F2F4F7]" style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EAECF0', background: '#fff', color: '#475467', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Test results | AI review */}
+        {bothTabs && (
+          <div role="tablist" aria-label="Results" style={{ display: 'flex', gap: 4, padding: '0 16px', borderBottom: '1px solid #EAECF0', flexShrink: 0 }}>
+            {([
+              ['tests', <ClipboardCheck key="i" size={14} />, 'Test results', state!.status === 'evaluating'],
+              ['ai', <Sparkles key="i" size={14} />, 'AI review', aiReview!.status === 'loading'],
+            ] as const).map(([key, icon, label, busy]) => {
+              const active = (key === 'ai') === showAi
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onViewChange?.(key)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 12px',
+                    border: 'none', background: 'transparent', cursor: 'pointer', marginBottom: -1,
+                    fontSize: 13, fontWeight: 600, color: active ? (key === 'ai' ? '#6941C6' : '#C2410C') : '#667085',
+                    borderBottom: `2px solid ${active ? (key === 'ai' ? '#6941C6' : '#FF641A') : 'transparent'}`,
+                  }}
+                >
+                  {icon}{label}{busy && <Loader2 size={12} className="animate-spin" />}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }} aria-live="polite">
+          {showAi
+            ? <AiCodeReviewView review={aiReview!} onRetry={onRetryAiReview} />
+            : <TestResultsBody state={state!} onRetry={onRetry} isSubmitting={isSubmitting} showScore={showScore} />}
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function TestResultsBody({
+  state, onRetry, isSubmitting, showScore,
+}: {
+  state: TestResultState
+  onRetry?: () => void
+  isSubmitting?: boolean
+  showScore: boolean
+}) {
+  const [openCase, setOpenCase] = React.useState<number | null>(null)
+  // A new evaluation closes whichever case was open.
+  React.useEffect(() => { setOpenCase(null) }, [state.cases])
 
   const isEval = state.status === 'evaluating'
   const meta = STATUS_META[state.status]
@@ -701,31 +784,7 @@ export function TestResultsDrawer({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1150, fontFamily: FONT }} role="dialog" aria-modal="true" aria-label="Test results">
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(16,24,40,0.28)' }} />
-      <aside
-        className="animate-in slide-in-from-right duration-200"
-        style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, width: 'min(460px, 100vw)',
-          background: '#FFFFFF', boxShadow: '-12px 0 32px rgba(16,24,40,0.18)',
-          display: 'flex', flexDirection: 'column',
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid #EAECF0', flexShrink: 0 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#FFF4ED', color: '#FF641A' }}>
-            <ClipboardCheck size={16} />
-          </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#101828' }}>Test Results</div>
-            <div style={{ fontSize: 12, color: '#667085' }}>Click a test case to see its details</div>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close test results" title="Close" className="hover:bg-[#F2F4F7]" style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EAECF0', background: '#fff', color: '#475467', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <X size={16} />
-          </button>
-        </div>
-
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }} aria-live="polite">
+    <>
           {/* Overview */}
           <div style={{ borderRadius: 12, border: `1px solid ${tone.border}`, background: tone.bg, padding: 14 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -841,9 +900,7 @@ export function TestResultsDrawer({
               {hiddenPending} hidden case{hiddenPending === 1 ? '' : 's'} locked — pass the current cases to unlock the next.
             </div>
           )}
-        </div>
-      </aside>
-    </div>
+    </>
   )
 }
 

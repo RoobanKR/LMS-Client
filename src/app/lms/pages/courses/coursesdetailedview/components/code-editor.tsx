@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 
 import {
     Play, RotateCcw, CheckCircle2, Maximize2,  // Add this
-    X, Code, FileText, FileCode, AlertCircle, Terminal, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info, ClipboardCheck,
+    X, Code, FileText, FileCode, AlertCircle, Terminal, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info, ClipboardCheck, Sparkles,
     Award,
     BarChart3
 } from "lucide-react"
@@ -30,6 +30,7 @@ import { evaluateWithAi, cachedAiTestCasesFor, AI_TESTCASE_SET_VERSION } from '@
 // Test Result panel shared with the multi-file workspace and the You_Do
 // editor — same component, so all three surfaces read identically.
 import { TestResultsDrawer, type SubmitStatus, type TestResultCase, type TestResultState } from './multi-file/BottomPanel';
+import { AiReviewPrompt, requestAiCodeReview, type AiReviewState } from './multi-file/AiCodeReview';
 import { buildAiTestResultState } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiTestResult';
 import { withExerciseVersion } from '@/lib/pistonVersions';
 import { firstSampleInput } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/sampleInput';
@@ -931,6 +932,14 @@ export default function CodeEditor({
     // Run tests / Submit show their results in a side drawer; the output
     // panel is the Console alone.
     const [resultsOpen, setResultsOpen] = useState(false);
+    // Submit asks "Evaluate your code with AI?"; a Yes adds an AI code review
+    // (complexity, parameters, suggestions) as the drawer's second tab.
+    const [aiPromptOpen, setAiPromptOpen] = useState(false);
+    const [aiReview, setAiReview] = useState<AiReviewState | null>(null);
+    const [resultsView, setResultsView] = useState<'tests' | 'ai'>('tests');
+    // The question a running review belongs to — a late answer for a
+    // question the student has moved off is dropped.
+    const aiReviewFor = useRef('');
     const [testResult, setTestResult] = useState<TestResultState | null>(null);
     const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0);
     // Run Testcase spins independently of Submit so the two buttons can show
@@ -2582,6 +2591,9 @@ export default function CodeEditor({
         setSelectedCaseIndex(0);
         setBottomTab('console');
         setResultsOpen(false);
+        setAiReview(null);
+        setResultsView('tests');
+        aiReviewFor.current = '';
         setCustomInput(firstSampleInput(exercise?.questions?.[currentProblemIndex]));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentProblemIndex, exercise]);
@@ -3353,6 +3365,36 @@ export default function CodeEditor({
             }
         } finally {
             setIsRunning(false);
+        }
+    };
+
+    // Submit first asks whether to add an AI review. Nothing to submit (empty
+    // or unchanged code) goes straight to submitCode, which says why.
+    const askThenSubmit = () => {
+        if (isRunning) return;
+        if (codeIsEmpty || unchangedSinceSubmit) { void submitCode(); return; }
+        setAiPromptOpen(true);
+    };
+    const startAiReview = async () => {
+        const q: any = currentQuestion;
+        const questionId = q?._id ? String(q._id) : 'q';
+        aiReviewFor.current = questionId;
+        setAiReview({ status: 'loading' });
+        setResultsView('ai');
+        setResultsOpen(true);
+        try {
+            const data = await requestAiCodeReview({
+                code,
+                language: selectedLanguage,
+                question: {
+                    title: q?.title || '',
+                    description: typeof q?.description === 'string' ? q.description : q?.description?.text || '',
+                    constraints: q?.constraints || [],
+                },
+            });
+            if (aiReviewFor.current === questionId) setAiReview({ status: 'done', data });
+        } catch (e: any) {
+            if (aiReviewFor.current === questionId) setAiReview({ status: 'error', error: e?.message || 'AI review failed.' });
         }
     };
 
@@ -4697,10 +4739,23 @@ export default function CodeEditor({
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 600, color: WS.muted, fontFamily: FONT, whiteSpace: 'nowrap' }}>
                                     Console {isRunning && <Loader2 className="w-3 h-3 animate-spin" />}
                                 </span>
+                                {aiReview && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setResultsView('ai'); setResultsOpen(true); }}
+                                        title="Open the AI code review"
+                                        className={theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-[#F4F3FF]'}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid #D9D6FE', background: 'transparent', color: '#6941C6', fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    >
+                                        {aiReview.status === 'loading' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                        AI review
+                                        {aiReview.status === 'done' && <span>{aiReview.data.overallScore}/100</span>}
+                                    </button>
+                                )}
                                 {showsTestResult && testResult && (
                                     <button
                                         type="button"
-                                        onClick={() => setResultsOpen(true)}
+                                        onClick={() => { setResultsView('tests'); setResultsOpen(true); }}
                                         title="Open test results"
                                         className={theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-[#FFF4ED]'}
                                         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid #FFD2B8', background: 'transparent', color: '#C2410C', fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -5102,7 +5157,7 @@ export default function CodeEditor({
                             {!wsIsLinkQ && (
                                 <button
                                     type="button"
-                                    onClick={() => { void submitCode(); }}
+                                    onClick={askThenSubmit}
                                     disabled={submitBlocked}
                                     title={codeIsEmpty ? 'Write your code before submitting' : unchangedSinceSubmit ? 'Already submitted — change your code to submit again' : 'Submit your answer to this question'}
                                     aria-label="Submit answer"
@@ -5442,12 +5497,34 @@ export default function CodeEditor({
             {/* Run tests / Submit results — overview, then Test case | Status
                 rows that open to each case's detail. */}
             <TestResultsDrawer
-                open={resultsOpen && showsTestResult}
+                open={resultsOpen && (showsTestResult || !!aiReview)}
                 onClose={() => setResultsOpen(false)}
-                state={testResult}
+                state={showsTestResult ? testResult : null}
+                aiReview={aiReview}
+                onRetryAiReview={() => { void startAiReview(); }}
+                view={resultsView}
+                onViewChange={setResultsView}
                 onRetry={runTestCases}
                 isSubmitting={isRunning || isRunningTestCases}
                 showScore={exData?.isGraded !== false}
+            />
+
+            {/* Submit → "Evaluate your code with AI?" */}
+            <AiReviewPrompt
+                open={aiPromptOpen}
+                onClose={() => setAiPromptOpen(false)}
+                onSubmitOnly={() => {
+                    setAiPromptOpen(false);
+                    // An earlier review was of earlier code.
+                    setAiReview(null);
+                    setResultsView('tests');
+                    void submitCode();
+                }}
+                onSubmitWithAi={() => {
+                    setAiPromptOpen(false);
+                    void startAiReview();
+                    void submitCode();
+                }}
             />
         </div>
     );
