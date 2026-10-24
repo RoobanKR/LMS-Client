@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 
 import {
     Play, RotateCcw, CheckCircle2, Maximize2,  // Add this
-    X, Code, FileText, FileCode, AlertCircle, Terminal, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info,
+    X, Code, FileText, FileCode, AlertCircle, Terminal, ChevronRight, ChevronLeft, Search, AlertTriangle, CheckCircle, XCircle, Lock, ArrowUpDown, X as XIcon, Loader2, SkipForward, Clock, ShieldAlert, Camera, Video, Save, LogOut, Trash2, Shield, Mic, MicOff, ShieldCheck, UserCheck, Monitor, Info, ClipboardCheck,
     Award,
     BarChart3
 } from "lucide-react"
@@ -29,7 +29,7 @@ import { resolveEvaluationMethod } from '@/app/lms/pages/courses/coursesdetailed
 import { evaluateWithAi, cachedAiTestCasesFor, AI_TESTCASE_SET_VERSION } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiEvaluator';
 // Test Result panel shared with the multi-file workspace and the You_Do
 // editor — same component, so all three surfaces read identically.
-import { TestResultView, type SubmitStatus, type TestResultCase, type TestResultState } from './multi-file/BottomPanel';
+import { TestResultsDrawer, type SubmitStatus, type TestResultCase, type TestResultState } from './multi-file/BottomPanel';
 import { buildAiTestResultState } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/aiTestResult';
 import { withExerciseVersion } from '@/lib/pistonVersions';
 import { firstSampleInput } from '@/app/lms/pages/courses/coursesdetailedview/components/lib/sampleInput';
@@ -928,6 +928,9 @@ export default function CodeEditor({
     // The Console tab is always there — running code is not evaluating it.
     // The Test Result tab only exists when the exercise is actually evaluated.
     const [bottomTab, setBottomTab] = useState<'console' | 'results'>('console');
+    // Run tests / Submit show their results in a side drawer; the output
+    // panel is the Console alone.
+    const [resultsOpen, setResultsOpen] = useState(false);
     const [testResult, setTestResult] = useState<TestResultState | null>(null);
     const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0);
     // Run Testcase spins independently of Submit so the two buttons can show
@@ -2578,6 +2581,7 @@ export default function CodeEditor({
         setTestResult(null);
         setSelectedCaseIndex(0);
         setBottomTab('console');
+        setResultsOpen(false);
         setCustomInput(firstSampleInput(exercise?.questions?.[currentProblemIndex]));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentProblemIndex, exercise]);
@@ -3059,9 +3063,8 @@ export default function CodeEditor({
         // Route to the Test Result tab and mark the previous result stale.
         // Skipped for Manual — that tab isn't rendered at all.
         if (showsTestResult) {
-            setBottomTab('results');
+            setResultsOpen(true);
             setSelectedCaseIndex(0);
-            setRightPanelSplit(prev => (prev > 60 ? 55 : prev));
             setTestResult(prev => ({
                 ...(prev || { cases: [] }),
                 status: 'evaluating',
@@ -4689,33 +4692,28 @@ export default function CodeEditor({
                         <div className="flex items-center justify-between flex-shrink-0 flex-wrap" style={{ minHeight: 42, padding: '4px 8px 4px 14px', gap: 8, rowGap: 4, background: WS.panel, borderBottom: `1px solid ${WS.border}` }}>
                             <div className="flex items-center" style={{ gap: 10, minWidth: 0 }}>
                                 <span style={{ fontSize: 14, fontWeight: 700, color: WS.navy, fontFamily: FONT, whiteSpace: 'nowrap' }}>Output</span>
-                                {/* Console is always there; Test results only when the
-                                    exercise is evaluated (not Manual). */}
-                                {showsTestResult && (
-                                    <div role="tablist" aria-label="Output" style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2, borderRadius: 7, background: theme === 'dark' ? '#1F2937' : '#F2F1ED' }}>
-                                        {([['console', 'Console', isRunning], ['results', 'Test results', isRunningTestCases]] as const).map(([key, label, busy]) => (
-                                            <button
-                                                key={key}
-                                                type="button"
-                                                role="tab"
-                                                aria-selected={bottomTab === key}
-                                                onClick={() => setBottomTab(key)}
-                                                style={{
-                                                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                                                    height: 26, padding: '0 10px', borderRadius: 5, border: 'none',
-                                                    background: bottomTab === key ? WS.panel : 'transparent',
-                                                    boxShadow: bottomTab === key ? '0 1px 2px rgba(16,24,40,0.08)' : 'none',
-                                                    color: bottomTab === key ? WS.tealDark : WS.muted,
-                                                    fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', whiteSpace: 'nowrap',
-                                                }}
-                                            >
-                                                {label}
-                                                {busy && <Loader2 className="w-3 h-3 animate-spin" />}
-                                            </button>
-                                        ))}
-                                    </div>
+                                {/* The Console only — Run tests / Submit open the
+                                    results drawer; this button reopens it. */}
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 600, color: WS.muted, fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                                    Console {isRunning && <Loader2 className="w-3 h-3 animate-spin" />}
+                                </span>
+                                {showsTestResult && testResult && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setResultsOpen(true)}
+                                        title="Open test results"
+                                        className={theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-[#FFF4ED]'}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid #FFD2B8', background: 'transparent', color: '#C2410C', fontSize: 12.5, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    >
+                                        {testResult.status === 'evaluating' ? <Loader2 className="w-3 h-3 animate-spin" /> : <ClipboardCheck className="w-3.5 h-3.5" />}
+                                        Test results
+                                        {testResult.status !== 'evaluating' && typeof testResult.passedCount === 'number' && typeof testResult.totalCount === 'number' && testResult.totalCount > 0 && (
+                                            <span style={{ color: testResult.passedCount === testResult.totalCount ? '#047857' : '#B42318' }}>
+                                                {testResult.passedCount}/{testResult.totalCount}
+                                            </span>
+                                        )}
+                                    </button>
                                 )}
-                                {!showsTestResult && isRunning && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: WS.muted }} />}
                             </div>
                             <div className="flex items-center gap-1.5" style={{ marginLeft: 'auto', flexShrink: 0 }}>
                                 {/* Clear only when the console has output. */}
@@ -4767,23 +4765,6 @@ export default function CodeEditor({
                                     placeholder="Paste the input for this run — it is piped straight to your program."
                                     className={`w-full resize-y rounded px-2 py-1.5 font-mono text-xs outline-none border ${theme === 'dark' ? 'bg-gray-950 border-gray-700 text-slate-300' : 'bg-white border-gray-300 text-gray-800'}`}
                                     style={{ minHeight: 40, maxHeight: 160 }}
-                                />
-                            </div>
-                        )}
-
-                        {/* Test results — the shared panel from the multi-file
-                            workspace, so the same submission reads identically
-                            on every programming surface. */}
-                        {showsTestResult && bottomTab === 'results' && (
-                            <div className={`flex-1 min-h-0 ${theme === 'dark' ? 'bg-gray-950' : 'bg-white'}`}>
-                                <TestResultView
-                                    state={testResult}
-                                    selectedIndex={selectedCaseIndex}
-                                    onSelect={setSelectedCaseIndex}
-                                    onRetry={runTestCases}
-                                    isSubmitting={isRunning || isRunningTestCases}
-                                    // Non-graded: pass/fail and feedback, no marks.
-                                    showScore={exData?.isGraded !== false}
                                 />
                             </div>
                         )}
@@ -5457,6 +5438,17 @@ export default function CodeEditor({
     }
 
           `}</style>
+
+            {/* Run tests / Submit results — overview, then Test case | Status
+                rows that open to each case's detail. */}
+            <TestResultsDrawer
+                open={resultsOpen && showsTestResult}
+                onClose={() => setResultsOpen(false)}
+                state={testResult}
+                onRetry={runTestCases}
+                isSubmitting={isRunning || isRunningTestCases}
+                showScore={exData?.isGraded !== false}
+            />
         </div>
     );
 }

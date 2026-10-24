@@ -124,6 +124,9 @@ interface BottomPanelProps {
    */
   collapsed?: boolean
   onExpand?: () => void
+  /** Extra control at the start of the header's right-hand actions (the
+   *  editor's "Test results" button that reopens the results drawer). */
+  headerAction?: React.ReactNode
   activeTab: 'terminal' | 'test-result'
   onTabChange: (t: 'terminal' | 'test-result') => void
   testResult: TestResultState | null
@@ -199,7 +202,7 @@ export default function BottomPanel(props: BottomPanelProps) {
   const {
     mode = 'test-result', activeTab, liveTerminal = false, onStopRun,
     onTabChange, testResult, onClose, onToggleMaximize, maximized, heading, closeLabel,
-    collapsed = false, onExpand,
+    collapsed = false, onExpand, headerAction,
     termLines, running, stdin, lastRuntime, setStdin, onClearTerm,
     interactive, awaitingInput, inputPrompt, onSubmitInput,
     selectedCaseIndex, onSelectCase, onRetrySubmit, isSubmitting, showScore = true,
@@ -302,6 +305,7 @@ export default function BottomPanel(props: BottomPanelProps) {
             The titled panel keeps them icon-only so a narrow editor column
             still fits "Hide output"; labels stay in the tooltip. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto' }}>
+          {headerAction}
           {collapsed ? (
             <button
               type="button"
@@ -640,6 +644,205 @@ export function TestResultView({
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+// ─── TestResultsDrawer ──────────────────────────────────────────────────────
+// Run tests / Submit open the results as a side panel over the editor, so the
+// bottom panel stays a plain Console. An overview first (verdict, passed /
+// failed counts, errors, the AI breakdown), then one row per case — Test case
+// and Status — and a row opens to that case's input, expected and actual
+// output. Same reveal rules as TestResultView: only unlocked cases are listed.
+
+export function TestResultsDrawer({
+  open, onClose, state, onRetry, isSubmitting, showScore = true,
+}: {
+  open: boolean
+  onClose: () => void
+  state: TestResultState | null
+  onRetry?: () => void
+  isSubmitting?: boolean
+  showScore?: boolean
+}) {
+  const [openCase, setOpenCase] = React.useState<number | null>(null)
+  // A new evaluation closes whichever case was open.
+  React.useEffect(() => { setOpenCase(null) }, [state?.cases])
+  React.useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+  if (!open || !state) return null
+
+  const isEval = state.status === 'evaluating'
+  const meta = STATUS_META[state.status]
+  const tone = TONE[meta.tone]
+  const Icon = meta.Icon
+  const shownCases = state.cases.filter((c) => !c.hidden || c.unlocked === true)
+  const totalHidden = state.cases.filter((c) => c.hidden).length
+  const hiddenPending = Math.max(0, totalHidden - shownCases.filter((c) => c.hidden).length)
+  const hasCounts = !isEval && typeof state.passedCount === 'number' && typeof state.totalCount === 'number' && state.totalCount > 0
+  const passed = hasCounts ? state.passedCount! : 0
+  const total = hasCounts ? state.totalCount! : 0
+  const title = isEval
+    ? (state.ai ? 'Evaluating with Gemini…' : 'Running your tests…')
+    : state.ai
+      ? (state.ai.failed ? 'AI evaluation unavailable' : 'AI evaluation complete')
+      : hasCounts && ['accepted', 'partial', 'wrong-answer'].includes(state.status)
+        ? (passed === total ? `All ${total} tests passed` : `${total - passed} of ${total} tests failed`)
+        : meta.label
+  const details: string[] = []
+  if (!isEval) {
+    if (state.runtimeMs != null) details.push(`Runtime ${state.runtimeMs} ms`)
+    if (state.memoryKb != null) details.push(`Memory ${state.memoryKb} KB`)
+    if (showScore && typeof state.score === 'number' && typeof state.maxMarks === 'number') details.push(`Score ${state.score} / ${state.maxMarks}`)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1150, fontFamily: FONT }} role="dialog" aria-modal="true" aria-label="Test results">
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(16,24,40,0.28)' }} />
+      <aside
+        className="animate-in slide-in-from-right duration-200"
+        style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 'min(460px, 100vw)',
+          background: '#FFFFFF', boxShadow: '-12px 0 32px rgba(16,24,40,0.18)',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid #EAECF0', flexShrink: 0 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#FFF4ED', color: '#FF641A' }}>
+            <ClipboardCheck size={16} />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#101828' }}>Test Results</div>
+            <div style={{ fontSize: 12, color: '#667085' }}>Click a test case to see its details</div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close test results" title="Close" className="hover:bg-[#F2F4F7]" style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EAECF0', background: '#fff', color: '#475467', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }} aria-live="polite">
+          {/* Overview */}
+          <div style={{ borderRadius: 12, border: `1px solid ${tone.border}`, background: tone.bg, padding: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <Icon size={20} className={isEval ? 'animate-spin' : ''} style={{ color: tone.fg, flexShrink: 0, marginTop: 1 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: tone.fg }}>{title}</div>
+                {(state.message || details.length > 0) && !isEval && (
+                  <div style={{ fontSize: 12.5, color: '#475467', marginTop: 3, lineHeight: 1.5 }}>
+                    {[state.message, ...details].filter(Boolean).join(' · ')}
+                  </div>
+                )}
+              </div>
+              {state.status === 'submission-failed' && onRetry && (
+                <button type="button" onClick={onRetry} disabled={isSubmitting} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', borderRadius: 8, border: '1px solid #FF641A', background: '#fff', color: '#FF641A', fontSize: 12, fontWeight: 600, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.6 : 1 }}>
+                  <RefreshCw size={12} /> Try again
+                </button>
+              )}
+            </div>
+            {hasCounts && !state.ai?.failed && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+                  {[
+                    { label: 'Passed', value: passed, fg: '#046C4E', Icon: CheckCircle2 },
+                    { label: 'Failed', value: Math.max(0, total - passed), fg: '#B42318', Icon: XCircle },
+                    { label: 'Total', value: total, fg: '#344054', Icon: ClipboardCheck },
+                  ].map((s) => (
+                    <div key={s.label} style={{ background: '#FFFFFF', borderRadius: 9, border: '1px solid #EAECF0', padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: s.fg }}><s.Icon size={13} />{s.label}</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: '#101828', lineHeight: 1.2, marginTop: 2 }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ height: 6, borderRadius: 99, background: '#FDE2E0', marginTop: 10, overflow: 'hidden' }} aria-hidden="true">
+                  <div style={{ width: `${(passed / total) * 100}%`, height: '100%', background: '#12B76A', borderRadius: 99 }} />
+                </div>
+              </>
+            )}
+          </div>
+
+          {state.errorDetail && (
+            <div style={{ padding: 12, borderRadius: 8, background: '#FEF3F2', border: '1px solid #FBD3CE' }}>
+              <pre style={{ margin: 0, fontFamily: 'ui-monospace, monospace', fontSize: 12, color: '#912018', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{state.errorDetail}</pre>
+            </div>
+          )}
+
+          {state.ai && !isEval && <div style={{ margin: '0 -16px' }}><AiEvaluationBlock ai={state.ai} score={state.score} maxMarks={state.maxMarks} showMarks={showScore} /></div>}
+
+          {/* Test case | Status — a row opens its details */}
+          {shownCases.length > 0 && (
+            <div style={{ borderRadius: 10, border: '1px solid #EAECF0', overflow: 'hidden', ...(isEval ? { opacity: 0.5, pointerEvents: 'none' } : null) }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }} aria-label="Test case results">
+                <thead style={{ background: '#F9FAFB', color: '#475467' }}>
+                  <tr>
+                    <th scope="col" style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, borderBottom: '1px solid #EAECF0' }}>Test case</th>
+                    <th scope="col" style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, borderBottom: '1px solid #EAECF0', width: 130 }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownCases.map((c, i) => {
+                    const isOpen = openCase === i
+                    const reveal = !c.hidden || c.input !== '' || c.expectedOutput !== ''
+                    const label = `${c.hidden ? 'Hidden case' : c.source === 'ai' ? 'AI case' : 'Case'} ${c.index + 1}`
+                    return (
+                      <React.Fragment key={`${c.source || 'question'}-${c.index}-${i}`}>
+                        <tr
+                          onClick={() => setOpenCase(isOpen ? null : i)}
+                          className="hover:bg-[#F9FAFB]"
+                          style={{ cursor: 'pointer', borderTop: i ? '1px solid #EAECF0' : undefined, background: isOpen ? (c.passed ? '#F6FEF9' : '#FFFBFA') : undefined }}
+                        >
+                          <th scope="row" style={{ padding: '11px 14px', fontWeight: 600, color: '#101828' }}>
+                            <button type="button" aria-expanded={isOpen} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
+                              {isOpen ? <ChevronUp size={14} style={{ color: '#667085' }} /> : <ChevronDown size={14} style={{ color: '#667085' }} />}
+                              {label}
+                            </button>
+                          </th>
+                          <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 24, padding: '0 9px', borderRadius: 99, fontSize: 12, fontWeight: 600, color: c.passed ? '#046C4E' : '#B42318', background: c.passed ? '#ECFDF3' : '#FEF3F2', border: `1px solid ${c.passed ? '#BBF7D0' : '#FBD3CE'}` }}>
+                              {c.passed ? <CheckCircle2 size={13} /> : <XCircle size={13} />}{c.passed ? 'Passed' : 'Failed'}
+                            </span>
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr style={{ background: c.passed ? '#F6FEF9' : '#FFFBFA' }}>
+                            <td colSpan={2} style={{ padding: '2px 14px 14px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {!reveal && (
+                                  <div style={{ fontSize: 12.5, color: '#667085', lineHeight: 1.55 }}>
+                                    This is a hidden case. Its input and expected output stay concealed until every visible case passes.
+                                  </div>
+                                )}
+                                {reveal && <Row label="Input" value={c.input} />}
+                                {reveal && <Row label="Expected output" value={c.expectedOutput} />}
+                                {state.ai
+                                  ? <Row label="AI verdict" value={c.comment || 'No feedback provided'} tone={c.passed ? 'ok' : 'bad'} />
+                                  : <Row label="Your output" value={c.actualOutput} tone={c.passed ? 'ok' : 'bad'} />}
+                                {c.errorMessage && <Row label="Error" value={c.errorMessage} tone="bad" />}
+                                {!state.ai && typeof c.runtimeMs === 'number' && (
+                                  <div style={{ fontSize: 12, color: '#667085' }}>Time: {c.runtimeMs} ms</div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {hiddenPending > 0 && (
+            <div style={{ color: '#667085', fontSize: 12 }}>
+              {hiddenPending} hidden case{hiddenPending === 1 ? '' : 's'} locked — pass the current cases to unlock the next.
+            </div>
+          )}
+        </div>
+      </aside>
     </div>
   )
 }

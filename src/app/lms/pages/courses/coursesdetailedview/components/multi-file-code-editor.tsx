@@ -38,7 +38,7 @@ import { exerciseLanguageVersion } from "@/lib/pistonVersions"
 import axios from "axios"
 import toast from "react-hot-toast"
 import {
-  Loader2, CheckCircle, X, ChevronRight, ChevronLeft,
+  Loader2, CheckCircle, X, ChevronRight, ChevronLeft, ClipboardCheck,
   Award, Clock, Search, ArrowUpDown, FileCode, Info,
   FileText, Eye, Play, Square,
   AlertCircle,
@@ -74,7 +74,7 @@ import SearchPanel from "./multi-file/SearchPanel"
 import { Files as FilesIcon, Search as SearchIcon } from "lucide-react"
 import MonacoTabs from "./multi-file/MonacoTabs"
 import { type TermLine } from "./multi-file/RunTerminal"
-import BottomPanel, { type SubmitStatus, type TestResultCase, type TestResultState } from "./multi-file/BottomPanel"
+import BottomPanel, { TestResultsDrawer, type SubmitStatus, type TestResultCase, type TestResultState } from "./multi-file/BottomPanel"
 import TraceVisualizer from "./multi-file/TraceVisualizer"
 import { useAssignmentPresence } from "./useAssignmentPresence"
 import { previewEvaluation } from "./multi-file/previewEvaluation"
@@ -317,6 +317,9 @@ export default function MultiFileCodeEditor({
   // (graded exercise with the live compiler on); otherwise the panel's mode
   // fixes the one tab and this is ignored.
   const [bottomTab, setBottomTab] = useState<'terminal' | 'test-result'>('test-result')
+  // Run tests / Submit show their results in a side drawer; the bottom panel
+  // is the Console alone.
+  const [resultsOpen, setResultsOpen] = useState(false)
   const [testResult, setTestResult] = useState<TestResultState | null>(null)
   const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0)
   // Monotonic counter bumped on every question switch AND on component
@@ -528,13 +531,13 @@ export default function MultiFileCodeEditor({
 
   // Run and its existing live terminal are available for every evaluation method.
   const liveInteraction = true
-  // Manual has only a terminal; automated and AI evaluation retain results.
-  const panelMode: "terminal" | "both" = isManualEval ? "terminal" : "both"
-  // With both tabs, Run tests / Submit bring the Test Result tab forward
-  // (Run brings the Terminal forward itself).
+  // The bottom panel is the Console only, for every evaluation method; test
+  // results open in the drawer (TestResultsDrawer) when Run tests / Submit
+  // starts evaluating.
+  const panelMode = "terminal" as const
   useEffect(() => {
-    if (isManualEval) setBottomTab("terminal")
-    else if (testResult?.status === "evaluating") setBottomTab("test-result")
+    setBottomTab("terminal")
+    if (!isManualEval && testResult?.status === "evaluating") setResultsOpen(true)
   }, [testResult?.status, isManualEval])
 
   // ─── Terminal logging helper ────────────────────────────────────────────────
@@ -669,7 +672,8 @@ export default function MultiFileCodeEditor({
     // exercise has, so the panel reopens on it.
     setTestResult(null)
     setSelectedCaseIndex(0)
-    setBottomTab('test-result')
+    setBottomTab('terminal')
+    setResultsOpen(false)
 
     // Load per-question notes from localStorage for the freshly-selected
     // question. Miss = blank scratchpad. Storage key includes both
@@ -1669,10 +1673,7 @@ export default function MultiFileCodeEditor({
     // Run output — only the tab activation swaps. The previous test result
     // stays visible until the new one lands (marked evaluating so students
     // know it's outdated).
-    if (!isManualEval) {
-      setBottomTab('test-result')
-      setShowTerminal(true)
-    }
+    if (!isManualEval) setResultsOpen(true)
     setSelectedCaseIndex(0)
     setTestResult((prev) => ({
       ...(prev || { cases: [] }),
@@ -3110,6 +3111,30 @@ export default function MultiFileCodeEditor({
                     closeLabel="Hide panel"
                     collapsed={!showTerminal}
                     onExpand={() => setShowTerminal(true)}
+                    // Reopens the results drawer once tests have run.
+                    headerAction={testResult && !isManualEval ? (
+                      <button
+                        type="button"
+                        onClick={() => setResultsOpen(true)}
+                        title="Open test results"
+                        className="hover:bg-[#FFF4ED]"
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 10px",
+                          borderRadius: 6, border: "1px solid #FFD2B8", background: "#FFFFFF", color: "#C2410C",
+                          fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                        }}
+                      >
+                        {testResult.status === "evaluating"
+                          ? <Loader2 size={13} className="animate-spin" />
+                          : <ClipboardCheck size={13} />}
+                        Test results
+                        {testResult.status !== "evaluating" && typeof testResult.passedCount === "number" && typeof testResult.totalCount === "number" && testResult.totalCount > 0 && (
+                          <span style={{ color: testResult.passedCount === testResult.totalCount ? "#047857" : "#B42318" }}>
+                            {testResult.passedCount}/{testResult.totalCount}
+                          </span>
+                        )}
+                      </button>
+                    ) : undefined}
                     // Non-graded: pass/fail and feedback, no marks.
                     showScore={isGradedExercise}
                     activeTab={bottomTab}
@@ -3414,6 +3439,17 @@ export default function MultiFileCodeEditor({
           </div>
         </div>
       )}
+
+      {/* Run tests / Submit results — overview, then Test case | Status rows
+          that open to each case's detail. */}
+      <TestResultsDrawer
+        open={resultsOpen && !isManualEval}
+        onClose={() => setResultsOpen(false)}
+        state={testResult}
+        onRetry={() => { if (lastEvaluationWasPreview.current) void runTestCases(); else void submitQuestion({ force: true }) }}
+        isSubmitting={isSubmittingQuestion || isRunningTestCases}
+        showScore={isGradedExercise}
+      />
     </div>
   )
 }
