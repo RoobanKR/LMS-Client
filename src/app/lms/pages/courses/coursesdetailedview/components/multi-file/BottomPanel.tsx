@@ -574,7 +574,7 @@ export function TestResultView({
       </div>
 
       {!isEval && !state.ai?.failed && typeof state.passedCount === 'number' && typeof state.totalCount === 'number' && state.totalCount > 0 && <div className="flex flex-wrap gap-2 px-4 pb-3 text-xs font-semibold">
-        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700"><CheckCircle2 size={14} />{state.passedCount} Passed</span>
+        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700"><CheckCircle2 size={14} />{state.passedCount}</span>
         <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-red-700"><XCircle size={14} />{Math.max(0, state.totalCount - state.passedCount)} Failed</span>
       </div>}
       {/* Error detail (compilation / runtime / submission-failed) */}
