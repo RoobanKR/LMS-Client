@@ -16,7 +16,7 @@ import React from "react"
 import {
   ClipboardCheck, Copy, CheckCircle2, XCircle, AlertTriangle,
   Loader2, RefreshCw, Sparkles, TerminalSquare, Trash2, X, Maximize2, Minimize2,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Eye, EyeOff,
 } from "lucide-react"
 import RunTerminal, { type TermLine } from "./RunTerminal"
 import { AiCodeReviewView, type AiReviewState } from "./AiCodeReview"
@@ -737,10 +737,14 @@ export function TestResultsDrawer({
           </div>
         )}
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }} aria-live="polite">
-          {showAi
-            ? <AiCodeReviewView review={aiReview!} onRetry={onRetryAiReview} />
-            : <TestResultsBody state={state!} onRetry={onRetry} isSubmitting={isSubmitting} showScore={showScore} />}
+        {/* The scroller is a plain block: as a flex column it shrank its
+            children to fit instead of overflowing, so nothing scrolled. */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: 16 }} aria-live="polite">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {showAi
+              ? <AiCodeReviewView review={aiReview!} onRetry={onRetryAiReview} />
+              : <TestResultsBody state={state!} onRetry={onRetry} isSubmitting={isSubmitting} showScore={showScore} />}
+          </div>
         </div>
       </aside>
     </div>
@@ -832,14 +836,15 @@ function TestResultsBody({
 
           {state.ai && !isEval && <div style={{ margin: '0 -16px' }}><AiEvaluationBlock ai={state.ai} score={state.score} maxMarks={state.maxMarks} showMarks={showScore} /></div>}
 
-          {/* Test case | Status — a row opens its details */}
+          {/* Test case | Status | Actions — View details opens the case */}
           {shownCases.length > 0 && (
             <div style={{ borderRadius: 10, border: '1px solid #EAECF0', overflow: 'hidden', ...(isEval ? { opacity: 0.5, pointerEvents: 'none' } : null) }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }} aria-label="Test case results">
                 <thead style={{ background: '#F9FAFB', color: '#475467' }}>
                   <tr>
                     <th scope="col" style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, borderBottom: '1px solid #EAECF0' }}>Test case</th>
-                    <th scope="col" style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, borderBottom: '1px solid #EAECF0', width: 130 }}>Status</th>
+                    <th scope="col" style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, borderBottom: '1px solid #EAECF0', width: 110 }}>Status</th>
+                    <th scope="col" style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, borderBottom: '1px solid #EAECF0', width: 130, textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -849,26 +854,33 @@ function TestResultsBody({
                     const label = `${c.hidden ? 'Hidden case' : c.source === 'ai' ? 'AI case' : 'Case'} ${c.index + 1}`
                     return (
                       <React.Fragment key={`${c.source || 'question'}-${c.index}-${i}`}>
-                        <tr
-                          onClick={() => setOpenCase(isOpen ? null : i)}
-                          className="hover:bg-[#F9FAFB]"
-                          style={{ cursor: 'pointer', borderTop: i ? '1px solid #EAECF0' : undefined, background: isOpen ? (c.passed ? '#F6FEF9' : '#FFFBFA') : undefined }}
-                        >
-                          <th scope="row" style={{ padding: '11px 14px', fontWeight: 600, color: '#101828' }}>
-                            <button type="button" aria-expanded={isOpen} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
-                              {isOpen ? <ChevronUp size={14} style={{ color: '#667085' }} /> : <ChevronDown size={14} style={{ color: '#667085' }} />}
-                              {label}
-                            </button>
-                          </th>
+                        <tr style={{ borderTop: i ? '1px solid #EAECF0' : undefined, background: isOpen ? (c.passed ? '#F6FEF9' : '#FFFBFA') : undefined }}>
+                          <th scope="row" style={{ padding: '11px 14px', fontWeight: 600, color: '#101828' }}>{label}</th>
                           <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 24, padding: '0 9px', borderRadius: 99, fontSize: 12, fontWeight: 600, color: c.passed ? '#046C4E' : '#B42318', background: c.passed ? '#ECFDF3' : '#FEF3F2', border: `1px solid ${c.passed ? '#BBF7D0' : '#FBD3CE'}` }}>
                               {c.passed ? <CheckCircle2 size={13} /> : <XCircle size={13} />}{c.passed ? 'Passed' : 'Failed'}
                             </span>
                           </td>
+                          <td style={{ padding: '8px 14px', textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              onClick={() => setOpenCase(isOpen ? null : i)}
+                              aria-expanded={isOpen}
+                              aria-label={`${isOpen ? 'Hide' : 'View'} details of ${label}`}
+                              className={isOpen ? 'hover:bg-[#FFE8D9]' : 'hover:bg-[#FFF4ED]'}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 10px', borderRadius: 7,
+                                border: '1px solid #FFD2B8', background: isOpen ? '#FFF4ED' : '#FFFFFF', color: '#C2410C',
+                                fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {isOpen ? <EyeOff size={13} /> : <Eye size={13} />}{isOpen ? 'Hide details' : 'View details'}
+                            </button>
+                          </td>
                         </tr>
                         {isOpen && (
                           <tr style={{ background: c.passed ? '#F6FEF9' : '#FFFBFA' }}>
-                            <td colSpan={2} style={{ padding: '2px 14px 14px' }}>
+                            <td colSpan={3} style={{ padding: '2px 14px 14px' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 {!reveal && (
                                   <div style={{ fontSize: 12.5, color: '#667085', lineHeight: 1.55 }}>
