@@ -21,6 +21,7 @@ import {
 import { headersFor } from "./components/gradeHelpers";
 import { ExerciseCells, StudentCells, QuestionCells } from "./components/GradeRows";
 import StudentDetailsDrawer from "./components/StudentDetailsDrawer";
+import QuestionAnswerDrawer from "./components/QuestionAnswerDrawer";
 import { api } from "@/app/lms/pages/clientmanagement/lib/apiClient";
 import { courseDataApi } from "@/app/lms/pages/courses/api/coursesData";
 import { CourseSidebar } from "@/app/lms/pages/courses/uploadcourseresources/components/Coursesidebar";
@@ -357,6 +358,16 @@ export default function GradesFlow({
   // component). Read once — the auth gate never server-renders this page.
   const [shellRole] = useState(() => typeof window === "undefined" ? "" :
     (localStorage.getItem("smartcliff_roleValue") || localStorage.getItem("smartcliff_originalRole") || "").toLowerCase());
+  // A student's grade book skips the Students step (their own row would be the
+  // only one): opening an exercise lands straight on their questions and marks.
+  const viewerIsStudent = shellRole.includes("student");
+  const [self] = useState<{ _id: string; name: string } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const u = JSON.parse(localStorage.getItem("smartcliff_userData") || "null");
+      return u?._id ? { _id: String(u._id), name: [u.firstName, u.lastName].filter(Boolean).join(" ") || "Me" } : null;
+    } catch { return null; }
+  });
 
   const [activeTab, setActiveTab] = useState<"exercises" | "students" | "questions">("exercises");
   const [courseId, setCourseId] = useState<string | null>(courseIdProp ?? null);
@@ -378,6 +389,8 @@ export default function GradesFlow({
   // Presentation-only state (selection + drawers)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [detailStudent, setDetailStudent] = useState<any>(null);
+  // The question whose answer drawer is open (Questions tab ▸ View).
+  const [detailQuestion, setDetailQuestion] = useState<any>(null);
 
 
   // Extract courseId from URL. (Pre-existing pattern — this route reads the
@@ -544,7 +557,10 @@ export default function GradesFlow({
     if (!ex) return;
     deepLinkAppliedRef.current = deepLinkExerciseId;
     setSelectedExercise(ex);
-    if (deepLinkOpenTab === "students" || deepLinkOpenTab === "questions") {
+    if (viewerIsStudent && self) {
+      setSelectedStudent(self);
+      setActiveTab("questions");
+    } else if (deepLinkOpenTab === "students" || deepLinkOpenTab === "questions") {
       setActiveTab(deepLinkOpenTab);
     } else {
       setActiveTab("students");
@@ -790,11 +806,17 @@ export default function GradesFlow({
 
   const handleSelectExercise = (exercise: any) => {
     setSelectedExercise(exercise);
-    setActiveTab("students");
     setStatusFilter("all");
     setPassFailFilter("all");
     setSearchTerm("");
     setSelectedIds([]);
+    if (viewerIsStudent && self) {
+      setSelectedStudent(self);
+      setDifficultyFilter("all");
+      setActiveTab("questions");
+      return;
+    }
+    setActiveTab("students");
   };
 
   const handleSelectStudent = (student: any) => {
@@ -823,6 +845,8 @@ export default function GradesFlow({
   };
 
   const handleBackToStudents = () => {
+    // A student never saw the Students step — Back returns to their exercises.
+    if (viewerIsStudent) return handleBackToExercises();
     setActiveTab("students");
     setSelectedStudent(null);
     setSearchTerm("");
@@ -927,7 +951,7 @@ export default function GradesFlow({
     // are. Standalone keeps the course crumb, since nothing else supplies it.
     if (!embedded && courseData) items.push({ title: courseData.name || "Course", icon: GraduationCap });
     if (selectedExercise) items.push({ title: selectedExercise.exerciseName, icon: Dumbbell, onClick: handleBackToExercises });
-    if (selectedStudent) items.push({ title: selectedStudent.name, icon: Users, onClick: handleBackToStudents });
+    if (selectedStudent && !viewerIsStudent) items.push({ title: selectedStudent.name, icon: Users, onClick: handleBackToStudents });
     // Tab leaf only when there's a drill above it — a lone "Exercises" crumb
     // with nothing before it read as trivial.
     if (items.length > 0) {
@@ -2301,14 +2325,14 @@ export default function GradesFlow({
                 ) : (
                   pagedData.map((item: any, idx: number) => {
                     const id = rowId(item);
-                    const clickable = activeTab === "exercises" || activeTab === "students";
+                    const clickable = true;
                     return (
                       <motion.tr
                         key={id}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ duration: 0.15, delay: Math.min(idx, 12) * 0.012 }}
-                        onClick={() => { if (activeTab === "exercises") handleSelectExercise(item); else if (activeTab === "students") handleSelectStudent(item); }}
+                        onClick={() => { if (activeTab === "exercises") handleSelectExercise(item); else if (activeTab === "students") handleSelectStudent(item); else setDetailQuestion(item); }}
                         className={`group border-b border-hairline last:border-0 transition-colors ${selectedIds.includes(id) ? "bg-brand-wash/50" : "hover:bg-row-hover"} ${clickable ? "cursor-pointer" : ""}`}
                       >
                         {selectable && (
@@ -2453,6 +2477,7 @@ export default function GradesFlow({
 
       {/* ── Student details drawer ── */}
       <StudentDetailsDrawer student={detailStudent} selectedExercise={selectedExercise} onClose={() => setDetailStudent(null)} onViewQuestions={(s) => { setDetailStudent(null); handleSelectStudent(s); }} />
+      <QuestionAnswerDrawer question={detailQuestion} onClose={() => setDetailQuestion(null)} />
     </motion.div>
     </div>
   );

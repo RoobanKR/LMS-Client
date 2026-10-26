@@ -255,6 +255,20 @@ export function QuestionCells({ item, index }: { item: any; index: number }) {
           ? <span className="inline-flex items-center gap-1 h-6 rounded-full px-2 text-2xs font-semibold ring-1 ring-inset bg-success-50 text-success-700 ring-success-500/20"><CheckCircle2 className="h-3 w-3" /> Submitted</span>
           : <span className="inline-flex items-center gap-1 h-6 rounded-full px-2 text-2xs font-semibold ring-1 ring-inset bg-ink-100 text-ink-600 ring-ink-500/15"><XCircle className="h-3 w-3" /> Not attempted</span>}
       </td>
+      <td className={`${BODY} pl-2 pr-4 sm:pr-5 text-right`}>
+        {/* View — opens the answer drawer (the answer, its marks, test-case
+            results and feedback). Forwards the click to the parent <tr>,
+            like the exercise and student rows' View. */}
+        <button
+          type="button"
+          onClick={(e) => e.currentTarget.closest<HTMLElement>('tr')?.click()}
+          title="View answer"
+          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-chip border border-info-500/25 bg-info-50 text-info-700 text-2xs font-semibold hover:bg-info-50/70 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-500/30"
+        >
+          <Eye className="h-3 w-3" />
+          View
+        </button>
+      </td>
     </>
   );
 }

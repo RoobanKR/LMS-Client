@@ -20,6 +20,14 @@ export interface PptShowState { slide: number; total: number; canNext: boolean; 
 export interface PptShowHandle { next: () => void; prev: () => void; goTo: (slide: number) => void }
 
 const showUrlCache: Record<string, string> = {}
+
+// Microsoft's viewer sends no COEP header, so on our cross-origin-isolated
+// pages (next.config.ts) it loads only as a credentialless frame — Chrome /
+// Edge 110+. Elsewhere (Firefox, older Chrome) the browser blocks the frame and
+// shows an error, so those viewers get a button that opens it in a new tab.
+const officeFrameBlocked = () =>
+  typeof window !== "undefined" && window.crossOriginIsolated &&
+  !("credentialless" in HTMLIFrameElement.prototype)
 // A little over the server's 3-minute LibreOffice limit, after which it fails the deck
 const SHOW_MAX_WAIT_MS = 6 * 60 * 1000
 
@@ -36,6 +44,7 @@ const PptShowFrame = forwardRef<PptShowHandle, {
   // final = the server remembered this deck as one it can't show — nothing to retry
   const [error, setError] = useState<{ message: string; final: boolean } | null>(null)
   const [retry, setRetry] = useState(0)
+  const [frameBlocked] = useState(() => mode === "office" && officeFrameBlocked())
 
   useEffect(() => {
     if (mode !== "libreoffice" || !pptUrl) return
@@ -110,6 +119,22 @@ const PptShowFrame = forwardRef<PptShowHandle, {
             Retry
           </button>
         )}
+      </div>
+    )
+  }
+
+  if (frameBlocked) {
+    return (
+      <div style={{ textAlign: "center", padding: "48px 24px", maxWidth: 420, margin: "0 auto" }}>
+        <FileText size={28} style={{ color: "#F97316", marginBottom: 12 }} />
+        <p style={{ fontWeight: 700, color: "#6b7280", marginBottom: 8, fontSize: 15 }}>{title || "Presentation"}</p>
+        <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 20, lineHeight: 1.5 }}>
+          This browser can't show the slideshow inside the page. Open it in a new tab, or use Chrome or Edge to view it here.
+        </p>
+        <a href={`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(pptUrl)}`} target="_blank" rel="noopener noreferrer"
+          style={{ display: "inline-block", padding: "10px 20px", background: "linear-gradient(135deg,#F97316,#EA580C)", color: "white", borderRadius: 10, fontWeight: 600, fontSize: 13, textDecoration: "none" }}>
+          Open slideshow
+        </a>
       </div>
     )
   }

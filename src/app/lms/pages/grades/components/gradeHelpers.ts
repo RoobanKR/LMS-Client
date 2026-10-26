@@ -78,6 +78,7 @@ export function headersFor(
       { label: "Mark Scored", align: "right" },
       { label: "Attempts", align: "right" },
       { label: "Status" },
+      { label: "Actions", align: "right" },
     ];
     default: return [];
   }
