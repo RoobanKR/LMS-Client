@@ -445,6 +445,9 @@ interface PDFViewerProps {
   showNotesPanel?: boolean
   onNotesStateChange?: (isOpen: boolean) => void
   onBreadcrumbNavigate?: (crumb: string, index: number) => void
+  // Shown as a Download button only when passed — the page passes it just
+  // for a file whose Allow Download is on.
+  onDownload?: () => void
 }
 
 // ─── TOOLBAR CHIP ─────────────────────────────────────────────────────────────
@@ -512,6 +515,7 @@ const GAP = 10
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function PDFViewer({
+  onDownload,
   fileUrl, fileName, onClose, initialMcqs = [],
   aiChatEnabled = false, aiSummaryEnabled = false, notesEnabled = false,
   hierarchy = [], currentItemTitle = "",
@@ -891,12 +895,6 @@ export default function PDFViewer({
 
   useEffect(() => { setNotesOpen(notesEnabled) }, [showNotesPanel, notesEnabled])
 
-  const handleDownload = () => {
-    if (!normalizedUrl) return
-    const a = document.createElement("a"); a.href=normalizedUrl
-    a.download=fileName; a.target="_blank"
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-  }
 
   const handleFullscreen = async () => {
     if (!containerRef.current) return
@@ -1019,9 +1017,12 @@ export default function PDFViewer({
 
       <div style={{ width:1,height:22,background:"rgba(0,0,0,0.1)" }} />
 
-      {/* <ToolbarBtn onClick={handleDownload}>
-        <Download size={12} /> Download
-      </ToolbarBtn> */}
+      {/* Download — only for a file whose Allow Download is on */}
+{onDownload && (
+  <ToolbarBtn onClick={onDownload} className="icon-only" title="Download">
+    <Download size={13} />
+  </ToolbarBtn>
+)}
 
       <ToolbarBtn onClick={handleFullscreen} className="icon-only" title="Toggle fullscreen">
         <Maximize size={13} />
@@ -1258,10 +1259,10 @@ export default function PDFViewer({
                   </div>
                   <p style={{ fontWeight:700,color:"#1f2937",marginBottom:8,fontSize:15 }}>Could not load PDF</p>
                   <p style={{ color:"#6b7280",fontSize:12,marginBottom:20,lineHeight:1.5 }}>{loadError}</p>
-                  <button onClick={handleDownload}
+                  {onDownload && <button onClick={onDownload}
                     style={{ padding:"10px 20px",background:"linear-gradient(135deg,#F97316,#EA580C)",color:"white",border:"none",borderRadius:10,fontWeight:600,cursor:"pointer",fontSize:13,boxShadow:"0 4px 12px rgba(249,115,22,0.3)" }}>
                     Download instead
-                  </button>
+                  </button>}
                 </div>
               )}
 

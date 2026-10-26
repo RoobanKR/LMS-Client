@@ -357,6 +357,9 @@ interface PPTViewerProps {
   courseId?: string
   // Course Setup › PPT › Viewer — omitted / "default" keeps the slide images
   viewerMode?: PptViewerMode
+  // Shown as a Download button only when passed — the page passes it just
+  // for a file whose Allow Download is on.
+  onDownload?: () => void
 }
 
 // ─── TOOLBAR BUTTON ───────────────────────────────────────────────────────────
@@ -421,6 +424,7 @@ const GAP = 10
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function PPTViewer({
+  onDownload,
   pptUrl,
   slideImages,
   title = "Presentation",
@@ -708,13 +712,6 @@ export default function PPTViewer({
     if (e.key === "Escape") { setPageInput(String(currentSlide)); e.currentTarget.blur() }
   }
 
-  // ── Download
-  const handleDownload = () => {
-    const link = document.createElement("a")
-    link.href = pptUrl
-    link.download = title || "presentation.pptx"
-    link.click()
-  }
 
   // ── Fullscreen
   const handleFullscreen = async () => {
@@ -881,9 +878,12 @@ export default function PPTViewer({
 
               <div style={{ width:1,height:22,background:"rgba(0,0,0,0.1)" }} />
 
-              {/* <ToolbarBtn onClick={handleDownload}>
-                <Download size={12} /> Download
-              </ToolbarBtn> */}
+              {/* Download — only for a file whose Allow Download is on */}
+{onDownload && (
+  <ToolbarBtn onClick={onDownload} className="icon-only" title="Download">
+    <Download size={13} />
+  </ToolbarBtn>
+)}
               <ToolbarBtn onClick={handleFullscreen} className="icon-only" title="Toggle fullscreen">
                 <Maximize size={13} />
               </ToolbarBtn>
@@ -1075,9 +1075,9 @@ export default function PPTViewer({
                   >
                     Retry
                   </button>
-                  <button onClick={handleDownload} style={{ padding:"10px 20px",background:"#4B5563",color:"white",border:"none",borderRadius:10,fontWeight:600,cursor:"pointer",fontSize:13 }}>
+                  {onDownload && <button onClick={onDownload} style={{ padding:"10px 20px",background:"#4B5563",color:"white",border:"none",borderRadius:10,fontWeight:600,cursor:"pointer",fontSize:13 }}>
                     Download instead
-                  </button>
+                  </button>}
                 </div>
               )}
 
@@ -1103,9 +1103,9 @@ export default function PPTViewer({
                           Switch to Google Viewer
                         </button>
                       )}
-                      <button onClick={handleDownload} style={{ padding:"10px 20px",background:"#4B5563",color:"white",border:"none",borderRadius:10,fontWeight:600,cursor:"pointer",fontSize:13 }}>
+                      {onDownload && <button onClick={onDownload} style={{ padding:"10px 20px",background:"#4B5563",color:"white",border:"none",borderRadius:10,fontWeight:600,cursor:"pointer",fontSize:13 }}>
                         Download instead
-                      </button>
+                      </button>}
                     </div>
                   )}
                   {!iframeError && (

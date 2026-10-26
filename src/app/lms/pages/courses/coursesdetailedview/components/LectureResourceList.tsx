@@ -21,10 +21,10 @@ import {
   Search, X, ArrowUpDown, ChevronDown, Filter as FilterIcon,
   FileText, FileVideo, Folder as FolderIco, ChevronRight,
   BookOpen, Presentation, Link2, FileArchive, FileType, Bookmark,
-  Image as ImageIcon,
+  Image as ImageIcon, Download,
 } from "lucide-react"
 import type { Resource, ResourceType } from "./types/types"
-import { groupResources, type GroupRow } from "./types/utils"
+import { groupResources, shouldShowDownload, downloadFile, type GroupRow } from "./types/utils"
 // Reuse the SAME table + footer primitives the We Do Assignment list uses
 // so both screens share row density, hover, empty-state chrome, sticky
 // header, pager styling and column-percent widths. Anything a student
@@ -551,6 +551,10 @@ export const LectureResourceList: React.FC<LectureResourceListProps> = ({
   // Open action (wired via DataTable's onRowClick below). Widths sum to
   // 100% and give the filename the most room. Size sits at the right
   // because it's the shortest cell and reads best as a trailing metric.
+  // A Download column appears only when some file here has Allow Download on
+  // (Edit Resource › Visibility); the name column gives up the room for it.
+  const anyDownloadable = resources.some(shouldShowDownload)
+
   const columns: DTColumn<DisplayRow>[] = [
     {
       key: 'num',
@@ -566,7 +570,7 @@ export const LectureResourceList: React.FC<LectureResourceListProps> = ({
       key: 'name',
       label: 'Resource',
       sortKey: 'name',
-      className: 'w-[55%] px-3 text-left align-middle text-[13.5px]',
+      className: `${anyDownloadable ? 'w-[49%]' : 'w-[55%]'} px-3 text-left align-middle text-[13.5px]`,
       skeletonWidth: '80%',
       render: (row) => {
         // Group header, as on the staff list: a small orange folder tile, then
@@ -664,6 +668,24 @@ export const LectureResourceList: React.FC<LectureResourceListProps> = ({
         </span>
       ),
     },
+    ...(anyDownloadable ? [{
+      key: 'download',
+      label: '',
+      className: 'w-[6%] px-3 pr-4 text-right align-middle',
+      // Only on a file that allows it. The click stays on the icon — the rest
+      // of the row still opens the file.
+      render: (row: DisplayRow) => row.kind !== 'group' && shouldShowDownload(row.resource) ? (
+        <button
+          type="button"
+          title="Download"
+          aria-label={`Download ${row.resource.title || 'file'}`}
+          onClick={(e) => { e.stopPropagation(); void downloadFile(row.resource) }}
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[#667085] hover:bg-orange-50 hover:text-orange-600 transition-colors"
+        >
+          <Download size={15} />
+        </button>
+      ) : null,
+    }] : []),
   ]
 
   // ── Render ────────────────────────────────────────────────────────────────

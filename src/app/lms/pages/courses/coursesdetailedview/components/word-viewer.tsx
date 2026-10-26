@@ -147,6 +147,9 @@ interface WordViewerProps {
   showNotesPanel?: boolean
   onNotesStateChange?: (isOpen: boolean) => void
   onBreadcrumbNavigate?: (crumb: string, index: number) => void
+  // Shown as a Download button only when passed — the page passes it just
+  // for a file whose Allow Download is on.
+  onDownload?: () => void
 }
 
 // ─── TOOLBAR BUTTON ───────────────────────────────────────────────────────────
@@ -204,6 +207,7 @@ function PanelHeader({
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function WordViewer({
+  onDownload,
   fileUrl, fileName, onClose,
   aiChatEnabled = true, aiSummaryEnabled = true, notesEnabled = true,
   hierarchy = [], currentItemTitle = "",
@@ -429,11 +433,6 @@ export default function WordViewer({
     setLoading(true); setLoadError(false); setEngine("ms"); setIframeKey(k => k + 1)
   }
 
-  const handleDownload = () => {
-    const a = document.createElement("a")
-    a.href = fileUrl; a.download = downloadName; a.target = "_blank"
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-  }
 
   const handleFullscreen = async () => {
     if (!containerRef.current) return
@@ -549,9 +548,12 @@ export default function WordViewer({
 
               <div style={{ width:1, height:22, background:"rgba(0,0,0,0.1)" }} />
 
-              {/* <ToolbarBtn onClick={handleDownload}>
-                <Download size={12} /> Download
-              </ToolbarBtn> */}
+              {/* Download — only for a file whose Allow Download is on */}
+{onDownload && (
+  <ToolbarBtn onClick={onDownload} className="icon-only" title="Download">
+    <Download size={13} />
+  </ToolbarBtn>
+)}
 
               <ToolbarBtn onClick={handleFullscreen} className="icon-only" title="Toggle fullscreen">
                 <Maximize size={13} />
@@ -732,9 +734,9 @@ export default function WordViewer({
                   >
                     Retry
                   </button>
-                  <button onClick={handleDownload} style={{ padding:"10px 20px", background:"#4B5563", color:"white", border:"none", borderRadius:10, fontWeight:600, cursor:"pointer", fontSize:13 }}>
+                  {onDownload && <button onClick={onDownload} style={{ padding:"10px 20px", background:"#4B5563", color:"white", border:"none", borderRadius:10, fontWeight:600, cursor:"pointer", fontSize:13 }}>
                     Download instead
-                  </button>
+                  </button>}
                 </div>
               )}
 
@@ -807,9 +809,9 @@ export default function WordViewer({
                         <button onClick={handleReload} style={{ padding:"8px 16px", borderRadius:10, border:"1.5px solid #E5E7EB", background:"#fff", cursor:"pointer", fontSize:12, fontWeight:700, color:"#374151" }}>
                           Try again
                         </button>
-                        <button onClick={handleDownload} style={{ padding:"8px 16px", borderRadius:10, border:"none", background:"#F97316", cursor:"pointer", fontSize:12, fontWeight:700, color:"#fff", display:"flex", alignItems:"center", gap:6 }}>
+                        {onDownload && <button onClick={onDownload} style={{ padding:"8px 16px", borderRadius:10, border:"none", background:"#F97316", cursor:"pointer", fontSize:12, fontWeight:700, color:"#fff", display:"flex", alignItems:"center", gap:6 }}>
                           <Download size={13} /> Download instead
-                        </button>
+                        </button>}
                       </div>
                     </div>
                   )}

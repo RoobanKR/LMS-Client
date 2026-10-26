@@ -40,8 +40,10 @@ interface ZipViewerProps {
   fileName: string;
   onClose: () => void;
   isOpen?: boolean; // Add this optional prop
+  // Student view: false when the zip's Allow Download is off — hides every download button.
+  allowDownload?: boolean;
 }
-export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipViewerProps) {
+export default function ZipViewer({ fileUrl, fileName, onClose, isOpen, allowDownload = true }: ZipViewerProps) {
     if (!isOpen) return null;
 
   const [files, setFiles] = useState<ZipFile[]>([]);
@@ -535,7 +537,7 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
             )}
           </div>
          
-          {item.type === 'file' && (
+          {item.type === 'file' && allowDownload && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -594,13 +596,13 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-semibold text-gray-900">{currentFile.name}</h4>
-            <button
+            {allowDownload && (<button
               onClick={() => downloadFile(currentFile!)}
               className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
             >
               <Download size={14} />
               Download
-            </button>
+            </button>)}
           </div>
           <div className="flex-1 border rounded-lg overflow-hidden">
             <iframe
@@ -632,13 +634,13 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
                 <Presentation size={14} />
                 Open in Viewer
               </button>
-              <button
+              {allowDownload && (<button
                 onClick={() => downloadFile(currentFile!)}
                 className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
               >
                 <Download size={14} />
                 Download
-              </button>
+              </button>)}
             </div>
           </div>
           <div className="flex-1 border rounded-lg overflow-hidden flex flex-col items-center justify-center bg-gray-100 p-8">
@@ -665,13 +667,13 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
                 <Presentation size={16} />
                 Open in Google Viewer
               </button>
-              <button
+              {allowDownload && (<button
                 onClick={() => downloadFile(currentFile!)}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               >
                 <Download size={16} />
                 Download PPT
-              </button>
+              </button>)}
             </div>
           </div>
         </div>
@@ -684,13 +686,13 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-semibold text-gray-900">{currentFile.name}</h4>
-            <button
+            {allowDownload && (<button
               onClick={() => downloadFile(currentFile!)}
               className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
             >
               <Download size={14} />
               Download
-            </button>
+            </button>)}
           </div>
           <div className="flex-1 border rounded-lg overflow-hidden flex items-center justify-center bg-gray-100">
             <img
@@ -713,13 +715,13 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-semibold text-gray-900">{currentFile.name}</h4>
-            <button
+            {allowDownload && (<button
               onClick={() => downloadFile(currentFile!)}
               className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
             >
               <Download size={14} />
               Download
-            </button>
+            </button>)}
           </div>
           <div className="flex-1 border rounded-lg overflow-hidden flex items-center justify-center bg-black">
             <video
@@ -743,13 +745,13 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-semibold text-gray-900">{currentFile.name}</h4>
-            <button
+            {allowDownload && (<button
               onClick={() => downloadFile(currentFile!)}
               className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
             >
               <Download size={14} />
               Download
-            </button>
+            </button>)}
           </div>
           <div className="flex-1 border rounded-lg overflow-hidden">
             <pre className="text-sm whitespace-pre-wrap break-words p-4 h-full overflow-auto bg-gray-50">
@@ -770,13 +772,13 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
           <br />
           Please download the file to view its contents.
         </p>
-        <button
+        {allowDownload && (<button
           onClick={() => downloadFile(currentFile!)}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
         >
           <Download size={16} />
           Download File
-        </button>
+        </button>)}
       </div>
     );
   };
@@ -806,13 +808,13 @@ export default function ZipViewer({ fileUrl, fileName, onClose, isOpen }: ZipVie
           </div>
          
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
+            {allowDownload && (<button
               onClick={downloadAll}
               className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
               <Download size={16} />
               <span className="hidden sm:inline">Download All</span>
-            </button>
+            </button>)}
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"

@@ -1,6 +1,6 @@
 // imageViewer.tsx
 import React, { useState, useEffect, useRef } from "react";
-import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2, ChevronLeft, ChevronRight, BookOpen, FileImage } from "lucide-react";
+import { Download, X, ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2, ChevronLeft, ChevronRight, BookOpen, FileImage } from "lucide-react";
 import NotesPanel from "./notes-panel";
 
 // ─── KEYFRAME STYLES ─────────────────────────────────────────────────────────
@@ -76,9 +76,13 @@ interface ImageViewerProps {
   onNotesClick?: () => void;
   showNotesPanel?: boolean;
   onNotesStateChange?: (isOpen: boolean) => void;
+  // Shown as a Download button only when passed — the page passes it just
+  // for a file whose Allow Download is on.
+  onDownload?: () => void;
 }
 
 const ImageViewer: React.FC<ImageViewerProps> = ({
+  onDownload,
   isOpen,
   imageUrl,
   title,
@@ -304,6 +308,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                 <circle cx="12" cy="12" r="3" />
               </svg>
             </button>
+
+            {/* Download — only for a file whose Allow Download is on */}
+            {onDownload && (
+              <button onClick={onDownload} className="iv-toolbar-btn icon-only" title="Download">
+                <Download size={14} />
+              </button>
+            )}
 
             {/* Fullscreen */}
             <button onClick={toggleFullscreen} className="iv-toolbar-btn icon-only" title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>

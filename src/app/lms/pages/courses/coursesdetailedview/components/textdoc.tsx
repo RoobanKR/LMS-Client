@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
-import { X, FileText, ChevronRight, BookOpen } from "lucide-react"
+import { Download, X, FileText, ChevronRight, BookOpen } from "lucide-react"
 import NotesPanel from "./notes-panel"
 
 // ─── KEYFRAME STYLES ─────────────────────────────────────────────────────────
@@ -62,10 +62,14 @@ interface TxtViewerProps {
   onNotesClick?: () => void
   showNotesPanel?: boolean
   onNotesStateChange?: (isOpen: boolean) => void
+  // Shown as a Download button only when passed — the page passes it just
+  // for a file whose Allow Download is on.
+  onDownload?: () => void
 }
 
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 export default function TxtViewer({
+  onDownload,
   fileUrl,
   fileName = "document.txt",
   isOpen = true,
@@ -217,6 +221,13 @@ export default function TxtViewer({
               className={`pdf-toolbar-btn${notesOpen ? " active-blue" : ""}`}
             >
               <BookOpen size={12} /> Notes
+            </button>
+          )}
+
+          {/* Download — only for a file whose Allow Download is on */}
+          {onDownload && (
+            <button onClick={onDownload} className="pdf-toolbar-btn" title="Download">
+              <Download size={13} />
             </button>
           )}
 

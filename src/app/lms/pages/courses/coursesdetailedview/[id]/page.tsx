@@ -295,7 +295,7 @@ export default function LMSPage() {
     type: "video" | "pdf" | "ppt" | "zip" | "image" | "word" | "txt" | null;
     resource: Resource | null
   }>({ type: null, resource: null })
-  const [imagePlaylist, setImagePlaylist] = useState<Array<{ id: string; title: string; fileUrl: string }>>([])
+  const [imagePlaylist, setImagePlaylist] = useState<Array<{ id: string; title: string; fileUrl: string; fileSettings?: Resource["fileSettings"] }>>([])
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [currentFolder, setCurrentFolder] = useState<Resource | null>(null)
   const [folderPath, setFolderPath] = useState<Resource[]>([])
@@ -479,6 +479,12 @@ useEffect(() => {
     const cfg: any = (courseData?.resourcesType as any)?.[section];
     return !!cfg?.notes?.enabled || (["ppt", "pdf", "video", "image", "zip"] as const).some((t) => !!cfg?.[t]?.notes);
   });
+
+  // The open file's Download button (inside every viewer): only when its Allow
+  // Download is on (Edit Resource › Visibility) — the same rule as the list.
+  const viewerDownload = activeViewer.resource && shouldShowDownload(activeViewer.resource)
+    ? () => { void downloadFile(activeViewer.resource!) }
+    : undefined;
 
   // Helper function to find node title by ID
   const findNodeTitleById = (nodeId: string, courseData: CourseData | null): string => {
@@ -1070,7 +1076,7 @@ const subcategories = useMemo(() => {
       else if (aft === "pdf") { openViewer("pdf", resource); }
       else if (aft === "zip") { openViewer("zip", resource); }
       else if (aft === "image") {
-        const playlist = getResourcesByType("image").map(r => ({ id: r.id, title: r.title, fileUrl: getFileUrl(r.fileUrl || '') }))
+        const playlist = getResourcesByType("image").map(r => ({ id: r.id, title: r.title, fileUrl: getFileUrl(r.fileUrl || ''), fileSettings: r.fileSettings }))
         const idx = playlist.findIndex(p => p.id === resource.id)
         setImagePlaylist(playlist)
         setCurrentImageIndex(Math.max(0, idx))
@@ -1093,7 +1099,7 @@ const subcategories = useMemo(() => {
       else if (resource.type === "pdf") { openViewer("pdf", resource); }
       else if (resource.type === "zip") { openViewer("zip", resource); }
       else if (resource.type === "image") {
-        const playlist = getResourcesByType("image").map(r => ({ id: r.id, title: r.title, fileUrl: getFileUrl(r.fileUrl || '') }))
+        const playlist = getResourcesByType("image").map(r => ({ id: r.id, title: r.title, fileUrl: getFileUrl(r.fileUrl || ''), fileSettings: r.fileSettings }))
         const idx = playlist.findIndex(p => p.id === resource.id)
         setImagePlaylist(playlist)
         setCurrentImageIndex(Math.max(0, idx))
@@ -3371,6 +3377,7 @@ const getExercisesForActivity = (): any[] => {
       />
       {activeViewer.type === "zip" && activeViewer.resource && (
         <ZipViewer
+          allowDownload={!!viewerDownload}
           fileUrl={getFileUrl(activeViewer.resource.fileUrl || "")}
           fileName={activeViewer.resource.title}
           onClose={closeAllViewers}
@@ -3379,6 +3386,7 @@ const getExercisesForActivity = (): any[] => {
       )}
       {activeViewer.type === "word" && activeViewer.resource && (
         <WordViewer
+          onDownload={viewerDownload}
           isOpen={true}
           fileUrl={getFileUrl(activeViewer.resource.fileUrl || '')}
           fileName={activeViewer.resource.title}
@@ -3397,6 +3405,7 @@ const getExercisesForActivity = (): any[] => {
 
       {activeViewer.type === "txt" && activeViewer.resource && (
         <TxtViewer
+          onDownload={viewerDownload}
           isOpen={true}
           fileUrl={getFileUrlString(activeViewer.resource.fileUrl || '')}
           fileName={activeViewer.resource.title}
@@ -3414,6 +3423,7 @@ const getExercisesForActivity = (): any[] => {
 
       {activeViewer.type === "image" && activeViewer.resource && (
         <ImageViewer
+          onDownload={viewerDownload}
           isOpen={true}
           imageUrl={getFileUrl(activeViewer.resource.fileUrl || '')}
           title={activeViewer.resource.title}
@@ -3426,12 +3436,13 @@ const getExercisesForActivity = (): any[] => {
           onImageChange={idx => {
             setCurrentImageIndex(idx)
             const img = imagePlaylist[idx]
-            if (img) setActiveViewer({ type: "image", resource: { ...activeViewer.resource!, id: img.id, title: img.title, fileUrl: img.fileUrl } })
+            if (img) setActiveViewer({ type: "image", resource: { ...activeViewer.resource!, id: img.id, title: img.title, fileUrl: img.fileUrl, fileSettings: img.fileSettings } })
           }}
         />
       )}
       {activeViewer.type === "video" && activeViewer.resource && (
         <VideoPlayer
+          onDownload={viewerDownload}
           isOpen={true}
           onClose={closeAllViewers}
           videoUrl={getFileUrlString(activeViewer.resource.fileUrl)}
@@ -3455,6 +3466,7 @@ const getExercisesForActivity = (): any[] => {
         const loc = getFileMcqLocator()
         return (
           <PPTViewer
+            onDownload={viewerDownload}
             isOpen={true}
             onClose={closeAllViewers}
             pptUrl={getFileUrlString(activeViewer.resource.fileUrl)}
@@ -3482,6 +3494,7 @@ const getExercisesForActivity = (): any[] => {
         const loc = getFileMcqLocator()
         return (
           <PDFViewer
+            onDownload={viewerDownload}
             fileUrl={getFileUrlString(activeViewer.resource.fileUrl)}
             fileName={activeViewer.resource.title || "document.pdf"}
             onClose={closeAllViewers}

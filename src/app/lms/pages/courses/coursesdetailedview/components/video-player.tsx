@@ -8,6 +8,7 @@ import {
   Volume2,
   VolumeX,
   Maximize,
+  Download,
   Minimize,
   Settings,
   FileText,
@@ -65,6 +66,9 @@ interface VideoPlayerProps {
 
   // Stable id used to anchor contextual notes to this video (optional).
   fileId?: string
+  // Shown as a Download button only when passed — the page passes it just
+  // for a file whose Allow Download is on.
+  onDownload?: () => void
 }
 
 // Helper function to detect if URL is a streaming service
@@ -122,6 +126,7 @@ const formatResolution = (res: string): string => {
 };
 
 export default function VideoPlayer({
+  onDownload,
   isOpen,
   onClose,
   videoUrl,
@@ -708,6 +713,13 @@ export default function VideoPlayer({
 
         {/* Right section */}
         <div className="flex items-center gap-2">
+          {/* Download — only for a file whose Allow Download is on */}
+          {onDownload && (
+            <button onClick={onDownload} title="Download"
+              className="flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-gray-300 shadow-sm text-gray-700 hover:bg-orange-50 hover:text-orange-800 transition-all cursor-pointer flex-shrink-0">
+              <Download className="w-4 h-4" />
+            </button>
+          )}
           {/* Notes Button - Only show if notesEnabled is true */}
           {showNotesButton && (
             <button
