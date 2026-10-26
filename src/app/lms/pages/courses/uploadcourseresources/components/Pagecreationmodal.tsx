@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react"
 import {
   ChevronLeft, List, ListOrdered, Heading1, Heading2, Heading3,
   Quote, Code, Table, CheckSquare, Trash2, Copy, GripVertical,
-  Type, Minus, Sun, Moon, Eye, Save, Plus, Search, FileText,
+  Type, Minus, Eye, Save, Plus, Search, FileText,
   Zap, Video, Maximize2, Minimize2, Image as ImageIcon, Youtube,
   Loader2, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Underline as UnderlineIcon, Strikethrough, Link,
@@ -2541,7 +2541,6 @@ export const PageCreationModal: React.FC<PageCreationModalProps> = ({
   </div>
 
   <div className="flex items-center gap-1.5">
-    <button onClick={() => setIsDark(v => !v)} className={`p-2 rounded-lg transition-colors ${isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isDark ? <Sun size={17} /> : <Moon size={17} />}</button>
     <button onClick={() => setIsPreview(v => !v)} className={`p-2 rounded-lg transition-colors ${isPreview ? "bg-indigo-100 text-indigo-600" : isDark ? "hover:bg-gray-800 text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>{isPreview ? <Edit3 size={17} /> : <Eye size={17} />}</button>
     <button onClick={handleConfirm} disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-100 disabled:opacity-50 disabled:hover:scale-100">
       {isSubmitting

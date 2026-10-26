@@ -49,8 +49,6 @@ import {
   Power,
   Filter,
   CodeIcon,
-  Sun,
-  Moon,
   ChevronLeft,
   ChevronRight,
   HelpCircle,

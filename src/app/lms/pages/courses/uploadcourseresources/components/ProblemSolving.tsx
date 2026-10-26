@@ -813,7 +813,7 @@ const FrontendMockBody: React.FC<FrontendMockBodyProps> = ({
                 language={activeTab === 'html' ? 'html' : activeTab === 'css' ? 'css' : 'javascript'}
                 value={activeContent}
                 onChange={(v) => setActiveContent(v || '')}
-                theme="vs-dark"
+                theme="light"
                 options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: 'on' as const, scrollBeyondLastLine: false, automaticLayout: true, tabSize: 2, wordWrap: 'on' as const, padding: { top: 10 } }}
               />
             </div>
@@ -2022,7 +2022,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
                 language={getMonacoLang(lang)}
                 value={code}
                 onChange={(v) => setCode(v || '')}
-                theme="vs-dark"
+                theme="light"
                 options={{
                   minimap: { enabled: false },
                   fontSize: 13.5,
@@ -2333,7 +2333,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
                 language="sql"
                 value={code}
                 onChange={(v) => setCode(v || '')}
-                theme="vs-dark"
+                theme="light"
                 options={{ minimap: { enabled: false }, fontSize: 13.5, lineNumbers: 'on' as const, scrollBeyondLastLine: false, automaticLayout: true, tabSize: 2, wordWrap: 'on' as const, padding: { top: 12 } }}
               />
             </div>
@@ -2792,7 +2792,7 @@ const ExerciseMockPreviewModal: React.FC<ExerciseMockPreviewModalProps> = ({
             language={getMonacoLang(lang)}
             value={code}
             onChange={(v) => setCode(v || '')}
-            theme="vs-dark"
+            theme="light"
             options={{
               minimap: { enabled: false },
               fontSize: 13.5,

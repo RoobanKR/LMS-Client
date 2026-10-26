@@ -20,16 +20,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://lmsserver-yeve.onre
 
 export type PlatformKey = 'leetcode' | 'codeforces' | 'codechef' | 'hackerrank' | 'atcoder';
 
-// ── VERIFICATION-PHASE ACCOUNTS (hardcoded on purpose) ──────────────────────
-// Phase 2 replaces this with the per-student store the 13.07 snapshot already
-// had (/user/coding-platforms + Settings UI). Public handles only — no keys.
-export const CODING_ACCOUNTS: Partial<Record<PlatformKey, string>> = {
-  leetcode: 'MUTHURAJANP15112000',
-  codeforces: 'muthurajanparthasarathy',
-  codechef: 'plague_case_19',
-  hackerrank: 'muthurajanparth1',
-  atcoder: 'muthurajan',
-};
+// The signed-in user's own handles, one per platform they connected
+// (GET / PUT /user/coding-platforms). Public usernames only — no keys.
+export type CodingAccounts = Partial<Record<PlatformKey, string>>;
 
 export const PLATFORM_META: Record<PlatformKey, { name: string; color: string; profileUrl: (u: string) => string }> = {
   leetcode: { name: 'LeetCode', color: '#FFA116', profileUrl: (u) => `https://leetcode.com/u/${u}/` },
@@ -487,8 +480,22 @@ const ADAPTERS: Record<PlatformKey, (u: string) => Promise<PlatformReport>> = {
   atcoder: atcoderAdapter,
 };
 
-export const fetchPlatformReport = (platform: PlatformKey): Promise<PlatformReport> => {
-  const username = CODING_ACCOUNTS[platform];
+export const fetchPlatformReport = (platform: PlatformKey, username?: string): Promise<PlatformReport> => {
   if (!username) return Promise.reject(new Error('NOT_CONNECTED'));
   return ADAPTERS[platform](username);
+};
+
+export const fetchMyCodingAccounts = async (): Promise<CodingAccounts> =>
+  (await getJson(`${API_BASE}/user/coding-platforms`)).platforms || {};
+
+// An empty username disconnects the platform. Resolves to the saved set.
+export const saveMyCodingAccount = async (platform: PlatformKey, username: string): Promise<CodingAccounts> => {
+  const res = await fetch(`${API_BASE}/user/coding-platforms`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ platform, username }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.message?.[0]?.value || `Could not save (${res.status})`);
+  return data?.platforms || {};
 };

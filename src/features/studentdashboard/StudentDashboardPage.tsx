@@ -271,12 +271,6 @@ export default function StudentDashboardPage() {
 
     useEffect(() => {
         fetchDashboardData();
-        
-        // Check current theme
-        const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
-        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const initialTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
-        setTheme(initialTheme);
     }, []);
 
     const fetchDashboardData = async () => {

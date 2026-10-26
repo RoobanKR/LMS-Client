@@ -1260,8 +1260,8 @@ export default function PPTViewer({
 
       {/* Right side - Controls */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        {/* Slide navigation */}
-        <div style={{ 
+        {/* Slide navigation — not in the LibreOffice show, which moves with its own controls */}
+        {!isLibreShow && <div style={{ 
           display: "flex", 
           alignItems: "center", 
           gap: 4, 
@@ -1320,7 +1320,7 @@ export default function PPTViewer({
           >
             <ChevronRight size={14} />
           </button>
-        </div>
+        </div>}
 
         {/* Zoom controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
@@ -1453,8 +1453,8 @@ export default function PPTViewer({
   )}
 </div>
 
-          {/* Prev / Next nav arrows below slide — mirrors PDF ergonomics */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+          {/* Prev / Next nav arrows below slide — mirrors PDF ergonomics (not in the LibreOffice show) */}
+          {!isLibreShow && <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
             <button
               onClick={() => goToSlide(currentSlide - 1)}
               disabled={atFirstSlide}
@@ -1496,7 +1496,7 @@ export default function PPTViewer({
             >
               Next <ChevronRight size={15} />
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* MCQ list side panel — mirrors PDFViewer MCQ panel exactly */}

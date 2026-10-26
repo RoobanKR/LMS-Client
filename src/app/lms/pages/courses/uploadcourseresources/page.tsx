@@ -21,7 +21,7 @@ import {
   Settings, X, Loader2, Folder, Globe, Lock, EyeOff,
   Upload, File as FileIcon, Plus, BookPlus, AlertCircle,
   Presentation, Trash2, Home, Library, FolderOpen,
-  File as FileLucide, Sun, Moon, Monitor, ChevronRight,
+  File as FileLucide, Monitor, ChevronRight,
   GraduationCap, LayoutDashboard, BookMarked, Layers,
   User, LogOut, UserCheck2, Zap,
   ChevronDown,

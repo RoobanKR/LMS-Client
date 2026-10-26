@@ -39,8 +39,6 @@ import {
   AlertTriangle,
   CheckSquare,
   Square,
-  Sun,
-  Moon,
   ChevronLeft,
   Menu,
   ArrowRight,
@@ -2021,17 +2019,6 @@ const LearningIDE: React.FC<LearningIDEProps> = ({
             </button>
           )}
 
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleDarkMode}
-            className={`p-2 rounded-lg transition-colors ${
-              darkMode 
-                ? 'hover:bg-slate-700 text-amber-400 hover:text-amber-300' 
-                : 'hover:bg-slate-200 text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
         </div>
       </header>
 

@@ -30,6 +30,10 @@ import type { CourseNode } from "@/app/lms/pages/courses/uploadcourseresources/c
 // layout self-hosts the same font app-wide, so this page inherits it via the
 // shell just like Course Setup and User Management do.
 
+// The exercise students endpoint returns 20 per page unless told otherwise;
+// the grade book pages the list itself (TableFooter), so it asks for everyone.
+const ALL_STUDENTS = "?limit=100000";
+
 // ─── Floating-label modern select ─────────────────────────────────────────
 // Small custom listbox. The plain HTML <select> renders the OS chrome (the
 // dropdown menu isn't styleable), which read as "old" on this design
@@ -544,7 +548,7 @@ export default function GradesFlow({
   const studentsQuery = useQuery<any[]>({
     queryKey: ["grades", "students", courseId, selectedExercise?._id],
     queryFn: async () => {
-      const res: any = await api.get(`/exercises/${courseId}/${selectedExercise._id}/students`);
+      const res: any = await api.get(`/exercises/${courseId}/${selectedExercise._id}/students${ALL_STUDENTS}`);
       if (!res?.success) throw new Error("Failed to load students");
       return res.data?.students || [];
     },
@@ -1108,7 +1112,7 @@ export default function GradesFlow({
         list = await queryClient.fetchQuery({
           queryKey: ["grades", "students", courseId, exId],
           queryFn: async () => {
-            const res: any = await api.get(`/exercises/${courseId}/${exId}/students`);
+            const res: any = await api.get(`/exercises/${courseId}/${exId}/students${ALL_STUDENTS}`);
             if (!res?.success) throw new Error("Failed to load students");
             return res.data?.students || [];
           },

@@ -18,8 +18,8 @@ import { StudentLayout } from '../../component/student/student-layout';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PERMISSION_IDS } from '@/app/lms/pages/usermanagement/components/permissions/index';
 import {
-  CODING_ACCOUNTS, PLATFORM_META, fetchPlatformReport,
-  type PlatformKey, type PlatformReport, type SeriesPoint, type Verdict,
+  PLATFORM_META, fetchPlatformReport, fetchMyCodingAccounts, saveMyCodingAccount,
+  type CodingAccounts, type PlatformKey, type PlatformReport, type SeriesPoint, type Verdict,
 } from '@/apiServices/codingAnalytics';
 
 const PLATFORMS: PlatformKey[] = ['leetcode', 'codeforces', 'codechef', 'hackerrank', 'atcoder'];
@@ -226,18 +226,33 @@ export default function CodingAnalyticsPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [solvedPage, setSolvedPage] = useState(1);
   const SOLVED_PER_PAGE = 10;
-  const cache = useRef<Partial<Record<PlatformKey, PlatformReport>>>({});
+  // Reports cached per platform + handle, so a changed handle loads fresh.
+  const cache = useRef<Record<string, PlatformReport>>({});
   const pickerRef = useRef<HTMLDivElement>(null);
+  // The signed-in user's own handles (null until loaded).
+  const [accounts, setAccounts] = useState<CodingAccounts | null>(null);
+  // Connect / Change form for the platform on screen.
+  const [editing, setEditing] = useState(false);
+  const [handleInput, setHandleInput] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  useEffect(() => { setSolvedPage(1); }, [platform]);
+  useEffect(() => { setSolvedPage(1); setEditing(false); setSaveError(null); }, [platform]);
 
-  const load = useCallback(async (p: PlatformKey, force = false) => {
+  useEffect(() => {
+    fetchMyCodingAccounts()
+      .then(setAccounts)
+      .catch(() => setAccounts({}));
+  }, []);
+
+  const load = useCallback(async (p: PlatformKey, username: string | undefined, force = false) => {
     setError(null);
-    if (!force && cache.current[p]) { setReport(cache.current[p]!); setLoading(false); return; }
+    const key = `${p}:${username || ''}`;
+    if (!force && cache.current[key]) { setReport(cache.current[key]); setLoading(false); return; }
     setLoading(true);
     try {
-      const r = await fetchPlatformReport(p);
-      cache.current[p] = r;
+      const r = await fetchPlatformReport(p, username);
+      cache.current[key] = r;
       setReport(r);
     } catch (e: any) {
       setReport(null);
@@ -247,7 +262,29 @@ export default function CodingAnalyticsPage() {
     }
   }, []);
 
-  useEffect(() => { load(platform); }, [platform, load]);
+  useEffect(() => {
+    if (accounts) load(platform, accounts[platform]);
+  }, [platform, accounts, load]);
+
+  const startEditing = () => {
+    setHandleInput(accounts?.[platform] || '');
+    setSaveError(null);
+    setEditing(true);
+  };
+
+  const saveHandle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    try {
+      setAccounts(await saveMyCodingAccount(platform, handleInput.trim()));
+      setEditing(false);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -302,12 +339,20 @@ export default function CodingAnalyticsPage() {
               {loading ? (
                 <Skeleton className="h-4 w-44" />
               ) : report ? (
-                <a href={report.profileUrl} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-gray-600 hover:text-gray-900">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Connected as @{report.username}
-                  <ExternalLink size={11} className="text-gray-400" />
-                </a>
+                <span className="inline-flex items-center gap-2">
+                  <a href={report.profileUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-gray-600 hover:text-gray-900">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Connected as @{report.username}
+                    <ExternalLink size={11} className="text-gray-400" />
+                  </a>
+                  {!editing && (
+                    <button type="button" onClick={startEditing}
+                      className="text-[11.5px] font-semibold text-orange-600 hover:text-orange-700">
+                      Change
+                    </button>
+                  )}
+                </span>
               ) : null}
             </div>
           </div>
@@ -332,7 +377,7 @@ export default function CodingAnalyticsPage() {
                 {PLATFORMS.map((p) => {
                   const m = PLATFORM_META[p];
                   const on = p === platform;
-                  const connected = !!CODING_ACCOUNTS[p];
+                  const connected = !!accounts?.[p];
                   return (
                     <button
                       key={p} type="button" role="option" aria-selected={on}
@@ -351,15 +396,46 @@ export default function CodingAnalyticsPage() {
           </div>
         </div>
 
-        {/* ── Not-connected / error states ── */}
+        {/* ── Not-connected / change-handle / error states ── */}
         {!loading && notConnected && (
           <Card className="py-14 text-center">
             <Code2 size={28} className="mx-auto text-gray-300" />
             <h2 className="mt-3 text-[15px] font-semibold text-gray-900">{meta.name} account not connected</h2>
-            <p className="mt-1 text-[12.5px] text-gray-500">Connect your {meta.name} account to view your coding progress here.</p>
-            <button type="button" className="mt-4 h-9 px-4 rounded-lg bg-gray-900 text-white text-[12.5px] font-semibold hover:bg-gray-800">
-              Connect {meta.name}
-            </button>
+            <p className="mt-1 text-[12.5px] text-gray-500">Enter your {meta.name} username to see your coding progress here.</p>
+            <form onSubmit={saveHandle} className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2 px-4">
+              <input value={handleInput} onChange={(e) => setHandleInput(e.target.value)}
+                placeholder={`Your ${meta.name} username`} aria-label={`${meta.name} username`}
+                className="h-9 w-64 max-w-full rounded-lg border border-gray-200 px-3 text-[12.5px] outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
+              <button type="submit" disabled={saving || !handleInput.trim()}
+                className="h-9 px-4 rounded-lg bg-gray-900 text-white text-[12.5px] font-semibold hover:bg-gray-800 disabled:opacity-50">
+                {saving ? 'Connecting…' : `Connect ${meta.name}`}
+              </button>
+            </form>
+            {saveError && <p className="mt-2 text-[12px] text-rose-600">{saveError}</p>}
+          </Card>
+        )}
+        {!loading && editing && !notConnected && (
+          <Card className="py-6 px-4 mb-4 text-center">
+            <h2 className="text-[14px] font-semibold text-gray-900">Change your {meta.name} username</h2>
+            <form onSubmit={saveHandle} className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
+              <input value={handleInput} onChange={(e) => setHandleInput(e.target.value)} autoFocus
+                placeholder={`Your ${meta.name} username`} aria-label={`${meta.name} username`}
+                className="h-9 w-64 max-w-full rounded-lg border border-gray-200 px-3 text-[12.5px] outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
+              <button type="submit" disabled={saving || !handleInput.trim()}
+                className="h-9 px-4 rounded-lg bg-gray-900 text-white text-[12.5px] font-semibold hover:bg-gray-800 disabled:opacity-50">
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" onClick={() => setEditing(false)}
+                className="h-9 px-4 rounded-lg border border-gray-200 text-[12.5px] font-semibold text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button type="button" disabled={saving}
+                onClick={async () => { setHandleInput(''); setSaving(true); setSaveError(null); try { setAccounts(await saveMyCodingAccount(platform, '')); setEditing(false); } catch (err: any) { setSaveError(err?.message || 'Could not save'); } finally { setSaving(false); } }}
+                className="h-9 px-3 rounded-lg text-[12.5px] font-semibold text-rose-600 hover:bg-rose-50">
+                Disconnect
+              </button>
+            </form>
+            {saveError && <p className="mt-2 text-[12px] text-rose-600">{saveError}</p>}
           </Card>
         )}
         {!loading && error && !notConnected && (
@@ -367,7 +443,7 @@ export default function CodingAnalyticsPage() {
             <AlertCircle size={26} className="mx-auto text-rose-400" />
             <h2 className="mt-3 text-[14px] font-semibold text-gray-900">Couldn't load {meta.name} data</h2>
             <p className="mt-1 text-[12px] text-gray-500 max-w-md mx-auto">{error}</p>
-            <button type="button" onClick={() => load(platform, true)}
+            <button type="button" onClick={() => load(platform, accounts?.[platform], true)}
               className="mt-4 inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border border-gray-200 text-[12.5px] font-semibold text-gray-700 hover:bg-gray-50">
               <RefreshCw size={13} /> Retry
             </button>
@@ -604,7 +680,7 @@ export default function CodingAnalyticsPage() {
             {!loading && report && (
               <p className="mt-4 text-[11px] font-medium text-gray-500 text-right">
                 Live from {meta.name} · fetched {timeAgo(report.fetchedAt)} ·{' '}
-                <button type="button" onClick={() => load(platform, true)} className="underline hover:text-gray-700">refresh</button>
+                <button type="button" onClick={() => load(platform, accounts?.[platform], true)} className="underline hover:text-gray-700">refresh</button>
               </p>
             )}
           </>

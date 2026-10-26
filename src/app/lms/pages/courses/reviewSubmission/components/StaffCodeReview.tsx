@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Code2, Play, Square, Trash2, Terminal as TerminalIcon,
   ChevronRight, ChevronDown, ChevronLeft, Folder as FolderIcon, FolderOpen, File as FileIcon,
-  Sun, Moon, X, ChevronUp, Files as FilesIcon, FileText, Maximize2, Minimize2,
+  X, ChevronUp, Files as FilesIcon, FileText, Maximize2, Minimize2,
   ChevronsLeft, ChevronsRight, UserRound,
 } from "lucide-react"
 import MonacoTabs from "@/app/lms/pages/courses/coursesdetailedview/components/multi-file/MonacoTabs"
@@ -210,7 +210,7 @@ export default function StaffCodeReview({
   // panel consistent instead of stacking a white header on a dark editor.
   // The theme toggle below flips both the Monaco tabs AND the chrome —
   // see `isDark` derivations lower in the file.
-  const [editorTheme, setEditorTheme] = useState<"light" | "dark">("dark")
+  const [editorTheme, setEditorTheme] = useState<"light" | "dark">("light")
   const isDark = editorTheme === "dark"
   // Toolbar icon-button base — the neutral-slate icons on the right side of
   // the toolbar (Clear, Terminal, Fullscreen, Theme, sidebar toggle). Was
@@ -821,13 +821,6 @@ export default function StaffCodeReview({
             ) : (
               <Maximize2 className="w-3.5 h-3.5" />
             )}
-          </button>
-          <button
-            onClick={() => setEditorTheme((t) => (t === "dark" ? "light" : "dark"))}
-            className={`h-7 w-7 flex items-center justify-center rounded-md ${toolIconBtn}`}
-            title={editorTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-          >
-            {editorTheme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>

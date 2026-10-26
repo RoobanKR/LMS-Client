@@ -26,9 +26,8 @@ import {
   Clock, Users, Bookmark, Target, Zap, Layers, Award,
   LayoutDashboard, FolderOpen, ClipboardCheck, Video,
   Activity, TrendingUp, Brain, Sparkles, Flame, X,
-  HelpCircle, ChevronDown, LogOut, Loader2, Sun, Moon, UserCheck2,
+  HelpCircle, ChevronDown, LogOut, Loader2, UserCheck2,
 } from "lucide-react"
-import { useTheme } from "next-themes"
 import { useAccountMenu } from "../../pages/courses/coursesdetailedview/components/useAccountMenu"
 import {
   DropdownMenu,
@@ -152,35 +151,6 @@ const keyToRoute = (k: string): string => {
 const EXPANDED_W = 244
 const COLLAPSED_W = 64
 const sidebarSpring = { type: "spring" as const, stiffness: 400, damping: 34 }
-
-/* Light/dark control — lived in the removed StaffTopBar, which was the only
-   writer of html.dark. next-themes (mounted in app/layout.tsx with the same
-   "theme" storage key) owns the class now, so saved preferences carry over. */
-function StaffThemeRow() {
-  const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-  const isDark = mounted && resolvedTheme === "dark"
-  const btn = (on: boolean) => cn(
-    "inline-flex h-6 w-7 items-center justify-center rounded-full transition-colors",
-    on ? "bg-surface text-brand-strong shadow-xs" : "text-faint hover:text-body"
-  )
-  return (
-    <div className="mb-2 flex items-center justify-between px-2">
-      <span className="text-2xs font-semibold uppercase tracking-wide text-faint">Theme</span>
-      <div className="inline-flex gap-0.5 rounded-full bg-line p-0.5" role="group" aria-label="Colour theme">
-        <button type="button" aria-pressed={mounted ? !isDark : undefined} onClick={() => setTheme("light")} className={btn(mounted && !isDark)}>
-          <Sun className="h-3.5 w-3.5" strokeWidth={2} />
-          <span className="sr-only">Light</span>
-        </button>
-        <button type="button" aria-pressed={mounted ? isDark : undefined} onClick={() => setTheme("dark")} className={btn(isDark)}>
-          <Moon className="h-3.5 w-3.5" strokeWidth={2} />
-          <span className="sr-only">Dark</span>
-        </button>
-      </div>
-    </div>
-  )
-}
 
 interface StaffSidebarProps {
   isCollapsed: boolean
@@ -659,7 +629,6 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
 
         {/* Footer — theme control + flat identity row, reference-style */}
         <div className={cn("flex-shrink-0 border-t border-hairline", isCollapsed ? "p-2" : "p-3")}>
-          {!isCollapsed && <StaffThemeRow />}
           <DropdownMenu open={showUserMenu} onOpenChange={setShowUserMenu}>
             <DropdownMenuTrigger asChild>
               <button

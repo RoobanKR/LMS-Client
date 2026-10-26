@@ -971,8 +971,8 @@ export default function PPTViewer({
                 </div>
                 <span style={{ fontSize:12,fontWeight:600,color:"#6b7280",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{title}</span>
               </div>
-              {/* Center: slide navigation */}
-              <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
+              {/* Center: slide navigation — not in the LibreOffice show, which moves with its own controls */}
+              {!isLibreShow && <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                 <button
                   onClick={() => goToSlide(currentSlide - 1)}
                   disabled={!useImageMode||atFirstSlide||!!activeMcqGroup}
@@ -1021,7 +1021,7 @@ export default function PPTViewer({
                     <HelpCircle size={11} /> Quiz…
                   </span>
                 )}
-              </div>
+              </div>}
               {/* Right: zoom + Google Viewer switch */}
               <div style={{ display:"flex",alignItems:"center",gap:2,flex:1,justifyContent:"flex-end" }}>
                 <button onClick={handleZoomOut} disabled={slideScale<=0.5} style={{ background:"none",border:"none",cursor:slideScale<=0.5?"not-allowed":"pointer",color:slideScale<=0.5?"#D1D5DB":"#6b7280",display:"flex",padding:"3px 5px",borderRadius:6,transition:"all 0.15s" }}>

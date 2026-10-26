@@ -62,13 +62,9 @@ export default function RootLayout({
           stamp attributes onto <body> before React hydrates, and the mismatch
           warning they trigger buries real errors during development. */}
       <body className="font-sans" suppressHydrationWarning>
-        {/* next-themes owns html.dark now (the trainer navbar's manual toggle
-            is gone). storageKey "theme" matches the key that toggle wrote, so
-            existing saved preferences carry over. defaultTheme is "light", not
-            "system", to preserve the old behavior for areas that never had a
-            dark init (admin, student, login): dark only when explicitly chosen
-            via the sidebar theme controls. */}
-        <ThemeProvider attribute="class" defaultTheme="light" storageKey="theme" disableTransitionOnChange>
+        {/* Light theme only: forcedTheme ignores any "dark" saved earlier, and
+            the dark styles in globals.css are switched off. */}
+        <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" storageKey="theme" disableTransitionOnChange>
         <RadixPointerEventsGuard />
         <Providers>
           <NavigationLoaderProvider>

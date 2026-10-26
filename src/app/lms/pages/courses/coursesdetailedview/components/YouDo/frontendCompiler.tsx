@@ -29,8 +29,6 @@ import {
   Share2, Heart, Bookmark, Filter, SortAsc,
   Eye, EyeOff, Lock, Unlock, Shield,
   Upload as UploadIcon,
-  Moon,
-  Sun,
   Clock,
   Camera,
   Video,
@@ -5173,14 +5171,6 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
             {isLoadingPrevious ? 'Loading...' : 'Load Previous'}
           </button> */}
 
-          <button
-            onClick={() => setTheme(theme === 'light' ? 'vs-dark' : 'light')}
-            className="p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-            style={{ color: colors.textSecondary }}
-            title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-          >
-            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-          </button>
 
           {/* Preview Toggle Button */}
           <button

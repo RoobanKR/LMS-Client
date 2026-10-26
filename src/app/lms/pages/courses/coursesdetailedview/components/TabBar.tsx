@@ -1,7 +1,7 @@
 // components/TabBar.tsx  (also contains TopBar — kept for backward compat)
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronRight, Layout, Bot, Sparkles, Sun, Moon, User, Settings, LogOut, BookOpen, ChevronDown, Eye, Users, ClipboardList } from "lucide-react"
+import { ChevronRight, Layout, Bot, Sparkles, User, Settings, LogOut, BookOpen, ChevronDown, Eye, Users, ClipboardList } from "lucide-react"
 import { T, FONT_PRIMARY } from "./types/constants"
 import { userPermission } from "@/apiServices/tokenVerify"
 import { postLogout } from "@/apiServices/activityLog"
@@ -47,14 +47,6 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
   }
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('theme') as 'light' | 'dark'
-      const sys = window.matchMedia('(prefers-color-scheme: dark)').matches
-      const t = saved || (sys ? 'dark' : 'light')
-      setThemeState(t)
-      if (t === 'dark') document.documentElement.classList.add('dark')
-      else document.documentElement.classList.remove('dark')
-    } catch { }
     checkDummyStatus()
     try {
       const raw = localStorage.getItem('smartcliff_userData') || localStorage.getItem('smartcliff_user') || localStorage.getItem('currentUser')
@@ -75,14 +67,6 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
-
-  const toggleTheme = () => {
-    const n = theme === 'light' ? 'dark' : 'light'
-    setThemeState(n)
-    if (n === 'dark') document.documentElement.classList.add('dark')
-    else document.documentElement.classList.remove('dark')
-    localStorage.setItem('theme', n)
-  }
 
   // Helper function to clear all localStorage items including React Query cache
   const clearLocalStorage = () => {

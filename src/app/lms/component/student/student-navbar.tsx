@@ -3,7 +3,7 @@
 import {
   Bell, User, Settings, Menu, Sparkles, ChevronDown,
   Search, X, LogOut, HelpCircle, MessageSquare, Zap,
-  Sun, Moon, UserCheck2
+  UserCheck2
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -70,7 +70,6 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick, isSideba
   const [showMobileSearch, setShowMobileSearch] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [isDummyStudent, setIsDummyStudent] = useState(false)
   const [originalRoleInfo, setOriginalRoleInfo] = useState<{ roleName: string; renameRole: string } | null>(null)
 
@@ -81,12 +80,6 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick, isSideba
   const pageTitle = ROUTE_TITLES[activeRoute || 'dashboard'] || 'Dashboard'
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark'
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const initialTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light')
-    setTheme(initialTheme)
-    if (initialTheme === 'dark') document.documentElement.classList.add('dark')
-    else document.documentElement.classList.remove('dark')
     checkDummyStudentStatus()
   }, [])
 
@@ -108,14 +101,6 @@ export function StudentNavbar({ onMenuClick, onAIClick, onSummaryClick, isSideba
     window.addEventListener('storage', handleStorageChange)
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light'
-    setTheme(newTheme)
-    if (newTheme === 'dark') document.documentElement.classList.add('dark')
-    else document.documentElement.classList.remove('dark')
-    localStorage.setItem('theme', newTheme)
-  }
 
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ['currentUser'],
@@ -434,14 +419,6 @@ const handleLogout = async () => {
                 </div>
               )}
             </div>
-
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors hidden sm:flex"
-            >
-              {theme === 'light' ? <Moon className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}
-            </button>
 
             {/* Notifications */}
             <div ref={notificationRef} className="relative">

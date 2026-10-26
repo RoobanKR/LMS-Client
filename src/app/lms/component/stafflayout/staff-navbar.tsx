@@ -17,7 +17,7 @@
 
 import {
   Bell, User, Settings, Menu, LogOut, HelpCircle,
-  Sun, Moon, UserCheck2, Search, X, ArrowLeft, ChevronRight, Loader2,
+  UserCheck2, Search, X, ArrowLeft, ChevronRight, Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
@@ -111,22 +111,6 @@ export function StaffTopBar({ isCollapsed, setIsCollapsed, onMenuToggle, breadcr
   const handleLogsTab = (tab: "login" | "course") => {
     setCurrentLogsTab(tab)
     router.replace(`${pathname}?tab=${tab}`, { scroll: false } as any)
-  }
-
-  // ── Theme toggle (localStorage "theme" + html.dark — do not change) ───────
-  const [theme, setTheme] = useState<"light" | "dark">("light")
-  useEffect(() => {
-    const saved = localStorage.getItem("theme") as "light" | "dark" | null
-    const sys = window.matchMedia("(prefers-color-scheme: dark)").matches
-    const init = saved || (sys ? "dark" : "light")
-    setTheme(init)
-    document.documentElement.classList.toggle("dark", init === "dark")
-  }, [])
-  const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light"
-    setTheme(next)
-    document.documentElement.classList.toggle("dark", next === "dark")
-    localStorage.setItem("theme", next)
   }
 
   // ── Account (shared hook: user, role switch, sign-out) ────────────────────
@@ -298,19 +282,6 @@ export function StaffTopBar({ isCollapsed, setIsCollapsed, onMenuToggle, breadcr
             )}
           </div>
         )}
-
-        {/* Theme toggle */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleTheme}
-          className="h-9 w-9 rounded-lg hover:bg-row-hover transition-colors text-subtle"
-          title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
-        >
-          {theme === "light"
-            ? <Moon className="w-[18px] h-[18px]" />
-            : <Sun className="w-[18px] h-[18px]" />}
-        </Button>
 
         {/* Notifications */}
         <DropdownMenu>

@@ -1,5 +1,5 @@
 // components/TopBar.tsx
-import React, { useState, useEffect } from "react"
+import React, { useState } from "react"
 import {
   CircleNotch,
   List,
@@ -23,15 +23,6 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, tabs }) => {
   // The account/profile menu lives at the bottom of the course sidebar
   // (CourseSidebar.tsx).
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('theme') as 'light' | 'dark'
-      const sys = window.matchMedia('(prefers-color-scheme: dark)').matches
-      const t = saved || (sys ? 'dark' : 'light')
-      if (t === 'dark') document.documentElement.classList.add('dark')
-      else document.documentElement.classList.remove('dark')
-    } catch { }
-  }, [])
 
   return (
     <div style={{

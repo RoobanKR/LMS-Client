@@ -1,7 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* Light theme only: `dark:` utilities and the dark tokens below are tied to a
+   class nothing ever sets, so no page or leftover toggle can turn dark. */
+@custom-variant dark (&:is(.lms-dark-removed *));
 
 @theme inline {
   --color-background: var(--background);
@@ -291,7 +293,7 @@
   --faint: var(--color-ink-400);
 }
 
-.dark {
+.lms-dark-removed {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -368,9 +370,9 @@
   background-clip: padding-box;
 }
 .sc-panel-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-line-muted); background-clip: padding-box; }
-.dark .sc-panel-scroll { scrollbar-color: #3a3e46 transparent; }
-.dark .sc-panel-scroll::-webkit-scrollbar-thumb { background: #3a3e46; background-clip: padding-box; }
-.dark .sc-panel-scroll::-webkit-scrollbar-thumb:hover { background: #4a4f58; background-clip: padding-box; }
+.lms-dark-removed .sc-panel-scroll { scrollbar-color: #3a3e46 transparent; }
+.lms-dark-removed .sc-panel-scroll::-webkit-scrollbar-thumb { background: #3a3e46; background-clip: padding-box; }
+.lms-dark-removed .sc-panel-scroll::-webkit-scrollbar-thumb:hover { background: #4a4f58; background-clip: padding-box; }
 
 @layer base {
   * {
@@ -423,17 +425,17 @@
     background: #94a3b8;
   }
 
-  .dark {
+  .lms-dark-removed {
     scrollbar-color: #475569 #1e293b;
   }
-  .dark ::-webkit-scrollbar-track {
+  .lms-dark-removed ::-webkit-scrollbar-track {
     background: #1e293b;
   }
-  .dark ::-webkit-scrollbar-thumb {
+  .lms-dark-removed ::-webkit-scrollbar-thumb {
     background: #475569;
     border: 2px solid #1e293b;
   }
-  .dark ::-webkit-scrollbar-thumb:hover {
+  .lms-dark-removed ::-webkit-scrollbar-thumb:hover {
     background: #64748b;
   }
 

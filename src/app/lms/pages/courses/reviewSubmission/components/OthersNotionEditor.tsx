@@ -10,8 +10,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Plus, Trash2, GripVertical, Eye, Edit3,
-  FileText, Layers, PenLine, Undo2, Redo2, Sun, Moon,
-  ImageIcon, Code2, Table2,
+  FileText, Layers, PenLine, Undo2, Redo2, ImageIcon, Code2, Table2,
   AlignLeft, List, ListOrdered, CheckSquare,
   Quote, Minus, MessageSquare, Copy,
   Heading1, Heading2, Heading3,
@@ -921,7 +920,6 @@ const OthersNotionEditor: React.FC<OthersNotionEditorProps> = ({
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <button onClick={() => setIsDark(v => !v)} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>{isDark ? <Sun size={14} /> : <Moon size={14} />}</button>
           <button onClick={() => setIsPreview(v => !v)} className={`p-1.5 rounded-lg ${isPreview ? 'bg-indigo-100 text-indigo-600' : isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`} title={isPreview ? 'Edit' : 'Preview'}>{isPreview ? <Edit3 size={14} /> : <Eye size={14} />}</button>
         </div>
       </div>

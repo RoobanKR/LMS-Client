@@ -16,8 +16,6 @@ import {
   Code,
   Terminal,
   FileText,
-  Sun,
-  Moon,
   Send,
   Save,
   Loader2,
@@ -518,7 +516,7 @@ export default function CodeCompiler() {
   const [selectedLanguage, setSelectedLanguage] = useState<keyof typeof LANGUAGES>("python")
   const [outputLines, setOutputLines] = useState<OutputLine[]>([])
   const [isRunning, setIsRunning] = useState(false)
-  const [isDarkMode, setIsDarkMode] = useState(true)
+  const [isDarkMode, setIsDarkMode] = useState(false)
   const [fontSize, setFontSize] = useState(14)
   const [activeTab, setActiveTab] = useState<"output" | "problems">("output")
   const [problems, setProblems] = useState<string[]>([])
@@ -1286,13 +1284,6 @@ export default function CodeCompiler() {
             </div>
 
             <motion.div whileHover="hover" whileTap="tap" variants={buttonHover}>
-              <Button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                variant="outline"
-                className="border-white/20 bg-white/10 text-white hover:bg-white/20"
-              >
-                {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </Button>
             </motion.div>
           </div>
         </div>

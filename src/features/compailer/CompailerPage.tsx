@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { Play, Square, Download, Upload, Plus, Minus, Settings, Code, Terminal, FileText, Sun, Moon, Send } from "lucide-react"
+import { Play, Square, Download, Upload, Plus, Minus, Settings, Code, Terminal, FileText, Send } from "lucide-react"
 
 // CodeMirror imports
 import { EditorView, basicSetup } from "codemirror"
@@ -337,7 +337,7 @@ export default function CodeCompiler() {
   const [selectedLanguage, setSelectedLanguage] = useState<keyof typeof LANGUAGES>("python")
   const [outputLines, setOutputLines] = useState<OutputLine[]>([])
   const [isRunning, setIsRunning] = useState(false)
-  const [isDarkMode, setIsDarkMode] = useState(true)
+  const [isDarkMode, setIsDarkMode] = useState(false)
   const [fontSize, setFontSize] = useState(14)
   const [activeTab, setActiveTab] = useState<'output' | 'problems'>('output')
   const [problems, setProblems] = useState<string[]>([])
@@ -901,13 +901,6 @@ export default function CodeCompiler() {
               </Button>
             </div>
 
-            <Button 
-              onClick={() => setIsDarkMode(!isDarkMode)} 
-              variant="outline" 
-              className="border-white/20 bg-white/10 text-white hover:bg-white/20"
-            >
-              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </Button>
           </div>
         </div>
       </div>

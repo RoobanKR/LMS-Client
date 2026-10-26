@@ -953,14 +953,6 @@ useEffect(() => {
             <Maximize2 size={16} /> 
           </button>
           
-          <button
-            onClick={() => setTheme(theme === 'light' ? 'vs-dark' : 'light')}
-            className="p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-            style={{ color: colors.textSecondary }}
-            title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-          >
-            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-          </button>
 
           <button
             onClick={() => setShowPreview(!showPreview)}
@@ -1466,14 +1458,6 @@ useEffect(() => {
                     <Search size={14} className="absolute right-2 top-1.5" style={{ color: colors.textSecondary }} />
                   </div>
 
-                  <button
-                    onClick={() => setTheme(theme === 'light' ? 'vs-dark' : 'light')}
-                    className="p-2 rounded hover:bg-[#d5d5d5] dark:hover:bg-[#2d2d2d] transition-colors"
-                    style={{ color: colors.textSecondary }}
-                    title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-                  >
-                    {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-                  </button>
 
                   <button
                     onClick={() => setShowPreview(!showPreview)}

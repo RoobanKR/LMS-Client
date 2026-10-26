@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, User, Bot, Square, Play, Code, Copy, Check, Eye, AlertCircle, RefreshCw, FileText, Sun, Moon, Settings, Download, Upload, Trash2, MessageCircle } from 'lucide-react';
+import { Send, Sparkles, User, Bot, Square, Play, Code, Copy, Check, Eye, AlertCircle, RefreshCw, FileText, Settings, Download, Upload, Trash2, MessageCircle } from 'lucide-react';
 import { API_ORIGIN } from '@/lib/apiBase'
 
 interface Message {
@@ -45,7 +45,7 @@ interface Theme {
 
 const SmartCliffCompiler: React.FC = () => {
   // Theme state
-  const [currentTheme, setCurrentTheme] = useState<'dark' | 'light'>('dark');
+  const [currentTheme, setCurrentTheme] = useState<'dark' | 'light'>('light');
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   
   // Themes configuration
@@ -549,53 +549,6 @@ const SmartCliffCompiler: React.FC = () => {
                 <span className="text-xs font-medium">
                   {isOllamaConnected === null ? 'Checking...' : isOllamaConnected ? 'Connected' : 'Disconnected'}
                 </span>
-              </div>
-
-              {/* Theme Toggle */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowThemeMenu(!showThemeMenu)}
-                  className={`p-1 max-lg:p-2 rounded-md border ${
-                    isDark 
-                      ? 'border-slate-600 bg-slate-700 hover:bg-slate-600 text-slate-300' 
-                      : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-600'
-                  } transition-colors duration-200`}
-                >
-                  {isDark ? <Moon className="w-3 h-3" /> : <Sun className="w-3 h-3" />}
-                </button>
-                
-                {showThemeMenu && (
-                  <div className={`absolute right-0 top-10 w-40 rounded-lg border shadow-lg py-1 ${
-                    isDark 
-                      ? 'border-slate-600 bg-slate-800 text-slate-300' 
-                      : 'border-slate-300 bg-white text-slate-600'
-                  } z-50`}>
-                    <button
-                      onClick={() => {
-                        setCurrentTheme('light');
-                        setShowThemeMenu(false);
-                      }}
-                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-left text-sm ${
-                        !isDark ? (isDark ? 'bg-slate-700' : 'bg-slate-100') : ''
-                      } hover:${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}
-                    >
-                      <Sun className="w-3.5 h-3.5" />
-                      <span>Light Theme</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCurrentTheme('dark');
-                        setShowThemeMenu(false);
-                      }}
-                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-left text-sm ${
-                        isDark ? (isDark ? 'bg-slate-700' : 'bg-slate-100') : ''
-                      } hover:${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}
-                    >
-                      <Moon className="w-3.5 h-3.5" />
-                      <span>Dark Theme</span>
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* Settings Menu */}

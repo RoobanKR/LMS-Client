@@ -16,8 +16,7 @@ import {
     User, Users, Shield, ShieldCheck, Key, Lock,
     Award as AwardIcon,
    Target as TargetIcon,
-    PanelLeft, PanelRight, 
-    Sun, Moon
+    PanelLeft, PanelRight
 } from "lucide-react"
 import dynamic from 'next/dynamic'
 import axios from 'axios'
@@ -1485,58 +1484,6 @@ class EnhancedDatabaseManager {
     }
 }
 
-// Theme Toggle Component
-const ThemeToggle = ({
-    theme,
-    setTheme
-}: {
-    theme: string,
-    setTheme: (theme: string) => void
-}) => {
-    const [mounted, setMounted] = useState(false)
-
-    useEffect(() => {
-        setMounted(true)
-    }, [])
-
-    const toggleTheme = () => {
-        if (theme === 'light') {
-            setTheme('dark')
-            document.documentElement.classList.add('dark')
-        } else if (theme === 'dark') {
-            setTheme('light')
-            document.documentElement.classList.remove('dark')
-        } else {
-            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-            if (systemPrefersDark) {
-                setTheme('light')
-                document.documentElement.classList.remove('dark')
-            } else {
-                setTheme('dark')
-                document.documentElement.classList.add('dark')
-            }
-        }
-    }
-
-    if (!mounted) return null
-
-    return (
-        <button
-            onClick={toggleTheme}
-            className={`p-2 rounded-full hover:scale-110 transition-all duration-200 ${theme === 'dark'
-                ? 'bg-gray-800 hover:bg-gray-700 text-yellow-300'
-                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                }`}
-            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-        >
-            {theme === 'dark' ? (
-                <Sun className="w-4 h-4" />
-            ) : (
-                <Moon className="w-4 h-4" />
-            )}
-        </button>
-    )
-}
 
 const DatabaseNavigator = ({
     databases,
@@ -2721,14 +2668,6 @@ export default function DBQueryEditorPage({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isYouDo]);
 
-    useEffect(() => {
-        if (currentTheme === 'dark') {
-            document.documentElement.classList.add('dark')
-        } else {
-            document.removeEventListener('dark', () => {})
-            document.documentElement.classList.remove('dark')
-        }
-    }, [currentTheme])
 
     const exerciseData = exercise || {
         _id: 'sql-exercise',
@@ -3617,7 +3556,6 @@ export default function DBQueryEditorPage({
                         </button>
 
                         <div className="ml-2">
-                            <ThemeToggle theme={currentTheme} setTheme={setCurrentTheme} />
                         </div>
                     </div>
 
