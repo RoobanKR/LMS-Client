@@ -1337,7 +1337,7 @@ const OthersExam: React.FC<OthersExamProps> = ({
               disabled={isSubmitting || answeredCount === 0}>
               {isSubmitting
                 ? <><Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />Submitting…</>
-                : 'Submit Exercise'}
+                : `Finish ${category === 'You_Do' ? 'Assessment' : 'Assignment'}`}
             </button>
           )}
 

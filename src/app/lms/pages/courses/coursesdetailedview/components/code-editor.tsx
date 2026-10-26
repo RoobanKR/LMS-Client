@@ -968,7 +968,7 @@ export default function CodeEditor({
     // id. The whole-exercise Submit reuses it instead of posting 0 — a plain
     // `status: 'submitted'` write OVERWRITES the stored score server-side, so
     // posting 0 there would wipe out an AI or Test Case score the student had
-    // already earned from Run Testcase / Submit Question.
+    // already earned from Run Testcase / Submit Answer.
     const submittedScoresRef = useRef<Record<string, number>>({});
     // When each question was first opened — sent on submit as `questionStartedAt`
     // so the report can show the time taken per question.
@@ -3051,7 +3051,7 @@ export default function CodeEditor({
 
 
     // ── Evaluate + submit ────────────────────────────────────────────────
-    // ONE path behind both the Run Testcase and the Submit Question buttons,
+    // ONE path behind both the Run Testcase and the Submit Answer buttons,
     // so a question is scored the same way whichever the student presses.
     // `record: false` (Run Testcase) is a dry run: it skips the "Submitted ✓"
     // bookkeeping, the auto-advance, AND — for AI — the POST itself, so
@@ -4480,7 +4480,7 @@ export default function CodeEditor({
                                     }}
                                 >
                                     <CheckCircle style={{ width: 13, height: 13 }} />
-                                    {attemptsMaxed ? 'Limit Reached' : alreadySubmitted ? 'Submitted ✓' : 'Submit Question'}
+                                    {attemptsMaxed ? 'Limit Reached' : alreadySubmitted ? 'Submitted ✓' : 'Submit Answer'}
                                 </button>
                             </div>
                             {/* No iframe — link questions always open on the
@@ -4492,7 +4492,7 @@ export default function CodeEditor({
                                 </div>
                                 <p className={`text-xs max-w-md ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} style={{ fontFamily: FONT }}>
                                     Open the problem in a new tab, solve it there, then come back and press
-                                    <b> Submit Question</b>.
+                                    <b> Submit Answer</b>.
                                 </p>
                                 <button
                                     onClick={() => window.open(linkUrl, '_blank', 'noopener,noreferrer')}

@@ -5235,7 +5235,7 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
             title="Save current question files"
           >
             {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {isSubmitting ? 'Submit...' : (embedded ? 'Submit Question' : 'Submit')}
+            {isSubmitting ? 'Submit...' : (embedded ? 'Submit Answer' : 'Submit')}
           </button>
 
           {/* Submit Exercise — final submission (hidden in section mode; parent footer owns it) */}
@@ -5245,10 +5245,10 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
               disabled={isSubmitting}
               className="px-3  text-sm rounded flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-opacity"
               style={{ backgroundColor: '#16a34a', color: 'white' }}
-              title="Submit entire exercise"
+              title="Finish and submit the whole assessment"
             >
               {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-              Submit Exercise
+              Finish Assessment
             </button>
           ) : (
             <span className="flex items-center gap-2 px-3 py-1.5 text-sm rounded"

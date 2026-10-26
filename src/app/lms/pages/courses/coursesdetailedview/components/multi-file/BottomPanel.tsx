@@ -574,8 +574,8 @@ export function TestResultView({
       </div>
 
       {!isEval && !state.ai?.failed && typeof state.passedCount === 'number' && typeof state.totalCount === 'number' && state.totalCount > 0 && <div className="flex flex-wrap gap-2 px-4 pb-3 text-xs font-semibold">
-        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700"><CheckCircle2 size={14} />{state.passedCount}</span>
-        <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-red-700"><XCircle size={14} />{Math.max(0, state.totalCount - state.passedCount)} Failed</span>
+        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700"><CheckCircle2 size={14} /></span>
+        <span className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-red-700"><XCircle size={14} />{Math.max(0, state.totalCount - state.passedCount)} </span>
       </div>}
       {/* Error detail (compilation / runtime / submission-failed) */}
       {state.errorDetail && (
@@ -857,8 +857,9 @@ function TestResultsBody({
                         <tr style={{ borderTop: i ? '1px solid #EAECF0' : undefined, background: isOpen ? (c.passed ? '#F6FEF9' : '#FFFBFA') : undefined }}>
                           <th scope="row" style={{ padding: '11px 14px', fontWeight: 600, color: '#101828' }}>{label}</th>
                           <td style={{ padding: '11px 14px', whiteSpace: 'nowrap' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 24, padding: '0 9px', borderRadius: 99, fontSize: 12, fontWeight: 600, color: c.passed ? '#046C4E' : '#B42318', background: c.passed ? '#ECFDF3' : '#FEF3F2', border: `1px solid ${c.passed ? '#BBF7D0' : '#FBD3CE'}` }}>
-                              {c.passed ? <CheckCircle2 size={13} /> : <XCircle size={13} />}{c.passed ? 'Passed' : 'Failed'}
+                            {/* The icon alone — green tick or red cross. */}
+                            <span role="img" aria-label={c.passed ? 'Passed' : 'Failed'} title={c.passed ? 'Passed' : 'Failed'} style={{ display: 'inline-flex', color: c.passed ? '#12B76A' : '#F04438' }}>
+                              {c.passed ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
                             </span>
                           </td>
                           <td style={{ padding: '8px 14px', textAlign: 'right' }}>

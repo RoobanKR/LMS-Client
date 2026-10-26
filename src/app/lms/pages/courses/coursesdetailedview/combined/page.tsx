@@ -241,6 +241,8 @@ const CombinedExerciseMixed = () => {
   const courseId    = searchParams.get('courseId')    || '';
   const category    = searchParams.get('category')    || '';
   const subcategory = searchParams.get('subcategory') || '';
+  // The whole-exercise submit: "Finish Assignment" (We Do) / "Finish Assessment" (You Do).
+  const finishLabel = `Finish ${category === 'You_Do' ? 'Assessment' : 'Assignment'}`;
   const nodeId      = searchParams.get('nodeId')      || '';
   const nodeName    = searchParams.get('nodeName')    || '';
   const nodeType    = searchParams.get('nodeType')    || 'exercise';
@@ -511,7 +513,7 @@ const CombinedExerciseMixed = () => {
 
   // ── Submit the whole exercise. THIS is the only place isTestSubmission='true'
   //    is sent, so it's the only action that flips the exercise to "Submitted"
-  //    in exercises.tsx. Submit Question never sends that flag. ──────────────
+  //    in exercises.tsx. Submit Answer never sends that flag. ──────────────
   const handleFinalTestSubmission = async () => {
     if (isTestSubmitted) return;
     try {
@@ -565,7 +567,7 @@ const CombinedExerciseMixed = () => {
             <AlertCircle size={18} style={{ color: T.orange }} />
           </div>
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: T.textMain, margin: 0 }}>Submit Exercise?</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: T.textMain, margin: 0 }}>{finishLabel}?</h3>
             <p style={{ fontSize: 12, color: T.textMuted, margin: '2px 0 0' }}>This finalizes your submission and can't be undone.</p>
           </div>
         </div>
@@ -599,7 +601,7 @@ const CombinedExerciseMixed = () => {
             onClick={() => { setShowSubmitConfirm(false); handleFinalTestSubmission(); }}
             style={{ flex: 1, padding: '11px', borderRadius: 10, border: 'none', background: T.green, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 3px 14px rgba(34,197,94,0.25)' }}
           >
-            <CheckCircle size={15} /> Submit Exercise
+            <CheckCircle size={15} /> {finishLabel}
           </button>
         </div>
       </div>
@@ -671,7 +673,7 @@ const CombinedExerciseMixed = () => {
               onClick={() => setShowSubmitConfirm(true)}
               style={{ padding: '14px 36px', borderRadius: 14, background: T.green, color: '#fff', fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(34,197,94,0.3)', width: '100%', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              <CheckCircle size={18} /> Submit Exercise
+              <CheckCircle size={18} /> {finishLabel}
             </button>
           )}
 
@@ -851,7 +853,7 @@ const CombinedExerciseMixed = () => {
                 className="comb-submit"
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: 'none', background: T.green, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 3px 14px rgba(34,197,94,0.25)', flexShrink: 0 }}
               >
-                <CheckCircle size={14} /> Submit Exercise
+                <CheckCircle size={14} /> {finishLabel}
               </button>
             ) : (
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 10, background: T.greenLight, color: T.greenDark, fontSize: 13, fontWeight: 700, border: `1px solid ${T.green}30` }}>
@@ -1055,7 +1057,7 @@ const CombinedExerciseMixed = () => {
           Next <ChevronRight size={13} />
         </button>
 
-        {/* Submit Question — primary action */}
+        {/* Submit Answer — primary action */}
         <button
           onClick={handleSubmitQuestion}
           disabled={isMcqQuestion && !hasMcqAnswer}
@@ -1065,8 +1067,8 @@ const CombinedExerciseMixed = () => {
           {isMcqQuestion && !hasMcqAnswer
             ? <><AlertCircle size={12} /> Select Answer</>
             : isLastQuestion
-              ? <><CheckCircle size={12} /> Submit Question</>
-              : <>Submit Question <ChevronRight size={13} /></>
+              ? <><CheckCircle size={12} /> Submit Answer</>
+              : <>Submit Answer <ChevronRight size={13} /></>
           }
         </button>
       </div>

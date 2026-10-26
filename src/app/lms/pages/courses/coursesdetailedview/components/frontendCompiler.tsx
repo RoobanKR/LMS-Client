@@ -4982,10 +4982,10 @@ document.addEventListener('DOMContentLoaded', init${name.charAt(0).toUpperCase()
               disabled={isSubmitting}
               className="px-3  text-sm rounded flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-opacity"
               style={{ backgroundColor: '#16a34a', color: 'white' }}
-              title="Submit entire exercise"
+              title={`Finish and submit the whole ${category === 'You_Do' ? 'assessment' : 'assignment'}`}
             >
               {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-              Submit Exercise
+              Finish {category === 'You_Do' ? 'Assessment' : 'Assignment'}
             </button>
           ) : (
             <span className="flex items-center gap-2 px-3 py-1.5 text-sm rounded"

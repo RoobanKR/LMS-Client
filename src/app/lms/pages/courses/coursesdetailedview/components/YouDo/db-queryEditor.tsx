@@ -3719,7 +3719,7 @@ export default function DBQueryEditorPage({
                         ) : (
                             <CheckCircle className="w-3.5 h-3.5" />
                         )}
-                        {isSubmitDisabled() ? 'Max Attempts Reached' : (embedded ? 'Submit Question' : 'Submit')}
+                        {isSubmitDisabled() ? 'Max Attempts Reached' : (embedded ? 'Submit Answer' : 'Submit')}
                     </button>
                 </div>
             </div>

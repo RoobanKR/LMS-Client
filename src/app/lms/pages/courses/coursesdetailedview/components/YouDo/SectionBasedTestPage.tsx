@@ -1052,7 +1052,7 @@ export default function SectionBasedTestPage({
           {/* (Timer intentionally NOT shown here — the existing "Time Left"
               inside the question panel is the single visible countdown. The parent
               still tracks time below for auto-advance / auto-submit.)
-              Next Section now lives beside "Submit Question" inside each section's
+              Next Section now lives beside "Submit Answer" inside each section's
               last question; in Mode B the dropdown above also allows free switching. */}
 
           {/* Submit Test — opens the "are you done?" confirm dialog */}

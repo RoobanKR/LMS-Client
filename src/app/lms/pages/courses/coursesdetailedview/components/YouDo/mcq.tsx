@@ -1736,7 +1736,7 @@ const submitQuiz = async () => {
         {embedded&&(
           <button onClick={handleSubmitQuestion} className="submit-ok"
             style={{ display:'flex',alignItems:'center',gap:7,padding:'10px 20px',borderRadius:10,border:`1.5px solid ${T.green}`,background:'transparent',color:T.green,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',transition:'all 0.13s',flexShrink:0 }}>
-            <CheckCircle size={15} /> Submit Question
+            <CheckCircle size={15} /> Submit Answer
           </button>
         )}
 

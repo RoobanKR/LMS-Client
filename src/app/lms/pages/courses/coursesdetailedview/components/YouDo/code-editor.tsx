@@ -5209,7 +5209,7 @@ else:
                                     }}
                                 >
                                     <CheckCircle style={{ width: 13, height: 13 }} />
-                                    {attemptsMaxed ? 'Limit Reached' : alreadySubmitted ? 'Submitted ✓' : 'Submit Question'}
+                                    {attemptsMaxed ? 'Limit Reached' : alreadySubmitted ? 'Submitted ✓' : 'Submit Answer'}
                                 </button>
                             </div>
                             {/* No iframe — link questions always open on the
@@ -5221,7 +5221,7 @@ else:
                                 </div>
                                 <p className={`text-xs max-w-md ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} style={{ fontFamily: FONT }}>
                                     Open the problem in a new tab, solve it there, then come back and press
-                                    <b> Submit Question</b>.
+                                    <b> Submit Answer</b>.
                                 </p>
                                 <button
                                     onClick={() => window.open(linkUrl, '_blank', 'noopener,noreferrer')}

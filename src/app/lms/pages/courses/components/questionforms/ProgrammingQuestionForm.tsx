@@ -3516,7 +3516,7 @@ const executeSave = async (localId: string, payload: any, isSaveAndNext: boolean
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <p style={{ fontFamily: 'var(--lms-font)', fontSize: 10.5, color: 'var(--lms-text-muted)', margin: 0 }}>
                     Students get an "Open the problem" button — the site opens in a new tab, they solve
-                    it there and press Submit Question here. Only the link is required to save.
+                    it there and press Submit Answer here. Only the link is required to save.
                   </p>
                   {/^https?:\/\/\S+$/i.test(questionLink.trim()) && (
                     <a
