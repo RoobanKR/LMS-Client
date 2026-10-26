@@ -174,7 +174,7 @@ export const CourseSidebar: React.FC<CourseSidebarProps> = ({
               </button>
             )}
             <button
-              onClick={() => { setMenuOpen(false); router.push("/lms/pages/studentdashboard/student/profile") }}
+              onClick={() => { setMenuOpen(false); router.push("/lms/pages/profile") }}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left hover:bg-gray-50 transition-colors"
             >
               <UserRound size={14} className="text-gray-500 flex-shrink-0" />

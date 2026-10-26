@@ -322,7 +322,7 @@ export const TopBar: React.FC<TopBarProps> = ({ items, onAIClick, onSummaryClick
               </div>
 
               <div style={{ padding: '6px' }}>
-                <button onClick={() => { setUserOpen(false); router.push('/lms/pages/studentdashboard/student/profile') }}
+                <button onClick={() => { setUserOpen(false); router.push('/lms/pages/profile') }}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background .12s' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.pageBg }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>

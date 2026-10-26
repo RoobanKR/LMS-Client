@@ -325,6 +325,13 @@ const hasPermissionForRoute = (pathname: string): { hasAccess: boolean; required
     return { hasAccess: true }
   }
 
+  // ── Profile: /lms/pages/profile is the one profile page for every role and
+  //    shows the caller's own account, so no separate grant is needed (most
+  //    student user docs seed only `studentdashboard`). ───────────────────
+  if (pathname === '/lms/pages/profile' || pathname.startsWith('/lms/pages/profile/')) {
+    return { hasAccess: true, requiredPermission: 'profile' }
+  }
+
   // ── Grades: every role has a view of it, so no separate grant is needed.
   //    Students see only their own marks and a trainer only their batches'
   //    students — the server enforces both. ─────────────────────────────────

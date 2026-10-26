@@ -756,7 +756,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
           className="w-52 bg-surface border border-hairline-strong rounded-tile shadow-lg p-1.5 z-popover"
         >
           <DropdownMenuItem
-            onClick={() => { setShowUserMenu(false); handleNavigation('/lms/pages/studentdashboard/student/profile') }}
+            onClick={() => { setShowUserMenu(false); handleNavigation('/lms/pages/profile') }}
             className="flex items-center gap-2.5 px-2.5 py-2 text-sm font-medium text-body rounded-chip hover:bg-row-hover transition-colors cursor-pointer"
           >
             <User className="w-4 h-4 text-subtle" />

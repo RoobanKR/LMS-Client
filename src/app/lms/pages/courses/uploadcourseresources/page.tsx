@@ -4143,7 +4143,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
 
   const handleProfileClick = () => {
     setShowUserMenu(false)
-    router.push("/lms/pages/studentdashboard/student/profile")
+    router.push("/lms/pages/profile")
   }
 
   const handleSwitchToStudent = () => {
