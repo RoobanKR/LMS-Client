@@ -37,7 +37,8 @@ export const toastConfig = {
 
 // Default "Max size" (MB) for each upload type — what a new course starts with,
 // and what a saved size of 0 (never set; mapping defaults store 0) falls back
-// to. Course Setup still caps each one at the Super Admin's limit for the type.
+// to. The Super Admin's size for the type shows beside it as the base; a
+// course can set more or less, up to the server's upload limit.
 export const DEFAULT_MAX_SIZE_MB = { video: 50, ppt: 20, pdf: 20, image: 20, zip: 40 } as const;
 
 export type FileResourceKey = keyof typeof DEFAULT_MAX_SIZE_MB;

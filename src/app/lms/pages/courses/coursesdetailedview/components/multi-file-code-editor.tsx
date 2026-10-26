@@ -330,6 +330,10 @@ export default function MultiFileCodeEditor({
   // the student has moved off is dropped.
   const aiReviewFor = useRef("")
   const [testResult, setTestResult] = useState<TestResultState | null>(null)
+  // Each question's last finished Run tests / Submit result, so coming back to
+  // a question shows its result (and the Test results button) again; a
+  // question not tested yet still opens clean.
+  const resultsByQuestion = useRef(new Map<string, TestResultState>())
   const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0)
   // Monotonic counter bumped on every question switch AND on component
   // unmount, so any in-flight run's late continuations (a live run's output,
@@ -405,6 +409,10 @@ export default function MultiFileCodeEditor({
   const ActivityNoun = activityNoun.charAt(0).toUpperCase() + activityNoun.slice(1)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const currentQuestion = questions[currentQuestionIndex] || null
+  // The question on screen right now — a run that finishes after the student
+  // has moved on files its result under its own question instead of here.
+  const shownQuestionId = useRef("")
+  shownQuestionId.current = currentQuestion?._id ? String(currentQuestion._id) : ""
 
   // When each question was first opened — sent on submit as `questionStartedAt`
   // so the report can show the time taken per question.
@@ -676,12 +684,11 @@ export default function MultiFileCodeEditor({
     setVizPrompt("")
     vizBufRef.current = ""
 
-    // Bottom-panel reset for the new question. The Test Result is tied to
-    // the previous question's submission — showing it above the new
-    // question would look like the new one had already been graded
-    // (that's the bug the user reported). Test Result is the tab every
-    // exercise has, so the panel reopens on it.
-    setTestResult(null)
+    // Bottom-panel reset for the new question. A Test Result belongs to its
+    // own question — showing one question's result above another would look
+    // like that one had already been graded. So the opened question gets back
+    // its own saved result (none yet → a clean panel).
+    setTestResult(resultsByQuestion.current.get(shownQuestionId.current) ?? null)
     setSelectedCaseIndex(0)
     setBottomTab('terminal')
     setResultsOpen(false)
@@ -1681,6 +1688,12 @@ export default function MultiFileCodeEditor({
     const exerciseId = exercise?._id
     const questionId = currentQuestion?._id
     if (!exerciseId || !questionId || !courseId) return { ok: false, message: "Missing exercise context." }
+    // Saved under its question; painted only while that question is still on
+    // screen (the student may have moved on while it was evaluating).
+    const showResult = (result: TestResultState) => {
+      resultsByQuestion.current.set(String(questionId), result)
+      if (shownQuestionId.current === String(questionId)) setTestResult(result)
+    }
 
     // Route the bottom panel to Test Result the moment Submit answer fires,
     // and paint an "Evaluating…" loading state. The Terminal tab keeps its
@@ -1907,7 +1920,7 @@ export default function MultiFileCodeEditor({
     } catch (netErr: any) {
       // Network / 5xx / auth failure. The answer was NOT evaluated — the
       // Test Result panel says so and offers Try again; no false "wrong".
-      setTestResult({
+      showResult({
         status: 'submission-failed',
         cases: [],
         message: 'Submission failed',
@@ -1984,7 +1997,7 @@ export default function MultiFileCodeEditor({
           : 'Submission recorded. The trainer will grade this answer manually.',
       }
     }
-    setTestResult(nextResult)
+    showResult(nextResult)
     setSelectedCaseIndex(0)
 
     if (skipPost) return { ok: true, result: nextResult }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Film,
@@ -19,7 +19,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { getToken } from '@/lib/session';
 import { getInstitutionResourceSettings } from '@/app/lms/pages/usermanagement/api/userService';
-import { DEFAULT_MAX_SIZE_MB, type FileResourceKey } from '../utils/constants';
+import { DEFAULT_MAX_SIZE_MB } from '../utils/constants';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -175,6 +175,9 @@ const InlineOption: React.FC<{
 
 // ─── File Resource Row (Video / PPT / PDF) ────────────────────────────────────
 
+// The server takes uploads up to 100 MB per file (server.js fileUpload limit).
+const UPLOAD_LIMIT_MB = 100;
+
 const FileResourceRow: React.FC<{
   icon: React.ReactNode;
   label: string;
@@ -188,9 +191,10 @@ const FileResourceRow: React.FC<{
   onNotesToggle: () => void;
   // Shown when no size has been saved for this type yet.
   defaultMaxSize: number;
-  // Super Admin-granted ceiling/gates for this specific type. undefined →
-  // no restriction (settings still loading).
-  maxSizeLimit?: number;
+  // The Super Admin's size for this type — the base. A course can set more
+  // or less, up to what the server takes. undefined → settings still loading.
+  baseSize?: number;
+  // Super Admin-granted gates for this specific type.
   allowAiChat?: boolean;
   allowAiSummary?: boolean;
   allowNotes?: boolean;
@@ -200,12 +204,16 @@ const FileResourceRow: React.FC<{
   icon, label, description, iconBg,
   resource,
   onToggle, onMaxSizeChange, onAiChatToggle, onAiSummaryToggle, onNotesToggle,
-  defaultMaxSize, maxSizeLimit, allowAiChat = true, allowAiSummary = true, allowNotes = true,
+  defaultMaxSize, baseSize, allowAiChat = true, allowAiSummary = true, allowNotes = true,
   onViewerChange,
 }) => {
   const enabled = resource?.enabled ?? false;
-  const capped = (mb: number) => (maxSizeLimit ? Math.min(mb, maxSizeLimit) : mb);
-  const maxSize = capped(resource?.maxSize && resource.maxSize > 0 ? resource.maxSize : defaultMaxSize);
+  // A base above the server limit (Video's 500) stays allowed, as before.
+  const ceiling = Math.max(UPLOAD_LIMIT_MB, baseSize ?? 0);
+  const maxSize = resource?.maxSize && resource.maxSize > 0 ? resource.maxSize : defaultMaxSize;
+  // What is typed while editing, so the box can be cleared and retyped;
+  // null shows the saved size.
+  const [sizeDraft, setSizeDraft] = useState<string | null>(null);
 
   /* ONE row per resource.
    *
@@ -269,15 +277,20 @@ const FileResourceRow: React.FC<{
             <Input
               type="number"
               min={0.5}
-              max={maxSizeLimit ?? 100}
+              max={ceiling}
               step={0.5}
-              value={maxSize}
+              value={sizeDraft ?? maxSize}
               aria-label={`${label} maximum file size in MB`}
-              onChange={e => onMaxSizeChange(capped(parseFloat(e.target.value) || defaultMaxSize))}
+              onChange={e => {
+                setSizeDraft(e.target.value);
+                const mb = parseFloat(e.target.value);
+                if (mb > 0) onMaxSizeChange(Math.min(mb, ceiling));
+              }}
+              onBlur={() => setSizeDraft(null)}
               style={{ width: 64, height: 26, fontSize: 12, padding: '0 6px' }}
             />
             <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
-              MB{maxSizeLimit ? ` (max ${maxSizeLimit})` : ''}
+              MB ({baseSize ? `base ${baseSize}, ` : ''}up to {ceiling})
             </span>
           </span>
 
@@ -484,23 +497,6 @@ const ResourceTypeSection: React.FC<ResourceTypeSectionProps> = ({
   // The Super Admin's per-type config (max size + which AI toggles it grants).
   // undefined while loading → rows fall back to "everything allowed".
   const adminCfgFor = (superAdminKey: string) => iDoTypes?.[superAdminKey];
-
-  // The upload page enforces the SAVED size, so a size above the Super Admin's
-  // cap for its type (say the 20 MB Image default under a 10 MB cap) is written
-  // back at the cap — what the row shows is then what gets saved.
-  useEffect(() => {
-    if (!iDoTypes) return;
-    setFormData((prev: any) => {
-      const iDo = prev.resourcesType?.iDo;
-      if (!iDo) return prev;
-      let next = iDo;
-      (Object.keys(DEFAULT_MAX_SIZE_MB) as FileResourceKey[]).forEach((key) => {
-        const limit = iDoTypes[key === 'video' ? 'videos' : key]?.maxSizeMB;
-        if (limit && iDo[key]?.maxSize > limit) next = { ...next, [key]: { ...iDo[key], maxSize: limit } };
-      });
-      return next === iDo ? prev : { ...prev, resourcesType: { ...prev.resourcesType, iDo: next } };
-    });
-  }, [iDoTypes, setFormData]);
 
   // ─── Mapping narrowing ───
   // Two gates stack: the institution decides what MAY be offered at all, then
@@ -773,7 +769,7 @@ const ResourceTypeSection: React.FC<ResourceTypeSectionProps> = ({
                           onAiSummaryToggle={() => updateIDoFile(fileKey, { aiSummary: !rt.iDo[fileKey]?.aiSummary })}
                           onNotesToggle={() => updateIDoFile(fileKey, { notes: !rt.iDo[fileKey]?.notes })}
                           defaultMaxSize={DEFAULT_MAX_SIZE_MB[fileKey]}
-                          maxSizeLimit={row.adminCfg?.maxSizeMB}
+                          baseSize={row.adminCfg?.maxSizeMB}
                           allowAiChat={row.adminCfg ? !!row.adminCfg.aiAssistant : true}
                           allowAiSummary={row.adminCfg ? !!row.adminCfg.aiSummary : true}
                           allowNotes={row.adminCfg ? !!row.adminCfg.notes : true}

@@ -20,6 +20,8 @@ export interface PptShowState { slide: number; total: number; canNext: boolean; 
 export interface PptShowHandle { next: () => void; prev: () => void; goTo: (slide: number) => void }
 
 const showUrlCache: Record<string, string> = {}
+// A little over the server's 3-minute LibreOffice limit, after which it fails the deck
+const SHOW_MAX_WAIT_MS = 6 * 60 * 1000
 
 const PptShowFrame = forwardRef<PptShowHandle, {
   pptUrl: string
@@ -31,27 +33,46 @@ const PptShowFrame = forwardRef<PptShowHandle, {
   const onStateRef = useRef(onState)
   onStateRef.current = onState
   const [showUrl, setShowUrl] = useState(mode === "libreoffice" ? showUrlCache[pptUrl] || "" : "")
-  const [error, setError] = useState<string | null>(null)
+  // final = the server remembered this deck as one it can't show — nothing to retry
+  const [error, setError] = useState<{ message: string; final: boolean } | null>(null)
   const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     if (mode !== "libreoffice" || !pptUrl) return
     if (showUrlCache[pptUrl]) { setShowUrl(showUrlCache[pptUrl]); return }
     let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const startedAt = Date.now()
     setError(null)
-    fetch(`${API_ORIGIN}/api/ppt/convert-show`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pptUrl }),
-    })
-      .then(r => r.json())
-      .then(data => {
+    // The server answers within ~20 s — { pending: true } while LibreOffice is
+    // still converting (a big deck takes minutes) — so ask again until the
+    // slideshow or a failure comes back.
+    const ask = async () => {
+      try {
+        const res = await fetch(`${API_ORIGIN}/api/ppt/convert-show`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pptUrl }),
+        })
+        const data = await res.json().catch(() => null)
         if (cancelled) return
-        if (data.success && data.showUrl) { showUrlCache[pptUrl] = data.showUrl; setShowUrl(data.showUrl) }
-        else setError(data.error || "Conversion failed")
-      })
-      .catch(err => { if (!cancelled) setError(err.message) })
-    return () => { cancelled = true }
+        if (data?.success && data.showUrl) { showUrlCache[pptUrl] = data.showUrl; setShowUrl(data.showUrl) }
+        else if (data?.pending && Date.now() - startedAt < SHOW_MAX_WAIT_MS) timer = setTimeout(ask, 2000)
+        else if (data?.pending) setError({ message: "The slideshow is taking too long to prepare. Try again later.", final: false })
+        else if (data?.error) setError({ message: data.error, final: !!data.failed })
+        // Not JSON: a gateway page (502 / 504) while the server restarts or stalls
+        else setError({
+          message: res.status >= 502 && res.status <= 504
+            ? "The server didn't answer in time. Try again in a minute."
+            : `The server sent an unexpected reply (HTTP ${res.status}).`,
+          final: false,
+        })
+      } catch {
+        if (!cancelled) setError({ message: "Couldn't reach the server. Check the connection and try again.", final: false })
+      }
+    }
+    ask()
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [mode, pptUrl, retry])
 
   useEffect(() => {
@@ -81,12 +102,14 @@ const PptShowFrame = forwardRef<PptShowHandle, {
     return (
       <div style={{ textAlign: "center", padding: "48px 24px", maxWidth: 420, margin: "0 auto" }}>
         <FileText size={28} style={{ color: "#ef4444", marginBottom: 12 }} />
-        <p style={{ fontWeight: 700, color: "#6b7280", marginBottom: 8, fontSize: 15 }}>Slideshow conversion failed</p>
-        <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 20, lineHeight: 1.5 }}>{error}</p>
-        <button onClick={() => setRetry(c => c + 1)}
-          style={{ padding: "10px 20px", background: "linear-gradient(135deg,#F97316,#EA580C)", color: "white", border: "none", borderRadius: 10, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>
-          Retry
-        </button>
+        <p style={{ fontWeight: 700, color: "#6b7280", marginBottom: 8, fontSize: 15 }}>Can't show this presentation</p>
+        <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 20, lineHeight: 1.5 }}>{error.message}</p>
+        {!error.final && (
+          <button onClick={() => setRetry(c => c + 1)}
+            style={{ padding: "10px 20px", background: "linear-gradient(135deg,#F97316,#EA580C)", color: "white", border: "none", borderRadius: 10, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>
+            Retry
+          </button>
+        )}
       </div>
     )
   }
@@ -96,7 +119,7 @@ const PptShowFrame = forwardRef<PptShowHandle, {
       <div style={{ textAlign: "center", padding: "48px 24px" }}>
         <div style={{ width: 48, height: 48, border: "4px solid rgba(249,115,22,0.15)", borderTopColor: "#F97316", borderRadius: "50%", animation: "spin 0.75s linear infinite", margin: "0 auto 16px" }} />
         <p style={{ fontSize: 14, fontWeight: 700, color: "#6b7280", marginBottom: 6 }}>Preparing slideshow…</p>
-        <p style={{ fontSize: 12, color: "#9ca3af", margin: 0 }}>This may take 30–60 seconds on first load</p>
+        <p style={{ fontSize: 12, color: "#9ca3af", margin: 0 }}>Large presentations can take a few minutes the first time</p>
       </div>
     )
   }
