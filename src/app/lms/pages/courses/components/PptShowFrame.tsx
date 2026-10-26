@@ -181,7 +181,7 @@ const PptShowFrame = forwardRef<PptShowHandle, {
     }}>
       {box && (
         <div style={{
-          width: box.w, height: box.h, flexShrink: 0,
+          position: "relative", width: box.w, height: box.h, flexShrink: 0,
           background: "white", borderRadius: 8, overflow: "hidden", boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
         }}>
           {/* Client pages send COEP (next.config.ts). Our slideshow file opts in by
@@ -190,13 +190,27 @@ const PptShowFrame = forwardRef<PptShowHandle, {
           <iframe ref={frameRef} key={src} src={src} title={title || "Presentation"} allow="fullscreen"
             {...(mode === "office" ? { credentialless: "" } : {})}
             style={{ width: "100%", height: "100%", border: "none", background: "white" }} />
+          {/* Office's bar can't be changed from here (another site's frame, and
+              its URL options don't hide anything), so its right corner — the
+              menu (Download a Copy, Print to PDF) and its own fullscreen — is
+              covered in the bar's colour, which also stops clicks reaching them.
+              Fullscreen stays on our header; downloads follow Allow Download. */}
+          {mode === "office" && (
+            <div aria-hidden style={{
+              position: "absolute", right: 0, bottom: 0,
+              width: OFFICE_CORNER_PX, height: OFFICE_BAR_PX, background: OFFICE_BAR_BG,
+            }} />
+          )}
         </div>
       )}
     </div>
   )
 })
 
-// Office Online's control bar under the slide (Prev / Slide N of M / Next).
+// Office Online's control bar under the slide (Prev / Slide N of M / Next),
+// its colour, and the width of its right-hand menu + fullscreen buttons.
 const OFFICE_BAR_PX = 24
+const OFFICE_BAR_BG = "#444444"
+const OFFICE_CORNER_PX = 84
 
 export default PptShowFrame
