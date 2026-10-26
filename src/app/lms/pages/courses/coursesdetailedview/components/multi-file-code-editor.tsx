@@ -487,6 +487,8 @@ export default function MultiFileCodeEditor({
 
   const [showBackConfirm, setShowBackConfirm] = useState(false)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  // The Finish modal's question list: Completed or Incomplete.
+  const [finishTab, setFinishTab] = useState<"completed" | "incomplete">("incomplete")
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   // Notes panel — a lightweight per-exercise scratchpad. Toggled from the
@@ -2455,43 +2457,17 @@ export default function MultiFileCodeEditor({
   // ═════════════════════════════════════════════════════════════════════════════
   // RENDER
   // ═════════════════════════════════════════════════════════════════════════════
-  // Small helper used by the Finish modal — a single tone-tinted status
-  // card (Completed / Incomplete / Not attempted). Kept local so it can
-  // reference FONT without prop drilling.
-  const StatusCard = ({ tone, Icon, label, value }: {
-    tone: 'ok' | 'warn' | 'mute'; Icon: any; label: string; value: number
-  }) => {
-    const T = tone === 'ok'
-      ? { fg: '#12A765', bg: '#ECFDF3', border: '#BBF7D0' }
-      : tone === 'warn'
-        ? { fg: '#B54708', bg: '#FFFAEB', border: '#FDE68A' }
-        : { fg: '#B42318', bg: '#FEF2F2', border: '#FECACA' }
-    return (
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "8px 10px", borderRadius: 10,
-        border: "1px solid #E4E7EC", background: "#fff",
-      }}>
-        <span aria-hidden="true" style={{
-          width: 28, height: 28, borderRadius: 999, flexShrink: 0,
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          background: T.bg, border: `1px solid ${T.border}`, color: T.fg,
-        }}>
-          <Icon size={14} />
-        </span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: "#667085" }}>{label}</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#101828", lineHeight: 1.1 }}>{value}</div>
-        </div>
-      </div>
-    )
-  }
 
   // Finish opens the review-and-finish summary (which lists anything still
   // incomplete), so it is offered on every problem, not only the last.
   const finishAction = (<>
               <button
-                onClick={() => { if (!isSubmitting) setShowSubmitConfirm(true) }}
+                onClick={() => {
+                  if (isSubmitting) return
+                  // Opens on what still needs work, or on Completed when nothing does.
+                  setFinishTab(solvedQuestions.size < questions.length ? "incomplete" : "completed")
+                  setShowSubmitConfirm(true)
+                }}
                 disabled={isSubmitting}
                 title={`Review all answers and finish the ${activityNoun}`}
                 aria-label={`Finish ${activityNoun}`}
@@ -3263,15 +3239,11 @@ export default function MultiFileCodeEditor({
         </div>
       )}
       {/* MODALS */}
-      {/* Finish confirmation — summary modal per the design mockup.
-          Shows a live progress split (Completed / Incomplete / Not
-          attempted) computed from solvedQuestions + attemptedQuestions,
-          a "Needs your attention" list of the specific questions that
-          are incomplete or not attempted, and a save-status panel. Two
-          footer actions: Review questions (close the modal so the
-          student can jump around) and Finish {activity} (real submit).
-          The modal stays open during the network call so the button
-          shows the in-flight spinner. */}
+      {/* Finish confirmation — summary modal. Progress from solvedQuestions +
+          attemptedQuestions, then Completed / Incomplete tabs listing their
+          questions (Review opens one), the save-status panel and Finish
+          {activity}. X closes it. The modal stays open during the network
+          call so the button shows the in-flight spinner. */}
       {showSubmitConfirm && (() => {
         const total = questions.length || 0
         const completedList: number[] = []
@@ -3286,10 +3258,13 @@ export default function MultiFileCodeEditor({
         const incomplete = incompleteList.length
         const notAttempted = notAttemptedList.length
         const pct = total > 0 ? Math.round((completed / total) * 100) : 0
-        const attention: Array<{ index: number; kind: 'incomplete' | 'not-attempted'; label: string }> = [
-          ...incompleteList.map((i) => ({ index: i, kind: 'incomplete' as const, label: 'Answer is incomplete' })),
-          ...notAttemptedList.map((i) => ({ index: i, kind: 'not-attempted' as const, label: 'Not attempted' })),
-        ]
+        const titleOf = (i: number) => String((questions[i] as any)?.title || "").trim()
+        const tabRows = finishTab === "completed"
+          ? completedList.map((i) => ({ index: i, label: "Submitted", Icon: CheckCircle, color: "#12A765" }))
+          : [
+              ...incompleteList.map((i) => ({ index: i, label: "Started, not submitted", Icon: AlertTriangle, color: "#B54708" })),
+              ...notAttemptedList.map((i) => ({ index: i, label: "Not attempted", Icon: MinusCircle, color: "#B42318" })),
+            ].sort((x, y) => x.index - y.index)
         const exerciseName = exercise?.exerciseInformation?.exerciseName || `this ${activityNoun}`
         const goToQuestion = (idx: number) => {
           setShowSubmitConfirm(false)
@@ -3325,9 +3300,24 @@ export default function MultiFileCodeEditor({
                 }}>
                   <CheckCircle style={{ width: 17, height: 17 }} />
                 </span>
-                <h2 id="finish-modal-title" style={{ fontSize: 17, fontWeight: 700, color: "#101828", margin: 0 }}>
+                <h2 id="finish-modal-title" style={{ fontSize: 17, fontWeight: 700, color: "#101828", margin: 0, flex: 1 }}>
                   {isSubmitting ? "Finishing…" : `Finish ${activityNoun}?`}
                 </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSubmitConfirm(false)}
+                  disabled={isSubmitting}
+                  aria-label="Close"
+                  title="Close"
+                  className="hover:bg-[#F2F4F7]"
+                  style={{
+                    width: 32, height: 32, borderRadius: 8, border: "1px solid #EAECF0", background: "#fff", color: "#475467",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    cursor: isSubmitting ? "not-allowed" : "pointer", opacity: isSubmitting ? 0.5 : 1,
+                  }}
+                >
+                  <X size={16} />
+                </button>
               </div>
 
               {/* Assignment name + progress */}
@@ -3344,50 +3334,76 @@ export default function MultiFileCodeEditor({
                 </div>
               </div>
 
-              {/* Status cards */}
-              <div className="max-sm:grid-cols-1!" style={{ padding: "10px 20px 0", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                <StatusCard tone="ok"   Icon={Check}          label="Completed"     value={completed} />
-                <StatusCard tone="warn" Icon={AlertTriangle}  label="Incomplete"    value={incomplete} />
-                <StatusCard tone="mute" Icon={MinusCircle}    label="Not attempted" value={notAttempted} />
-              </div>
-
-              {/* Needs your attention */}
-              {attention.length > 0 && (
-                <div style={{
-                  margin: "10px 20px 0", padding: "10px 12px",
-                  border: "1px solid #E4E7EC", borderRadius: 10,
-                  // Only the attention list scrolls if there are many
-                  // incomplete/not-attempted rows. Everything else stays
-                  // fixed so the modal itself never needs a scrollbar.
-                  maxHeight: 150, overflowY: "auto",
-                }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#101828", marginBottom: 4 }}>
-                    Needs your attention
-                  </div>
-                  {attention.map((row, i) => {
-                    const tone = row.kind === 'incomplete' ? 'warn' : 'mute'
-                    const Icon = row.kind === 'incomplete' ? AlertTriangle : MinusCircle
+              {/* Completed | Incomplete — each lists its questions; Review opens one */}
+              <div style={{ padding: "12px 20px 0" }}>
+                <div role="tablist" aria-label="Questions" style={{ display: "flex", gap: 4, borderBottom: "1px solid #E4E7EC" }}>
+                  {([
+                    ["completed", "Completed", completed, "#12A765"],
+                    ["incomplete", "Incomplete", incomplete + notAttempted, "#B54708"],
+                  ] as const).map(([key, label, count, color]) => {
+                    const active = finishTab === key
                     return (
                       <button
-                        key={row.index}
+                        key={key}
                         type="button"
-                        onClick={() => goToQuestion(row.index)}
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => setFinishTab(key)}
                         style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          width: "100%", padding: "6px 0", background: "transparent", border: "none",
-                          borderTop: i === 0 ? undefined : "1px solid #F1F1F3",
-                          textAlign: "left", cursor: "pointer",
+                          display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 12px",
+                          border: "none", background: "transparent", cursor: "pointer", marginBottom: -1,
+                          fontSize: 13, fontWeight: 600, fontFamily: FONT, color: active ? "#101828" : "#667085",
+                          borderBottom: `2px solid ${active ? "#FF641A" : "transparent"}`,
                         }}
                       >
-                        <Icon size={15} style={{ color: tone === 'warn' ? '#B54708' : '#B42318', flexShrink: 0 }} />
-                        <span style={{ fontSize: 12.5, color: "#101828" }}>
-                          Question {row.index + 1} <span style={{ color: "#667085" }}>— {row.label}</span>
+                        {key === "completed" ? <Check size={14} style={{ color }} /> : <AlertTriangle size={14} style={{ color }} />}
+                        {label}
+                        <span style={{
+                          minWidth: 20, height: 20, padding: "0 6px", borderRadius: 99, fontSize: 11.5, fontWeight: 700,
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          background: active ? "#FFF4EC" : "#F2F4F7", color: active ? "#C2410C" : "#475467",
+                        }}>
+                          {count}
                         </span>
                       </button>
                     )
                   })}
                 </div>
-              )}
+                <div role="tabpanel" style={{ maxHeight: 240, overflowY: "auto", overscrollBehavior: "contain" }}>
+                  {tabRows.length === 0 ? (
+                    <div style={{ padding: "22px 8px", textAlign: "center", fontSize: 12.5, color: "#667085" }}>
+                      {finishTab === "completed" ? "No question is completed yet." : "Every question is completed."}
+                    </div>
+                  ) : tabRows.map((row, i) => (
+                    <div
+                      key={row.index}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", borderTop: i === 0 ? undefined : "1px solid #F1F1F3" }}
+                    >
+                      <row.Icon size={16} style={{ color: row.color, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#101828", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          Question {row.index + 1}{titleOf(row.index) ? ` · ${titleOf(row.index)}` : ""}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: "#667085", marginTop: 1 }}>{row.label}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => goToQuestion(row.index)}
+                        disabled={isSubmitting}
+                        title={`Go to question ${row.index + 1}`}
+                        className="hover:bg-[#FFF4EC]"
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4, height: 30, padding: "0 10px", borderRadius: 7,
+                          border: "1px solid #FFD2B8", background: "#fff", color: "#C2410C", flexShrink: 0,
+                          fontSize: 12, fontWeight: 600, fontFamily: FONT, cursor: isSubmitting ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        Review <ChevronRight size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               {/* Save state panel */}
               <div style={{
@@ -3415,19 +3431,6 @@ export default function MultiFileCodeEditor({
                 marginTop: 12, padding: "10px 16px 14px", borderTop: "1px solid #E4E7EC",
                 display: "flex", justifyContent: "flex-end", gap: 8,
               }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSubmitConfirm(false)}
-                  disabled={isSubmitting}
-                  style={{
-                    height: 36, padding: "0 14px", borderRadius: 8,
-                    border: "1px solid #D9E1EA", background: "#fff", color: "#101828",
-                    fontSize: 12.5, fontWeight: 600, fontFamily: FONT,
-                    cursor: isSubmitting ? "not-allowed" : "pointer", opacity: isSubmitting ? 0.6 : 1,
-                  }}
-                >
-                  Review questions
-                </button>
                 <button
                   type="button"
                   onClick={() => submitExercise()}
