@@ -472,13 +472,11 @@ useEffect(() => {
     };
   };
 
-  // The course-level Notes button (end of the breadcrumb row) shows only when
-  // Course Setup turned Notes on somewhere — the Notes resource type in any
-  // section, or Notes on a file type — the same switches the viewers follow.
-  const courseNotesEnabled = (["iDo", "weDo", "youDo"] as const).some((section) => {
-    const cfg: any = (courseData?.resourcesType as any)?.[section];
-    return !!cfg?.notes?.enabled || (["ppt", "pdf", "video", "image", "zip"] as const).some((t) => !!cfg?.[t]?.notes);
-  });
+  // The course-level Notes button (end of the breadcrumb row) follows exactly
+  // one switch: Course Setup › Resource Type › Student Used Feature › Notes
+  // (`resourcesType.iDo.notes.enabled`). The per-file-type Notes switches only
+  // govern the Notes button inside their own viewers.
+  const courseNotesEnabled = courseData?.resourcesType?.iDo?.notes?.enabled === true;
 
   // The open file's Download button (inside every viewer): only when its Allow
   // Download is on (Edit Resource › Visibility) — the same rule as the list.
