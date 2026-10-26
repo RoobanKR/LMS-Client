@@ -46,6 +46,28 @@ const PptShowFrame = forwardRef<PptShowHandle, {
   const [retry, setRetry] = useState(0)
   const [frameBlocked] = useState(() => mode === "office" && officeFrameBlocked())
 
+  // Fit the frame to the stage in pixels, kept up to date as the stage resizes
+  // (window, fullscreen, side panels). Measured in script rather than with CSS
+  // container units: size containment on the frame's parent made Office
+  // Online render its slide zoomed and cropped, without its control bar.
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null)
+  const stageReady = !!(showUrl || mode === "office") && !error && !frameBlocked
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el || !stageReady) return
+    const bar = mode === "office" ? OFFICE_BAR_PX : 0
+    const fit = () => {
+      const w = Math.floor(Math.min(el.clientWidth, Math.max(0, (el.clientHeight - bar) * 16 / 9)))
+      const h = Math.floor(w * 9 / 16) + bar
+      setBox(prev => (prev && prev.w === w && prev.h === h ? prev : { w, h }))
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [mode, stageReady])
+
   useEffect(() => {
     if (mode !== "libreoffice" || !pptUrl) return
     if (showUrlCache[pptUrl]) { setShowUrl(showUrlCache[pptUrl]); return }
@@ -149,19 +171,32 @@ const PptShowFrame = forwardRef<PptShowHandle, {
     )
   }
 
+  // The frame takes the whole stage its viewer gives it, sized to the slide:
+  // as large a 16:9 slide as fits, plus Office Online's own control bar below
+  // it, so no black bars are left beside or under the slide.
   return (
-    <div style={{
-      width: "100%", aspectRatio: "16 / 9", maxHeight: "calc(100dvh - 200px)", minHeight: 320,
-      background: "white", borderRadius: 8, overflow: "hidden", boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
+    <div ref={stageRef} style={{
+      flex: 1, alignSelf: "stretch", width: "100%", minWidth: 0, minHeight: 320,
+      display: "flex", alignItems: "center", justifyContent: "center",
     }}>
-      {/* Client pages send COEP (next.config.ts). Our slideshow file opts in by
-          its headers; Microsoft's viewer can't, so it loads as a credentialless
-          frame (Chrome / Edge) instead. */}
-      <iframe ref={frameRef} key={src} src={src} title={title || "Presentation"} allow="fullscreen"
-        {...(mode === "office" ? { credentialless: "" } : {})}
-        style={{ width: "100%", height: "100%", border: "none", background: "white" }} />
+      {box && (
+        <div style={{
+          width: box.w, height: box.h, flexShrink: 0,
+          background: "white", borderRadius: 8, overflow: "hidden", boxShadow: "0 6px 24px rgba(0,0,0,0.12)",
+        }}>
+          {/* Client pages send COEP (next.config.ts). Our slideshow file opts in by
+              its headers; Microsoft's viewer can't, so it loads as a credentialless
+              frame (Chrome / Edge) instead. */}
+          <iframe ref={frameRef} key={src} src={src} title={title || "Presentation"} allow="fullscreen"
+            {...(mode === "office" ? { credentialless: "" } : {})}
+            style={{ width: "100%", height: "100%", border: "none", background: "white" }} />
+        </div>
+      )}
     </div>
   )
 })
+
+// Office Online's control bar under the slide (Prev / Slide N of M / Next).
+const OFFICE_BAR_PX = 24
 
 export default PptShowFrame

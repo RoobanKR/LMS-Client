@@ -1394,7 +1394,11 @@ export default function PPTViewer({
           )} */}
 
           {/* Current slide canvas — ONE slide visible at a time */}
-         <div style={{ width: "100%", maxWidth: 1200, flexShrink: 0, position: "relative" }}>
+         {/* A framed deck (LibreOffice / Office Online) takes the whole stage —
+             PptShowFrame sizes the slide to it; slide images keep the 1200px column. */}
+         <div style={showMode
+           ? { width: "100%", flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }
+           : { width: "100%", maxWidth: 1200, flexShrink: 0, position: "relative" }}>
   {autoConverting ? (
     <div style={{ textAlign: "center", padding: "64px 24px", color: "#e5e7eb" }}>
       <div style={{ width: 56, height: 56, border: "4px solid rgba(124,58,237,0.2)", borderTopColor: "#a78bfa", borderRadius: "50%", animation: "spin 0.75s linear infinite", margin: "0 auto 20px" }} />
