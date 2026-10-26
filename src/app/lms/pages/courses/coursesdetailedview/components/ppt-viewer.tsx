@@ -12,6 +12,7 @@ import { fetchNotesByResource, type Note } from "../api/notesPanelService"
 import SummaryChat from "./summary-chat"
 import AIChat from "./ai-chat"
 import { API_ORIGIN } from '@/lib/apiBase'
+import PptShowFrame, { pptShowMode, type PptShowHandle, type PptShowState, type PptViewerMode } from "../../components/PptShowFrame"
 
 // ─── KEYFRAME STYLES ──────────────────────────────────────────────────────────
 const GLOBAL_STYLES = `
@@ -354,6 +355,8 @@ interface PPTViewerProps {
   folderPath?: string[]
   apiBaseUrl?: string
   courseId?: string
+  // Course Setup › PPT › Viewer — omitted / "default" keeps the slide images
+  viewerMode?: PptViewerMode
 }
 
 // ─── TOOLBAR BUTTON ───────────────────────────────────────────────────────────
@@ -443,6 +446,7 @@ export default function PPTViewer({
   folderPath = [],
   apiBaseUrl = `${API_ORIGIN}`,
   courseId,
+  viewerMode,
 }: PPTViewerProps) {
   const [autoSlideImages, setAutoSlideImages] = useState<string[]>(slideImages ?? [])
   const [autoConverting, setAutoConverting] = useState(false)
@@ -450,13 +454,22 @@ export default function PPTViewer({
   const [retryCount, setRetryCount] = useState(0)
   const autoCache = useRef<Record<string, string[]>>({})
 
+  // LibreOffice / Office Online show the deck in a frame (PptShowFrame) instead
+  // of slide images. The LibreOffice show reports its slide back, so the
+  // counter, slide MCQs and progress run off that.
+  const showMode = pptShowMode(viewerMode)
+  const isLibreShow = showMode === "libreoffice"
+  const showRef = useRef<PptShowHandle>(null)
+  const [showState, setShowState] = useState<PptShowState | null>(null)
+
   const effectiveSlides = autoSlideImages.length > 0 ? autoSlideImages : (slideImages ?? [])
-  const totalSlides = effectiveSlides.length
+  const totalSlides = isLibreShow ? (showState?.total ?? 0) : effectiveSlides.length
   const safeSlideImages = effectiveSlides
   const useImageMode = totalSlides > 0
 
   // Auto-convert when opened with a pptUrl and no slideImages provided
   useEffect(() => {
+    if (showMode) return // shown in a frame — no slide images needed
     if ((slideImages ?? []).length > 0) return // already have images
     if (!pptUrl) return
 
@@ -492,7 +505,7 @@ export default function PPTViewer({
     })()
 
     return () => { cancelled = true }
-  }, [pptUrl, retryCount])
+  }, [pptUrl, retryCount, showMode])
 
   // ── Viewer state
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -624,12 +637,24 @@ export default function PPTViewer({
 
   // ── Navigate to a slide (clamped)
   const goToSlide = useCallback((n: number) => {
+    if (isLibreShow) {
+      // The show moves itself (Next plays the slide's next animation first)
+      // and reports the new slide back through onState.
+      if (n === currentSlide + 1) showRef.current?.next()
+      else if (n === currentSlide - 1) showRef.current?.prev()
+      else showRef.current?.goTo(n)
+      return
+    }
     const clamped = Math.max(1, Math.min(totalSlides || 1, n))
     setCurrentSlide(clamped)
     setPageInput(String(clamped))
     setImgLoaded(false)
     setImgError(false)
-  }, [totalSlides])
+  }, [totalSlides, isLibreShow, currentSlide])
+  // In the LibreOffice show Next stays on while the last slide still has
+  // animations to play, so "first/last" come from the show itself.
+  const atFirstSlide = isLibreShow ? !showState?.canPrev : currentSlide <= 1
+  const atLastSlide = isLibreShow ? !showState?.canNext : currentSlide >= totalSlides
 
   // ── Keep pageInput in sync when slide changes via keyboard/buttons
   useEffect(() => {
@@ -950,8 +975,8 @@ export default function PPTViewer({
               <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                 <button
                   onClick={() => goToSlide(currentSlide - 1)}
-                  disabled={!useImageMode||currentSlide<=1||!!activeMcqGroup}
-                  style={{ background:"none",border:"1.5px solid currentColor",cursor:(!useImageMode||currentSlide<=1||!!activeMcqGroup)?"not-allowed":"pointer",color:(!useImageMode||currentSlide<=1)?"#D1D5DB":"#6b7280",display:"flex",alignItems:"center",padding:"3px 8px",borderRadius:6,fontSize:11,fontWeight:600,transition:"all 0.15s" }}
+                  disabled={!useImageMode||atFirstSlide||!!activeMcqGroup}
+                  style={{ background:"none",border:"1.5px solid currentColor",cursor:(!useImageMode||atFirstSlide||!!activeMcqGroup)?"not-allowed":"pointer",color:(!useImageMode||atFirstSlide)?"#D1D5DB":"#6b7280",display:"flex",alignItems:"center",padding:"3px 8px",borderRadius:6,fontSize:11,fontWeight:600,transition:"all 0.15s" }}
                 >
                   Prev
                 </button>
@@ -986,8 +1011,8 @@ export default function PPTViewer({
                 })()}
                 <button
                   onClick={() => goToSlide(currentSlide + 1)}
-                  disabled={!useImageMode||currentSlide>=totalSlides||!!activeMcqGroup}
-                  style={{ background:"none",border:"1.5px solid currentColor",cursor:(!useImageMode||currentSlide>=totalSlides||!!activeMcqGroup)?"not-allowed":"pointer",color:(!useImageMode||currentSlide>=totalSlides)?"#D1D5DB":"#6b7280",display:"flex",alignItems:"center",padding:"3px 8px",borderRadius:6,fontSize:11,fontWeight:600,transition:"all 0.15s" }}
+                  disabled={!useImageMode||atLastSlide||!!activeMcqGroup}
+                  style={{ background:"none",border:"1.5px solid currentColor",cursor:(!useImageMode||atLastSlide||!!activeMcqGroup)?"not-allowed":"pointer",color:(!useImageMode||atLastSlide)?"#D1D5DB":"#6b7280",display:"flex",alignItems:"center",padding:"3px 8px",borderRadius:6,fontSize:11,fontWeight:600,transition:"all 0.15s" }}
                 >
                   Next
                 </button>
@@ -1053,7 +1078,7 @@ export default function PPTViewer({
               )}
 
               {/* Iframe fallback mode — only when not auto-converting and no error and no slide images */}
-              {!useImageMode && !autoConverting && !autoConvertError && (
+              {!showMode && !useImageMode && !autoConverting && !autoConvertError && (
                 <>
                   {iframeLoading && (
                     <div style={{ position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",textAlign:"center",zIndex:10 }}>
@@ -1098,6 +1123,12 @@ export default function PPTViewer({
                     </div>
                   )}
                 </>
+              )}
+
+              {/* LibreOffice slideshow / Office Online (Course Setup › PPT › Viewer) */}
+              {showMode && (
+                <PptShowFrame ref={showRef} pptUrl={pptUrl} mode={showMode} title={title}
+                  onState={s => { setShowState(s); setCurrentSlide(s.slide) }} />
               )}
 
               {/* Slide image */}

@@ -121,6 +121,9 @@ export interface FileResource {
     // Per-type Notes toggle (ppt/pdf/video/image) — this upload also carries
     // its own notes, separate from the standalone `notes` resource type.
     notes?: boolean;
+    // PPT only — 'default' (slide images), 'libreoffice' (slideshow with
+    // animations) or 'office' (Microsoft Office Online viewer)
+    viewer?: 'default' | 'libreoffice' | 'office';
 }
 
 export interface SimpleResource {

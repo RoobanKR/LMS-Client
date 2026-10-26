@@ -16,6 +16,7 @@ import {
   Layers,
 } from "lucide-react"
 import { API_ORIGIN } from '@/lib/apiBase'
+import PptShowFrame, { pptShowMode, type PptShowHandle, type PptShowState, type PptViewerMode } from "./PptShowFrame"
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 let _uid = 0
@@ -793,6 +794,8 @@ interface PPTViewerProps {
   onNavigateToDashboard?: () => void
   onNavigateToCourses?: () => void
   onNavigateToCourse?: () => void
+  // Course Setup › PPT › Viewer — omitted / "default" keeps the slide images
+  viewerMode?: PptViewerMode
 }
 
 // Update the component to accept these props
@@ -813,6 +816,7 @@ export default function PPTViewer({
   onNavigateToDashboard,
   onNavigateToCourses,
   onNavigateToCourse,
+  viewerMode,
 }: PPTViewerProps) {
   // ... rest of your existing state and functions remain the same
   const [zoom, setZoom] = useState(1)
@@ -841,14 +845,29 @@ export default function PPTViewer({
   const [retryCount, setRetryCount] = useState(0)
   const autoCache = useRef<Record<string, string[]>>({})
 
+  // LibreOffice / Office Online show the deck in a frame (PptShowFrame) instead
+  // of slide images. The LibreOffice show reports its slide back, so slide
+  // numbers (and MCQs added on a slide) match the student side.
+  const showMode = pptShowMode(viewerMode)
+  const isLibreShow = showMode === "libreoffice"
+  const showRef = useRef<PptShowHandle>(null)
+  const [showState, setShowState] = useState<PptShowState | null>(null)
+
   const effectiveSlides = autoSlideImages
-  const useImageMode = effectiveSlides.length > 0
+  const useImageMode = effectiveSlides.length > 0 || (isLibreShow && !!showState?.total)
   // Real slide count comes from the converted images; fall back to the prop only
-  // while converting / on failure.
-  const effectiveTotalSlides = useImageMode ? effectiveSlides.length : totalSlides
+  // while converting / on failure. Office Online pages itself → our nav stays off.
+  const effectiveTotalSlides = isLibreShow ? (showState?.total || 1)
+    : showMode === "office" ? 1
+    : useImageMode ? effectiveSlides.length : totalSlides
   const currentImageUrl = effectiveSlides[currentSlide - 1]
+  // In the LibreOffice show Next stays on while the last slide still has
+  // animations to play, so "first/last" come from the show itself.
+  const atFirstSlide = isLibreShow ? !showState?.canPrev : currentSlide <= 1
+  const atLastSlide = isLibreShow ? !showState?.canNext : currentSlide >= effectiveTotalSlides
 
   useEffect(() => {
+    if (showMode) return // shown in a frame — no slide images needed
     if (!pptUrl) return
     if (autoCache.current[pptUrl]) {
       setAutoSlideImages(autoCache.current[pptUrl])
@@ -882,7 +901,7 @@ export default function PPTViewer({
     })()
 
     return () => { cancelled = true }
-  }, [pptUrl, retryCount])
+  }, [pptUrl, retryCount, showMode])
 
   // Clamp current slide if the real slide count differs from the assumed prop
   useEffect(() => {
@@ -921,6 +940,14 @@ export default function PPTViewer({
 
   // ── navigation (click-based, no scroll — mirrors PDF) ────────────────────────
   const goToSlide = (n: number) => {
+    if (isLibreShow) {
+      // The show moves itself (Next plays the slide's next animation first)
+      // and reports the new slide back through onState.
+      if (n === currentSlide + 1) showRef.current?.next()
+      else if (n === currentSlide - 1) showRef.current?.prev()
+      else showRef.current?.goTo(n)
+      return
+    }
     setCurrentSlide(Math.max(1, Math.min(effectiveTotalSlides || 1, n)))
     // Scroll body back to top so the slide view is always centred
     if (bodyRef.current) bodyRef.current.scrollTop = 0
@@ -1245,12 +1272,12 @@ export default function PPTViewer({
         }}>
           <button 
             onClick={() => goToSlide(currentSlide - 1)} 
-            disabled={currentSlide <= 1}
+            disabled={atFirstSlide}
             style={{ 
               background: "none", 
               border: "none", 
-              color: currentSlide <= 1 ? "#cbd5e1" : "#64748b", 
-              cursor: currentSlide <= 1 ? "not-allowed" : "pointer", 
+              color: atFirstSlide ? "#cbd5e1" : "#64748b", 
+              cursor: atFirstSlide ? "not-allowed" : "pointer", 
               padding: 2, 
               display: "flex",
             }}
@@ -1281,12 +1308,12 @@ export default function PPTViewer({
 
           <button
             onClick={() => goToSlide(currentSlide + 1)}
-            disabled={currentSlide >= effectiveTotalSlides}
+            disabled={atLastSlide}
             style={{
               background: "none",
               border: "none",
-              color: currentSlide >= effectiveTotalSlides ? "#cbd5e1" : "#64748b",
-              cursor: currentSlide >= effectiveTotalSlides ? "not-allowed" : "pointer",
+              color: atLastSlide ? "#cbd5e1" : "#64748b",
+              cursor: atLastSlide ? "not-allowed" : "pointer",
               padding: 2,
               display: "flex",
             }}
@@ -1391,6 +1418,9 @@ export default function PPTViewer({
         Download instead
       </button>
     </div>
+  ) : showMode ? (
+    <PptShowFrame ref={showRef} pptUrl={pptUrl} mode={showMode} title={title}
+      onState={s => { setShowState(s); setCurrentSlide(s.slide) }} />
   ) : (
     <SlideCanvas
       imageUrl={currentImageUrl}
@@ -1427,17 +1457,17 @@ export default function PPTViewer({
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
             <button
               onClick={() => goToSlide(currentSlide - 1)}
-              disabled={currentSlide <= 1}
+              disabled={atFirstSlide}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 18px", backgroundColor: currentSlide <= 1 ? "#1f2937" : "#374151",
-                color: currentSlide <= 1 ? "#374151" : "#e5e7eb",
+                padding: "8px 18px", backgroundColor: atFirstSlide ? "#1f2937" : "#374151",
+                color: atFirstSlide ? "#374151" : "#e5e7eb",
                 border: "1px solid #4b5563", borderRadius: 8,
-                cursor: currentSlide <= 1 ? "not-allowed" : "pointer",
+                cursor: atFirstSlide ? "not-allowed" : "pointer",
                 fontSize: 12, fontWeight: 600, transition: "all 0.15s",
               }}
-              onMouseEnter={e => { if (currentSlide > 1) e.currentTarget.style.backgroundColor = "#4b5563" }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = currentSlide <= 1 ? "#1f2937" : "#374151" }}
+              onMouseEnter={e => { if (!atFirstSlide) e.currentTarget.style.backgroundColor = "#4b5563" }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = atFirstSlide ? "#1f2937" : "#374151" }}
             >
               <ChevronLeft size={15} /> Previous
             </button>
@@ -1452,17 +1482,17 @@ export default function PPTViewer({
 
             <button
               onClick={() => goToSlide(currentSlide + 1)}
-              disabled={currentSlide >= effectiveTotalSlides}
+              disabled={atLastSlide}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 18px", backgroundColor: currentSlide >= effectiveTotalSlides ? "#1f2937" : "#374151",
-                color: currentSlide >= effectiveTotalSlides ? "#374151" : "#e5e7eb",
+                padding: "8px 18px", backgroundColor: atLastSlide ? "#1f2937" : "#374151",
+                color: atLastSlide ? "#374151" : "#e5e7eb",
                 border: "1px solid #4b5563", borderRadius: 8,
-                cursor: currentSlide >= effectiveTotalSlides ? "not-allowed" : "pointer",
+                cursor: atLastSlide ? "not-allowed" : "pointer",
                 fontSize: 12, fontWeight: 600, transition: "all 0.15s",
               }}
-              onMouseEnter={e => { if (currentSlide < effectiveTotalSlides) e.currentTarget.style.backgroundColor = "#4b5563" }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = currentSlide >= effectiveTotalSlides ? "#1f2937" : "#374151" }}
+              onMouseEnter={e => { if (!atLastSlide) e.currentTarget.style.backgroundColor = "#4b5563" }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = atLastSlide ? "#1f2937" : "#374151" }}
             >
               Next <ChevronRight size={15} />
             </button>

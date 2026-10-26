@@ -14,6 +14,7 @@ import {
 import VideoPlayer from "../components/video-player"
 import PDFViewer from "../components/pdf-viewer"
 import PPTViewer from "../components/ppt-viewer"
+import type { PptViewerMode } from "../../components/PptShowFrame"
 import { clearAllStorage, getUserId } from "@/lib/session"
 import { enrollmentStatusOf, isBlockedEnrollment, isStudentRole } from "@/lib/api/courses"
 import { useParams, useRouter } from "next/navigation"
@@ -3454,6 +3455,7 @@ const getExercisesForActivity = (): any[] => {
             onNotesStateChange={v => setShowNotesPanel(v)}
             showNotesPanel={showNotesPanel}
             {...viewerFeaturesFor("ppt")}
+            viewerMode={(courseData?.resourcesType?.iDo?.ppt as { viewer?: PptViewerMode } | undefined)?.viewer}
             hierarchy={currentHierarchy}
             currentItemTitle={selectedItem?.title}
             initialMcqs={activeViewer.resource.mcqQuestions || []}

@@ -30,7 +30,19 @@ interface FileResource {
   aiChat?: boolean;
   aiSummary?: boolean;
   notes?: boolean;
+  // PPT only — how trainers and students see the deck (see PPT_VIEWERS)
+  viewer?: PptViewer;
 }
+
+type PptViewer = 'default' | 'libreoffice' | 'office';
+
+// PPT › Viewer. Default keeps today's slide images; LibreOffice plays the
+// deck's animations with our Prev / Next; Office Online is Microsoft's viewer.
+const PPT_VIEWERS: { value: PptViewer; label: string }[] = [
+  { value: 'default', label: 'Default' },
+  { value: 'libreoffice', label: 'LibreOffice' },
+  { value: 'office', label: 'Microsoft Office Online viewer' },
+];
 
 interface SimpleResource {
   enabled: boolean;
@@ -182,11 +194,14 @@ const FileResourceRow: React.FC<{
   allowAiChat?: boolean;
   allowAiSummary?: boolean;
   allowNotes?: boolean;
+  // PPT only: shows the Viewer radios under the Max size line
+  onViewerChange?: (viewer: PptViewer) => void;
 }> = ({
   icon, label, description, iconBg,
   resource,
   onToggle, onMaxSizeChange, onAiChatToggle, onAiSummaryToggle, onNotesToggle,
   defaultMaxSize, maxSizeLimit, allowAiChat = true, allowAiSummary = true, allowNotes = true,
+  onViewerChange,
 }) => {
   const enabled = resource?.enabled ?? false;
   const capped = (mb: number) => (maxSizeLimit ? Math.min(mb, maxSizeLimit) : mb);
@@ -280,6 +295,32 @@ const FileResourceRow: React.FC<{
               icon={<StickyNote size={11} color="#639922" />}
             />
           )}
+        </div>
+      )}
+
+      {enabled && onViewerChange && (
+        <div
+          role="radiogroup"
+          aria-label={`${label} viewer`}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 16,
+            flexWrap: 'wrap', flexBasis: '100%', paddingLeft: 64,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Viewer</span>
+          {PPT_VIEWERS.map(option => (
+            <label key={option.value} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <input
+                type="radio"
+                name={`${label}-viewer`}
+                checked={(resource?.viewer || 'default') === option.value}
+                onChange={() => onViewerChange(option.value)}
+                style={{ width: 14, height: 14, accentColor: '#c2540f', cursor: 'pointer', margin: 0 }}
+              />
+              <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--color-text-primary)' }}>{option.label}</span>
+            </label>
+          ))}
         </div>
       )}
     </label>
@@ -736,6 +777,7 @@ const ResourceTypeSection: React.FC<ResourceTypeSectionProps> = ({
                           allowAiChat={row.adminCfg ? !!row.adminCfg.aiAssistant : true}
                           allowAiSummary={row.adminCfg ? !!row.adminCfg.aiSummary : true}
                           allowNotes={row.adminCfg ? !!row.adminCfg.notes : true}
+                          onViewerChange={fileKey === 'ppt' ? viewer => updateIDoFile('ppt', { viewer }) : undefined}
                         />
                       ) : (
                         <SimpleResourceRow

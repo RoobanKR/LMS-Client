@@ -6179,6 +6179,7 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
     breadcrumbs={breadcrumbs}  // ← ADD THIS
     currentCourseName={courseStructureResponse?.data?.courseName || "Course"}  // ← ADD THIS
     currentCourseId={courseId || ""}  // ← ADD THIS
+    viewerMode={(courseStructureResponse?.data?.resourcesType as any)?.iDo?.ppt?.viewer}
   />
 )}
       {/* Word Viewer */}
