@@ -22,7 +22,7 @@ export function StudentStatusChip({ status }: { status: string }) {
     completed: { tone: "success", label: "Completed" },
     in_progress: { tone: "warn", label: "In Progress" },
     evaluated: { tone: "success", label: "Evaluated" },
-    not_started: { tone: "neutral", label: "Not Started" },
+    not_started: { tone: "neutral", label: "Not completed" },
   };
   const m = map[status] || { tone: "neutral" as const, label: status };
   return <StatusChip tone={m.tone} label={m.label} />;

@@ -201,7 +201,7 @@ export function StudentCells({ item, index, selectedExercise, onDetails }: { ite
       <td className={BODY}>
         {derivedStatus === "completed"
           ? <StatusChip tone="success" icon={<CheckCircle2 className="h-3 w-3" />} label="Completed" />
-          : <StatusChip tone="neutral" icon={<XCircle className="h-3 w-3" />} label="Not Started" />}
+          : <StatusChip tone="neutral" icon={<XCircle className="h-3 w-3" />} label="Not completed" />}
       </td>
       <td className={`${BODY} pl-2 pr-4 sm:pr-5 text-right`}>
         {/* View — drills DIRECTLY into that student's Questions tab. Was

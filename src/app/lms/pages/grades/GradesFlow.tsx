@@ -890,7 +890,7 @@ export default function GradesFlow({
           statusOptions: [
             { value: "all", label: "All Status" },
             { value: "completed", label: "Completed" },
-            { value: "not_started", label: "Not Started" },
+            { value: "not_started", label: "Not completed" },
           ],
           passFailOptions: [
             { value: "all", label: "All Students" },
@@ -1102,7 +1102,7 @@ export default function GradesFlow({
     const serverStatus = String(p.status || "").toLowerCase();
     const submittedByServer = serverStatus === "completed" || serverStatus === "evaluated" || serverStatus === "submitted";
     const status = submittedByServer || scoreTotal > 0 || attendedQ > 0
-      ? "Completed" : "Not Started";
+      ? "Completed" : "Not completed";
     return {
       "#": i + 1,
       "Student Name": s.name || "",
