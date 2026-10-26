@@ -325,6 +325,13 @@ const hasPermissionForRoute = (pathname: string): { hasAccess: boolean; required
     return { hasAccess: true }
   }
 
+  // ── Grades: every role has a view of it, so no separate grant is needed.
+  //    Students see only their own marks and a trainer only their batches'
+  //    students — the server enforces both. ─────────────────────────────────
+  if (pathname === '/lms/pages/grades' || pathname.startsWith('/lms/pages/grades/')) {
+    return { hasAccess: true, requiredPermission: 'grades' }
+  }
+
   // ── Allow logs page for all non-student staff/admin roles ─────────────────
   if (pathname.startsWith('/lms/pages/logs')) {
     return { hasAccess: !isStudent }

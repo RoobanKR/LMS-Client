@@ -11,6 +11,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import DashboardLayout from "@/app/lms/component/layout";
 import { StaffLayout } from "@/app/lms/component/stafflayout/staff-layout";
+import { StudentLayout } from "@/app/lms/component/student/student-layout";
 import { pageEnter } from "@/app/lms/shared/ui";
 import TableFooter from "@/app/lms/shared/listing/TableFooter";
 import {
@@ -351,6 +352,11 @@ export default function GradesFlow({
   // Needed by the Overall report, which fetches each exercise's student list
   // on demand (through the cache) rather than mounting a query per exercise.
   const queryClient = useQueryClient();
+
+  // The role that picks the standalone page's shell (see the end of this
+  // component). Read once — the auth gate never server-renders this page.
+  const [shellRole] = useState(() => typeof window === "undefined" ? "" :
+    (localStorage.getItem("smartcliff_roleValue") || localStorage.getItem("smartcliff_originalRole") || "").toLowerCase());
 
   const [activeTab, setActiveTab] = useState<"exercises" | "students" | "questions">("exercises");
   const [courseId, setCourseId] = useState<string | null>(courseIdProp ?? null);
@@ -2464,7 +2470,7 @@ export default function GradesFlow({
   //     StaffLayout carrying the SAME CourseSidebar tree the resources screen
   //     shows, so the left rail does not change under them mid-task.
   //   • Any other entry (course-row Actions ▸ Grade, the standalone
-  //     /lms/pages/grades picker) → the admin DashboardLayout, unchanged.
+  //     /lms/pages/grades picker) → the shell for the viewer's role, below.
   if (showSyllabusRail) {
     return (
       <StaffLayout
@@ -2514,9 +2520,13 @@ export default function GradesFlow({
     );
   }
 
-  // Wrapped in the same DashboardLayout as User Management and Course Setup
-  // so the Grades detail page carries the admin shell (sidebar, floating
-  // workspace panel, canvas background) — was a full-screen bespoke page
-  // before this pass, which is the difference the trainer flagged.
-  return <DashboardLayout>{pageContent}</DashboardLayout>;
+  // The same shell the Grades list (/lms/pages/grades) picks for this role,
+  // so opening a course doesn't swap the sidebar under the viewer: the admin
+  // roles keep the admin DashboardLayout, a student the student rail, and
+  // everyone else (trainers) the staff rail.
+  if (["admin", "ldhead", "subhead", "programcoordinator"].includes(shellRole)) {
+    return <DashboardLayout>{pageContent}</DashboardLayout>;
+  }
+  if (shellRole.includes("student")) return <StudentLayout>{pageContent}</StudentLayout>;
+  return <StaffLayout>{pageContent}</StaffLayout>;
 }

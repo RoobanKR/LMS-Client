@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useQuery } from "@tanstack/react-query"
 import { notificationsService, notificationKeys } from "@/apiServices/notifications"
-import { getToken } from "@/lib/session"
+import { getToken, isPocSession } from "@/lib/session"
 import { TRAINER_COURSE_ROUTE, trainerCourseRoute } from "@/app/lms/shared/trainerCourseRoute"
 import { logoutUser } from "@/apiServices/tokenVerify"
 import { postLogout } from "@/apiServices/activityLog"
@@ -258,8 +258,24 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
         items.push(...rest)
       }
 
-      // Grades is currently hidden from a trainer's rail (see the filter just
-      // before setSidebarItems below).
+      // Grades — injected for every staff account except a POC (whose pages
+      // are an allowlist of its own grants), the same way as Reports below:
+      // the course list holds only the trainer's own courses and the server
+      // shows them only their batches' students, so a separate grant would
+      // guard nothing. Sits just above Notifications, ahead of Reports.
+      if (!isPocSession() && !items.some((i) => i.href === `${BASE_PATH}grades`)) {
+        const notifIdx = items.findIndex((i) =>
+          canonicalPermissionKey(i.permissionKey).includes("notification"),
+        )
+        const gradesItem: SidebarItem = {
+          icon: getIconByName("graduation-cap"),
+          label: "Grades",
+          href: `${BASE_PATH}grades`,
+          permissionKey: "grades",
+        }
+        if (notifIdx >= 0) items.splice(notifIdx, 0, gradesItem)
+        else items.push(gradesItem)
+      }
 
       // "Reports" — the course list (/lms/pages/reports/performance), the same
       // page the L&D rail's Reports opens. Injected for every staff-shell
@@ -281,14 +297,10 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
         else items.push(reportItem)
       }
 
-      // Grades is hidden from the trainer rail for now — the page itself still
-      // opens by its URL. To bring it back, delete this one filter line.
-      const visible = items.filter((i) => i.href !== `${BASE_PATH}grades`)
-
       // Some trainers hold both legacy course grants; render one destination.
-      setSidebarItems(visible.filter((item, index) =>
+      setSidebarItems(items.filter((item, index) =>
         !trainerCourseRoute(item.permissionKey || "", u.role) ||
-        visible.findIndex((other) => other.href === item.href) === index,
+        items.findIndex((other) => other.href === item.href) === index,
       ))
     } catch (e) {
       console.error("Error loading user data for sidebar:", e)

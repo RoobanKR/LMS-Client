@@ -645,7 +645,7 @@ export default function ProfilePage() {
                 <ActionItem icon={KeyRound} label="Change password" sub="Update your sign-in password" onSelect={() => setDialog("password")} />
                 <DropdownMenuSeparator className="my-1.5" />
                 <DropdownMenuLabel className="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wide text-subtle">Data & support</DropdownMenuLabel>
-                <ActionItem icon={Download} label={exporting ? "Preparing your data…" : "Download my data"} sub="Profile, notes and progress (JSON)" onSelect={() => { void downloadMyData() }} disabled={exporting} />
+                {!isStudentRole && <ActionItem icon={Download} label={exporting ? "Preparing your data…" : "Download my data"} sub="Profile, notes and progress (JSON)" onSelect={() => { void downloadMyData() }} disabled={exporting} />}
                 <ActionItem icon={LifeBuoy} label="Help & support" sub="Contact the support team" onSelect={() => setDialog("support")} />
               </DropdownMenuContent>
             </DropdownMenu>
