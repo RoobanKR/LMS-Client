@@ -472,6 +472,14 @@ useEffect(() => {
     };
   };
 
+  // The course-level Notes button (end of the breadcrumb row) shows only when
+  // Course Setup turned Notes on somewhere — the Notes resource type in any
+  // section, or Notes on a file type — the same switches the viewers follow.
+  const courseNotesEnabled = (["iDo", "weDo", "youDo"] as const).some((section) => {
+    const cfg: any = (courseData?.resourcesType as any)?.[section];
+    return !!cfg?.notes?.enabled || (["ppt", "pdf", "video", "image", "zip"] as const).some((t) => !!cfg?.[t]?.notes);
+  });
+
   // Helper function to find node title by ID
   const findNodeTitleById = (nodeId: string, courseData: CourseData | null): string => {
     if (!courseData?.modules) return 'Unknown';
@@ -2555,7 +2563,7 @@ const getExercisesForActivity = (): any[] => {
           {!isHeaderCollapsed && (
             <CourseBreadcrumbs
               items={buildBreadcrumbs()}
-              right={<CourseHeaderActions onNotesClick={() => setShowNotesPanel(v => !v)} />}
+              right={<CourseHeaderActions showNotes={courseNotesEnabled} onNotesClick={() => setShowNotesPanel(v => !v)} />}
             />
           )}
           {!isHeaderCollapsed && (

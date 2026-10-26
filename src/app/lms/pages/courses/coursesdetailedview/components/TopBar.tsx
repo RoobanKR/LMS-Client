@@ -62,15 +62,15 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, tabs }) => {
 /** Notes and Notifications — the course view's page actions, at the end of
  *  the breadcrumb row. The bell is the app's shared NotificationBell, the
  *  same round control Upload Resources shows. */
-export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void }> = ({ onNotesClick }) => {
+export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void; showNotes?: boolean }> = ({ onNotesClick, showNotes = true }) => {
   const [notesLoading, setNotesLoading] = useState(false)
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
 
       {/* Notes — a labelled pill in the brand tint, sized to the breadcrumb
-          text beside it. */}
-      <button
+          text beside it. Only for a course that turned Notes on. */}
+      {showNotes && <button
         type="button"
         onClick={() => {
           if (!onNotesClick || notesLoading) return
@@ -100,7 +100,7 @@ export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void }> = ({ o
           ? <CircleNotch size={15} weight="bold" style={{ animation: 'spin 0.7s linear infinite' }} />
           : <NotePencil size={15} weight="bold" />}
         Notes
-      </button>
+      </button>}
 
       <NotificationBell />
 

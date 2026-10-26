@@ -286,6 +286,27 @@ export default function CodingAnalyticsPage() {
     }
   };
 
+  const disconnect = async () => {
+    setHandleInput('');
+    setSaving(true);
+    setSaveError(null);
+    try {
+      setAccounts(await saveMyCodingAccount(platform, ''));
+      setEditing(false);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // A saved handle that fails to load (mistyped username, …) gets fixed right
+  // in the error card, so prefill it with what was saved.
+  useEffect(() => {
+    if (error && error !== 'NOT_CONNECTED') { setHandleInput(accounts?.[platform] || ''); setSaveError(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
   useEffect(() => {
     if (!pickerOpen) return;
     const close = (e: MouseEvent) => {
@@ -429,8 +450,7 @@ export default function CodingAnalyticsPage() {
                 className="h-9 px-4 rounded-lg border border-gray-200 text-[12.5px] font-semibold text-gray-700 hover:bg-gray-50">
                 Cancel
               </button>
-              <button type="button" disabled={saving}
-                onClick={async () => { setHandleInput(''); setSaving(true); setSaveError(null); try { setAccounts(await saveMyCodingAccount(platform, '')); setEditing(false); } catch (err: any) { setSaveError(err?.message || 'Could not save'); } finally { setSaving(false); } }}
+              <button type="button" disabled={saving} onClick={disconnect}
                 className="h-9 px-3 rounded-lg text-[12.5px] font-semibold text-rose-600 hover:bg-rose-50">
                 Disconnect
               </button>
@@ -438,14 +458,29 @@ export default function CodingAnalyticsPage() {
             {saveError && <p className="mt-2 text-[12px] text-rose-600">{saveError}</p>}
           </Card>
         )}
-        {!loading && error && !notConnected && (
+        {!loading && error && !notConnected && !editing && (
           <Card className="py-12 text-center">
             <AlertCircle size={26} className="mx-auto text-rose-400" />
             <h2 className="mt-3 text-[14px] font-semibold text-gray-900">Couldn't load {meta.name} data</h2>
             <p className="mt-1 text-[12px] text-gray-500 max-w-md mx-auto">{error}</p>
-            <button type="button" onClick={() => load(platform, accounts?.[platform], true)}
-              className="mt-4 inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border border-gray-200 text-[12.5px] font-semibold text-gray-700 hover:bg-gray-50">
-              <RefreshCw size={13} /> Retry
+            {/* Fix the username here — a mistyped one fails the same way on every Retry. */}
+            <form onSubmit={saveHandle} className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2 px-4">
+              <input value={handleInput} onChange={(e) => setHandleInput(e.target.value)}
+                placeholder={`Your ${meta.name} username`} aria-label={`${meta.name} username`}
+                className="h-9 w-64 max-w-full rounded-lg border border-gray-200 px-3 text-[12.5px] outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
+              <button type="submit" disabled={saving || !handleInput.trim()}
+                className="h-9 px-4 rounded-lg bg-gray-900 text-white text-[12.5px] font-semibold hover:bg-gray-800 disabled:opacity-50">
+                {saving ? 'Saving…' : 'Save & connect'}
+              </button>
+              <button type="button" onClick={() => load(platform, accounts?.[platform], true)}
+                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border border-gray-200 text-[12.5px] font-semibold text-gray-700 hover:bg-gray-50">
+                <RefreshCw size={13} /> Retry
+              </button>
+            </form>
+            {saveError && <p className="mt-2 text-[12px] text-rose-600">{saveError}</p>}
+            <button type="button" disabled={saving} onClick={disconnect}
+              className="mt-3 text-[12px] font-semibold text-rose-600 hover:underline disabled:opacity-50">
+              Disconnect {meta.name}
             </button>
           </Card>
         )}
