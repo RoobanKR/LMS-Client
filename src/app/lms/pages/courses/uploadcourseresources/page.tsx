@@ -1159,9 +1159,9 @@ export default function DynamicLMSCoordinator() {
       { configKey: "image", key: "image", label: "Image", icon: <ImageIcon size={22} />, color: "#10b981", tooltip: "Upload image files", accept: "image/*,.png,.jpg,.jpeg,.gif,.webp,.svg" },
       { configKey: "zip", key: "zip", label: "ZIP File", icon: <FileArchive size={22} />, color: "#a855f7", tooltip: "Upload ZIP archives", accept: ".zip,.rar,.7z,.tar,.gz" },
       { configKey: "url", key: "url", label: "URL", icon: <Link2 size={22} />, color: "#10b981", tooltip: "Add external URLs", accept: "url" },
-      // Notes / AI are "Student Used Feature" items — kept here too (not just
-      // in studentFeatureTypes below) so icon/accept lookups and the content
-      // filter dropdown still resolve them once something's been uploaded.
+      // Notes / AI are "Student Used Feature" items — not offered in the "Add a
+      // new resource" picker, but kept here so icon/accept lookups and the
+      // content filter dropdown still resolve them once something's been uploaded.
       { configKey: "notes", key: "notes", label: "Notes", icon: <StickyNote size={22} />, color: "#84cc16", tooltip: "Upload downloadable study notes", accept: ".pdf,.doc,.docx,.txt" },
       { configKey: "ai", key: "ai", label: "AI", icon: <Bot size={22} />, color: "#6366f1", tooltip: "AI-generated content", accept: "*" },
     ];
@@ -1237,30 +1237,6 @@ export default function DynamicLMSCoordinator() {
     () => buildAllowedRules(uploadableTypeKeys, uploadMaxSizeByType),
     [uploadableTypeKeys, uploadMaxSizeByType]
   );
-
-  // "Student Used Feature" — Notes / AI, shown separately in the "Add a new
-  // resource" picker. Only appears when the course enabled at least one
-  // (which itself only happens if the institution's Super Admin granted it —
-  // see Resourcetypesection), so this mirrors that chain end to end.
-  const studentFeatureTypes: FileTypeConfig[] = useMemo(() => {
-    const CATALOG: (FileTypeConfig & { configKey: string })[] = [
-      { configKey: "notes", key: "notes", label: "Notes", icon: <StickyNote size={22} />, color: "#84cc16", tooltip: "Upload downloadable study notes", accept: ".pdf,.doc,.docx,.txt" },
-      { configKey: "ai", key: "ai", label: "AI", icon: <Bot size={22} />, color: "#6366f1", tooltip: "AI-generated content", accept: "*" },
-    ];
-
-    const rt = courseStructureResponse?.data?.resourcesType;
-    const iDoResources =
-      rt && typeof rt === "object" && !Array.isArray(rt) && "iDo" in rt
-        ? (rt as any).iDo
-        : null;
-
-    // No saved config at all (legacy course) → nothing to show; unlike the
-    // main list, there's no sensible "show everything" fallback for a brand
-    // new feature the institution may never have enabled.
-    if (!iDoResources) return [];
-
-    return CATALOG.filter((t) => iDoResources[t.configKey]?.enabled === true).map(({ configKey, ...t }) => t);
-  }, [courseStructureResponse]);
 
 
   // Add this state
@@ -4758,8 +4734,6 @@ const handleNavigateToFolderLevel = useCallback(async (folderName: string, index
         isOpen={showNotionModal}
         onClose={() => setShowNotionModal(false)}
         fileTypes={fileTypes}  // This already contains only Video (plus static folder, zip, reference)
-        // The picker cards read `description`; the catalog carries it as `tooltip`.
-        studentFeatureItems={studentFeatureTypes.map(({ key, label, icon, color, tooltip }) => ({ key, label, icon, color, description: tooltip }))}
         selectedNode={selectedNode}
         activeTab={activeTab}
         activeSubcategory={activeSubcategory}

@@ -30,11 +30,6 @@ interface NotionResourceModalProps {
   isOpen: boolean;
   onClose: () => void;
   fileTypes: FileTypeConfig[];
-  // Notes / AI — shown in their own "Student Used Feature" section below the
-  // main picker, and only when the Super Admin enabled at least one of them
-  // for this institution (see Resource Management). Empty/omitted → section
-  // is hidden entirely.
-  studentFeatureItems?: { key: string; label: string; description: string; icon: React.ReactNode; color: string }[];
   selectedNode: CourseNode | null;
   activeTab: "I_Do" | "We_Do" | "You_Do" | null;
   activeSubcategory: string;
@@ -60,8 +55,9 @@ interface NotionResourceModalProps {
  * The upload types the "File" card stands for. The card is a doorway into the
  * file upload modal, which itself only offers the types the course enabled — so
  * with none of these enabled the card would open an empty modal and is hidden.
- * Notes / AI are deliberately absent: they're "Student Used Feature" items with
- * their own section, and must not keep the File card alive on their own.
+ * Notes / AI are deliberately absent: they're Course Setup's "Student Used
+ * Feature" switches, not something added here, and must not keep the File
+ * card alive on their own.
  */
 const FILE_CARD_TYPES = ["video", "ppt", "pdf", "image", "zip"] as const;
 
@@ -138,7 +134,7 @@ function buildPlainPathCrumbs(
 
 // ─── NotionResourceModal ───────────────────────────────────────────────────────
 export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
-  isOpen, onClose, fileTypes, studentFeatureItems = [], selectedNode, activeTab, activeSubcategory,
+  isOpen, onClose, fileTypes, selectedNode, activeTab, activeSubcategory,
   currentFolderPath, onSelectType, onCreateFolder, onOpenFileUploadModal,
   onCreatePage, hierarchyInfo, onPageCreated, onNavigateTo, pathCrumbs,
 }) => {
@@ -192,10 +188,6 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
   if (!isOpen) return null;
 
   const filtered = availableItems.filter(item =>
-    item.label.toLowerCase().includes(search.toLowerCase()) ||
-    item.description.toLowerCase().includes(search.toLowerCase())
-  );
-  const filteredStudentFeatures = studentFeatureItems.filter(item =>
     item.label.toLowerCase().includes(search.toLowerCase()) ||
     item.description.toLowerCase().includes(search.toLowerCase())
   );
@@ -565,7 +557,7 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
               scrollbarColor: `${T.border} transparent`,
             }}
           >
-            {filtered.length === 0 && filteredStudentFeatures.length === 0 ? (
+            {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div
                   className="flex items-center justify-center mb-3"
@@ -579,44 +571,12 @@ export const NotionResourceModal: React.FC<NotionResourceModalProps> = ({
                 <p className="text-[11.5px] mt-1" style={{ color: T.textMuted }}>Try a different keyword</p>
               </div>
             ) : (
-              <>
-              {filtered.length > 0 && (
               <div
                 className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:[grid-template-columns:var(--nrm-cols)]"
                 style={{ "--nrm-cols": `repeat(${Math.min(filtered.length, 5)}, 1fr)` } as React.CSSProperties}
               >
                 {filtered.map(renderCard)}
               </div>
-              )}
-
-              {/* ── Student Used Feature (Notes / AI) ──────────────────────
-                  Only rendered when the Super Admin enabled at least one of
-                  them for this institution's Resource Management. */}
-              {filteredStudentFeatures.length > 0 && (
-                <>
-                  <div
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      margin: filtered.length > 0 ? "16px 0 10px" : "0 0 10px",
-                    }}
-                  >
-                    <span style={{
-                      fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em",
-                      textTransform: "uppercase", color: T.textMuted,
-                    }}>
-                      Student Used Feature
-                    </span>
-                    <div style={{ flex: 1, height: 1, background: T.border }} />
-                  </div>
-                  <div
-                    className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:[grid-template-columns:var(--nrm-cols)]"
-                    style={{ "--nrm-cols": `repeat(${Math.min(filteredStudentFeatures.length, 5)}, 1fr)` } as React.CSSProperties}
-                  >
-                    {filteredStudentFeatures.map(renderCard)}
-                  </div>
-                </>
-              )}
-              </>
             )}
           </div>
 
