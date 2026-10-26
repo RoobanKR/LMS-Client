@@ -72,6 +72,8 @@ export type UsersPageParams = {
   department?: string;
   year?: string;
   batch?: string;
+  /** 'yes' = has signed in at least once, 'no' = never; absent = both. */
+  firstLogin?: string;
   sortKey?: string;
   sortDir?: "asc" | "desc";
 };
@@ -114,6 +116,7 @@ const buildUsersPageParams = (p: UsersPageParams, isExport = false) => {
   if (p.department && p.department !== "all") q.department = p.department;
   if (p.year && p.year !== "all") q.year = p.year;
   if (p.batch && p.batch !== "all") q.batch = p.batch;
+  if (p.firstLogin === "yes" || p.firstLogin === "no") q.firstLogin = p.firstLogin;
   if (p.sortKey) {
     q.sortKey = p.sortKey;
     q.sortDir = p.sortDir || "asc";

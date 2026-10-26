@@ -60,15 +60,17 @@ interface UsersTableProps {
 // too narrow, the text is simply cut off.
 const COL = {
   check: "w-[4%] pl-4 sm:pl-5 pr-0 text-left",
-  user: "w-[22%] px-3 text-left",
+  user: "w-[20%] px-3 text-left",
   // Email was hoarding space that Phone and Actions needed.
-  email: "w-[26%] px-3 text-left",
+  email: "w-[21%] px-3 text-left",
   // Phone bumped up so 10-digit numbers stop hugging the column's left edge.
-  phone: "w-[14%] px-3 text-left hidden lg:table-cell",
+  phone: "w-[11%] px-3 text-left hidden lg:table-cell",
   // Role holds a fixed pill; the longest label ("Super Administrator")
   // fits inside ~150 px, so 12 % is enough on typical viewports.
-  role: "w-[12%] px-3 text-left",
-  status: "w-[14%] px-3 text-right whitespace-nowrap",
+  role: "w-[11%] px-3 text-left",
+  // "26 Oct 2026, 3:30 pm" — or "Not yet" for an account never signed in.
+  firstLogin: "w-[13%] px-3 text-left whitespace-nowrap hidden md:table-cell",
+  status: "w-[12%] px-3 text-right whitespace-nowrap",
   // 8 % keeps the 28 px kebab safely inside the list — under 6 % the
   // browser was expanding this column past its declared width to fit
   // the button + right gutter, spilling past the container edge.
@@ -83,6 +85,10 @@ const HEAD_CELL =
 const BODY_CELL = "h-11 align-middle text-[12px] text-body";
 // Skeleton bar, matching DataTable's.
 const BAR = "h-2.5 rounded bg-ink-100 animate-pulse";
+
+// "26 Oct 2026, 3:30 pm" in the viewer's time zone.
+export const formatFirstLogin = (iso: string) =>
+  new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 
 function SortButton({
   label,
@@ -143,8 +149,8 @@ export function UsersTable({
     }
   }, [somePageSelected, allPageSelected]);
 
-  // checkbox + user + email + phone + role + status (+ actions when shown)
-  const COL_SPAN = 6 + (showActionsColumn ? 1 : 0);
+  // checkbox + user + email + phone + role + first login + status (+ actions when shown)
+  const COL_SPAN = 7 + (showActionsColumn ? 1 : 0);
 
   return (
     <div
@@ -187,6 +193,9 @@ export function UsersTable({
             <th className={`${HEAD_CELL} ${COL.role}`}>
               <SortButton label="Role" columnKey="role" active={sortKey === "role"} dir={sortDir} onSort={onSort} />
             </th>
+            <th className={`${HEAD_CELL} ${COL.firstLogin}`}>
+              <SortButton label="First Login" columnKey="firstLogin" active={sortKey === "firstLogin"} dir={sortDir} onSort={onSort} />
+            </th>
             <th className={`${HEAD_CELL} ${COL.status}`}>
               <SortButton label="Status" columnKey="status" active={sortKey === "status"} dir={sortDir} onSort={onSort} />
             </th>
@@ -217,6 +226,9 @@ export function UsersTable({
                 </td>
                 <td className={`${COL.role} ${BODY_CELL}`}>
                   <div className="h-[22px] w-[80%] rounded-full bg-ink-100 animate-pulse" style={{ animationDelay: `${i * 55}ms` }} />
+                </td>
+                <td className={`${COL.firstLogin} ${BODY_CELL}`}>
+                  <div className={`${BAR} w-[80%]`} style={{ animationDelay: `${i * 55}ms` }} />
                 </td>
                 <td className={`${COL.status} ${BODY_CELL}`}>
                   <div className="ml-auto h-[22px] w-[75%] rounded-full bg-ink-100 animate-pulse" style={{ animationDelay: `${i * 55}ms` }} />
@@ -282,6 +294,11 @@ export function UsersTable({
                     <StatusPill tone={roleTone(user.role)} className="max-w-full h-[22px] px-2 text-[11px]">
                       <span className="truncate" title={user.role}>{user.role}</span>
                     </StatusPill>
+                  </td>
+                  <td className={`${COL.firstLogin} ${BODY_CELL}`}>
+                    {user.firstLoginAt
+                      ? <span className="tabular-nums">{formatFirstLogin(user.firstLoginAt)}</span>
+                      : <span className="text-faint">Not yet</span>}
                   </td>
                   <td className={`${COL.status} ${BODY_CELL}`}>{renderStatus(user)}</td>
                   {showActionsColumn && (

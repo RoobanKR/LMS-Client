@@ -58,7 +58,7 @@ import { UserModals } from "./components/UserModals";
 import BulkUserModal from "./components/BulkUserModal";
 import BulkEditModal from "./components/BulkEditModal";
 import { RowActionsMenu, rowHasAnyAction } from "./components/RowActionsMenu";
-import { UsersTable } from "./components/UsersTable";
+import { UsersTable, formatFirstLogin } from "./components/UsersTable";
 import UsersOverview from "./components/UsersOverview";
 import UserReportPage from "./components/UserReportPage";
 import {
@@ -75,6 +75,13 @@ import { defaultPermissionsForRole } from "./config/permissions.helpers";
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
+];
+
+// First Login — has the user ever signed in. Same multi-select shape as
+// Status: picking both is the same as picking neither.
+const FIRST_LOGIN_OPTIONS = [
+  { value: "yes", label: "Logged in" },
+  { value: "no", label: "Not logged in yet" },
 ];
 
 // Pull the human-readable message out of a backend error response. The API
@@ -156,6 +163,9 @@ export default function UserManagementPage() {
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [selectedServiceModels, setSelectedServiceModels] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedFirstLogin, setSelectedFirstLogin] = useState<string[]>([]);
+  // One option picked narrows; both (or none) is every user.
+  const firstLoginParam = selectedFirstLogin.length === 1 ? selectedFirstLogin[0] : "";
   // Service Providing Year and Course were added to the filter panel so the
   // Users tab reads with the same six columns Course Setup and the Reports
   // tab expose. Options live under filterOptions.providingYears / .courses
@@ -263,7 +273,7 @@ export default function UserManagementPage() {
   const filterSignature = JSON.stringify([
     debouncedSearchTerm, searchField, selectedRoles, selectedStatus,
     selectedClients, selectedServices, selectedServiceModels, selectedStatuses,
-    selectedDegree, selectedDepartment, selectedYear,
+    selectedDegree, selectedDepartment, selectedYear, firstLoginParam,
   ]);
   const [lastFilterSignature, setLastFilterSignature] = useState(filterSignature);
   if (lastFilterSignature !== filterSignature) {
@@ -298,12 +308,13 @@ export default function UserManagementPage() {
       degree: selectedDegree,
       department: selectedDepartment,
       year: selectedYear,
+      firstLogin: firstLoginParam,
       sortKey,
       sortDir,
     }),
     [currentPage, pageSize, debouncedSearchTerm, searchField, selectedRoles, selectedStatus,
       selectedClients, selectedServices, selectedServiceModels, selectedStatuses,
-      selectedDegree, selectedDepartment, selectedYear, sortKey, sortDir],
+      selectedDegree, selectedDepartment, selectedYear, firstLoginParam, sortKey, sortDir],
   );
 
   // `isLoading` is true only for the very first page — keepPreviousData holds
@@ -555,6 +566,7 @@ export default function UserManagementPage() {
     setSelectedServices([]);
     setSelectedServiceModels([]);
     setSelectedStatuses([]);
+    setSelectedFirstLogin([]);
     setSelectedProvidingYears([]);
     setSelectedCourses([]);
     setSelectedDegree("");
@@ -569,6 +581,7 @@ export default function UserManagementPage() {
     return selectedRoles.length > 0 || selectedStatus !== "" ||
       selectedClients.length > 0 || selectedServices.length > 0 ||
       selectedServiceModels.length > 0 || selectedStatuses.length > 0 ||
+      selectedFirstLogin.length > 0 ||
       selectedProvidingYears.length > 0 || selectedCourses.length > 0 ||
       selectedDegree !== "" || selectedDepartment !== "" ||
       selectedYear !== "" || searchTerm !== "";
@@ -611,6 +624,8 @@ export default function UserManagementPage() {
   // ── Sorting ────────────────────────────────────────────────────────────────
   const sortValue = (u: User, key: string): string => {
     if (key === 'name') return `${u.firstName} ${u.lastName}`.toLowerCase();
+    // ISO time sorts as text; never-signed-in ("") first, as the server does.
+    if (key === 'firstLogin') return u.firstLoginAt || '';
     return String((u as any)[key] ?? '').toLowerCase();
   };
 
@@ -783,6 +798,7 @@ export default function UserManagementPage() {
           degree: selectedDegree,
           department: selectedDepartment,
           year: selectedYear,
+          firstLogin: firstLoginParam,
           sortKey,
           sortDir,
         });
@@ -802,12 +818,13 @@ export default function UserManagementPage() {
       const s = String(v ?? '');
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const header = ["First Name", "Last Name", "Email", "Phone", "Gender", "Role", "Batch", "Degree", "Department", "Semester", "Section", "Client", "Status"];
+    const header = ["First Name", "Last Name", "Email", "Phone", "Gender", "Role", "Batch", "Degree", "Department", "Semester", "Section", "Client", "First Login", "Status"];
     const lines = [
       header.join(','),
       ...rows.map(u => [
         u.firstName, u.lastName, u.email, u.phone, u.gender, u.role, u.batch,
-        u.degree, u.department, u.semester, u.section, u.clientName, u.status,
+        u.degree, u.department, u.semester, u.section, u.clientName,
+        u.firstLoginAt ? formatFirstLogin(u.firstLoginAt) : 'Not yet', u.status,
       ].map(esc).join(',')),
     ];
     const blob = new Blob(["﻿" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
@@ -985,6 +1002,7 @@ export default function UserManagementPage() {
     (selectedServices.length ? 1 : 0) +
     (selectedServiceModels.length ? 1 : 0) +
     (selectedStatuses.length ? 1 : 0) +
+    (selectedFirstLogin.length ? 1 : 0) +
     (selectedProvidingYears.length ? 1 : 0) +
     (selectedCourses.length ? 1 : 0) +
     (isSet(selectedStatus) ? 1 : 0) +
@@ -1022,6 +1040,11 @@ export default function UserManagementPage() {
       key: `statuses-${value}`,
       label: value === "active" ? "Active" : "Inactive",
       onRemove: () => setSelectedStatuses(selectedStatuses.filter((c) => c !== value)),
+    })),
+    ...selectedFirstLogin.map((value) => ({
+      key: `firstLogin-${value}`,
+      label: labelOf(FIRST_LOGIN_OPTIONS, value),
+      onRemove: () => setSelectedFirstLogin(selectedFirstLogin.filter((c) => c !== value)),
     })),
     ...selectedProvidingYears.map((year) => ({
       key: `providingYear-${year}`,
@@ -1289,6 +1312,10 @@ export default function UserManagementPage() {
               <div className="min-w-0">
                 <p className="mb-1.5 text-xs font-medium text-subtle">Role</p>
                 <MappingMultiFilter label="Role" options={filterOptions.roles} value={selectedRoles} onChange={setSelectedRoles} placeholder="Select role" />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1.5 text-xs font-medium text-subtle">First Login</p>
+                <MappingMultiFilter label="First Login" options={FIRST_LOGIN_OPTIONS} value={selectedFirstLogin} onChange={setSelectedFirstLogin} placeholder="Select first login" />
               </div>
               <div className="min-w-0">
                 <p className="mb-1.5 text-xs font-medium text-subtle">Status</p>

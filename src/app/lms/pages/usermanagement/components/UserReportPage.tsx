@@ -28,6 +28,7 @@ import { businessModelDisplayName } from '@/app/lms/pages/clientmanagement/featu
 import { useClients, type Client } from '@/app/lms/pages/clientmanagement/api/clientManagementService'
 import { useServiceMappings, type ServiceMapping } from '@/app/lms/pages/servicemapping/api/serviceMappingService'
 import { fetchUsersForExport, type ServiceIndexEntry } from '../api/userService'
+import { formatFirstLogin } from './UsersTable'
 import {
     activeFormat, fetchReportSettings, newFormat,
     type ReportFormat, type ReportSettings,
@@ -115,6 +116,7 @@ const USER_FIELDS: FieldRow[] = [
     { key: 'userName', label: 'User Name', required: true, scope: 'service', column: 'User Name', dataKey: 'userName' },
     { key: 'userEmail', label: 'Email', scope: 'service', column: 'Email', dataKey: 'userEmail' },
     { key: 'userRole', label: 'Role', scope: 'service', column: 'Role', dataKey: 'userRole' },
+    { key: 'userFirstLogin', label: 'First Login', scope: 'service', column: 'First Login', dataKey: 'userFirstLogin' },
     { key: 'userStatus', label: 'Status', scope: 'service', column: 'Status', dataKey: 'userStatus' },
     { key: 'userPhone', label: 'Phone', scope: 'service', column: 'Phone', dataKey: 'userPhone' },
 ]
@@ -125,7 +127,7 @@ const USER_FIELDS: FieldRow[] = [
  * above) but start unticked; toggling them on switches the printed
  * sheet to the per-client rowspanned layout, and toggling them off
  * gives the sheet ONE ROW PER USER with its own S. No. */
-const USER_DEFAULT_ENABLED = new Set(['userName', 'userEmail', 'userPhone', 'userRole', 'userStatus'])
+const USER_DEFAULT_ENABLED = new Set(['userName', 'userEmail', 'userPhone', 'userRole', 'userFirstLogin', 'userStatus'])
 
 /* ── Reading a user record ────────────────────────────────────────────
  *  The export payload types users as `any`; this narrows the fields
@@ -142,6 +144,8 @@ type UserRecord = {
     email?: string
     phone?: string
     status?: string
+    /** When the user first signed in (ISO); missing = never yet. */
+    firstLoginAt?: string | null
     role?: { renameRole?: string; originalRole?: string; _id?: string } | string
     clientId?: unknown
     clientName?: unknown
@@ -568,6 +572,7 @@ export default function UserReportPage() {
                             userEmail: String(row.user.email || '').trim() || '—',
                             userPhone: String(row.user.phone || '').trim() || '—',
                             userRole: roleName(row.user.role) || '—',
+                            userFirstLogin: row.user.firstLoginAt ? formatFirstLogin(row.user.firstLoginAt) : 'Not yet',
                             userStatus: row.user.status ? capitalise(String(row.user.status)) : '—',
                             service: row.service ? displayLabel(row.service) : '—',
                             serviceModel: row.enrolment.serviceModel
@@ -813,20 +818,21 @@ export default function UserReportPage() {
                                     <div className={REPORT_TABLE_CARD}>
                                         <div className="min-h-0 flex-1 overflow-auto">
                                             <table className="w-full min-w-[680px] lg:min-w-0 table-fixed border-collapse text-xs">
-                                                {/* Six columns — the user-scope default
+                                                {/* Seven columns — the user-scope default
                                                     set: S. No. / User Name / Email / Phone /
-                                                    Role / Status. Client and Business Model
-                                                    are OFF by default; the reader ticks them
-                                                    in Customize Fields for the printed sheet.
-                                                    Every user is its own row and S. No.
-                                                    Widths sum to 100. */}
+                                                    Role / First Login / Status. Client and
+                                                    Business Model are OFF by default; the
+                                                    reader ticks them in Customize Fields for
+                                                    the printed sheet. Every user is its own
+                                                    row and S. No. Widths sum to 100. */}
                                                 <colgroup>
                                                     <col style={{ width: '6%' }} />
+                                                    <col style={{ width: '20%' }} />
                                                     <col style={{ width: '22%' }} />
-                                                    <col style={{ width: '26%' }} />
-                                                    <col style={{ width: '16%' }} />
-                                                    <col style={{ width: '18%' }} />
-                                                    <col style={{ width: '12%' }} />
+                                                    <col style={{ width: '13%' }} />
+                                                    <col style={{ width: '14%' }} />
+                                                    <col style={{ width: '14%' }} />
+                                                    <col style={{ width: '11%' }} />
                                                 </colgroup>
                                                 <thead>
                                                     <tr>
@@ -835,6 +841,7 @@ export default function UserReportPage() {
                                                         <th className={`${REPORT_TH} border-r text-left`}>Email</th>
                                                         <th className={`${REPORT_TH} border-r text-left`}>Phone</th>
                                                         <th className={`${REPORT_TH} border-r text-left`}>Role</th>
+                                                        <th className={`${REPORT_TH} border-r text-left`}>First Login</th>
                                                         <th className={`${REPORT_TH} text-center`}>Status</th>
                                                     </tr>
                                                 </thead>
@@ -846,6 +853,7 @@ export default function UserReportPage() {
                                                             <td className={`${REPORT_TD} text-body`} style={REPORT_WRAP}>{svc.userEmail || '—'}</td>
                                                             <td className={`${REPORT_TD} text-body`} style={REPORT_WRAP}>{svc.userPhone || '—'}</td>
                                                             <td className={`${REPORT_TD} text-body`} style={REPORT_WRAP}>{svc.userRole || '—'}</td>
+                                                            <td className={`${REPORT_TD} text-body tabular-nums`} style={REPORT_WRAP}>{svc.userFirstLogin || '—'}</td>
                                                             <td className="px-3 py-2.5 text-center align-middle text-body">{svc.userStatus || '—'}</td>
                                                         </tr>
                                                     ))}

@@ -35,6 +35,8 @@ export interface User {
   clientName?: string;
   clientId?: string;
   lastLogin: string;
+  /** When the user first signed in (ISO); null = never yet. */
+  firstLoginAt?: string | null;
   degree?: string;
   department?: string;
   semester?: string;

@@ -37,6 +37,7 @@ export const transformUser = (user: any): User => ({
   roleId: user.role?._id || user.role,
   status: user.status || "active",
   lastLogin: user.lastLogin || "",
+  firstLoginAt: user.firstLoginAt || null,
   degree: user.degree || "",
   department: user.department || "",
   semester: user.semester || "",
