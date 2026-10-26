@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft, BookOpen, ChevronRight, ClipboardList, Eye, FileText, Info, Loader2, RotateCcw,
-  Search, SearchX, UsersRound, X,
+  ArrowLeft, BookOpen, CheckCircle2, ChevronRight, CircleDashed, ClipboardList, Clock, Eye, FileText, Info, Loader2, RotateCcw,
+  Search, SearchX, TrendingUp, UsersRound, X,
 } from "lucide-react";
 import { MappingMultiFilter } from "@/app/lms/pages/servicemapping/components/MappingReportFilters";
 import {
@@ -18,7 +18,7 @@ import type { ServiceMapping } from "@/app/lms/pages/servicemapping/api/serviceM
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
 import {
   appliesTo, batchLabel, collectExercises, collectStudents, formatDate, formatMarks, formatPercent, questionsFor,
-  resultFor, round1, totalsFor,
+  resultFor, round1, STATUS_LABEL, totalsFor,
   type ActivityType, type QuestionRow, type ReportExercise, type ReportStudent, type StudentResult,
 } from "./reportData";
 import { fetchReportPayload, liveBatches } from "./reportApi";
@@ -596,7 +596,7 @@ export default function CourseReport() {
            filters, then Reset · Preview & Print · Generate Report — nothing
            is listed until Generate. On one exercise or one student only
            Search applies. */}
-      {currentExercise || currentStudent ? (
+      {currentExercise ? null : currentStudent ? (
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hairline bg-surface px-3 py-2.5 shadow-xs">
           <label className="flex min-w-[220px] flex-1 flex-col gap-1">
             <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Search</span>
@@ -731,7 +731,6 @@ export default function CourseReport() {
       ) : tab === "exercise" && currentExercise ? (
         <ExerciseResults
           exercise={currentExercise}
-          rows={rosterFor(currentExercise).filter((s) => matches(q, s.name, s.regNo, s.email))}
           roster={rosterFor(currentExercise)}
           batches={batchesOf(currentExercise)}
           showSubcategory={showSubcategory}
@@ -882,6 +881,29 @@ function Centered({ icon, title, body }: { icon: React.ReactNode; title: string;
   );
 }
 
+/** One headline number on the exercise card: icon, label, value, a hint. */
+function StatTile({ icon: Icon, color, bg, label, value, hint }: {
+  icon: React.ComponentType<{ size?: number }>;
+  color: string;
+  bg: string;
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-hairline bg-surface px-3 py-2.5">
+      <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg" style={{ background: bg, color }}>
+        <Icon size={17} />
+      </span>
+      <div className="min-w-0">
+        <div className="text-2xs font-medium text-subtle">{label}</div>
+        <div className="text-lg font-bold leading-tight tabular-nums text-heading">{value}</div>
+        {hint && <div className="truncate text-2xs text-faint" title={hint}>{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
 function Card({ children, toolbar }: { children: React.ReactNode; toolbar?: React.ReactNode }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-hairline bg-surface shadow-xs">
@@ -1002,10 +1024,9 @@ function ExerciseList({
 
 // E2 ────────────────────────────────────────────────────────────────────────
 function ExerciseResults({
-  exercise, rows, roster, batches, showSubcategory, resultOf, selected, setSelected, onView, onPrint,
+  exercise, roster, batches, showSubcategory, resultOf, selected, setSelected, onView, onPrint,
 }: {
   exercise: ReportExercise;
-  rows: ReportStudent[];
   /** The students this exercise is set for (batch filter applied). */
   roster: ReportStudent[];
   batches: string;
@@ -1016,11 +1037,45 @@ function ExerciseResults({
   onView: (studentId: string) => void;
   onPrint: (layout: PrintLayout, visible: ReportStudent[]) => void;
 }) {
+  const results = useMemo(
+    () => new Map(roster.map((s) => [s.id, resultOf(exercise.id, s.id)])),
+    [exercise.id, roster, resultOf],
+  );
+
+  // The list's own filters: a small search and floating-label selects.
+  const [query, setQuery] = useState("");
+  const [statusF, setStatusF] = useState<string[]>([]);
+  const [batchF, setBatchF] = useState<string[]>([]);
+  const [levelF, setLevelF] = useState<string[]>([]);
+  const batchesOfStudent = (s: ReportStudent) => (s.batches.length ? s.batches : [s.batch]).filter(Boolean);
+  const statusOptions = (["completed", "in-progress", "not-started"] as const).map((v) => ({ value: v, label: STATUS_LABEL[v] }));
+  const batchOptions = useMemo(
+    () => [...new Set(roster.flatMap(batchesOfStudent))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .map((v) => ({ value: v, label: v })),
+    [roster],
+  );
+  const levelOptions = useMemo(
+    () => [...new Set(roster.map((s) => results.get(s.id)?.scale || "").filter(Boolean))].map((v) => ({ value: v, label: v })),
+    [roster, results],
+  );
+  const ql = query.trim().toLowerCase();
+  const filtered = Boolean(ql || statusF.length || batchF.length || levelF.length);
+  const rows = useMemo(() => roster.filter((s) => {
+    const r = results.get(s.id);
+    if (!r || !matches(ql, s.name, s.regNo, s.email)) return false;
+    if (statusF.length && !statusF.includes(r.status)) return false;
+    if (batchF.length && !batchesOfStudent(s).some((b) => batchF.includes(b))) return false;
+    if (levelF.length && !levelF.includes(r.scale)) return false;
+    return true;
+  }), [roster, results, ql, statusF, batchF, levelF]);
+  const clearFilters = () => { setQuery(""); setStatusF([]); setBatchF([]); setLevelF([]); };
+
   const sel = useSelection(rows, selected, setSelected);
   const counts = useMemo(() => {
     let completed = 0, inProgress = 0, pctSum = 0, pctN = 0;
     for (const s of roster) {
-      const r = resultOf(exercise.id, s.id);
+      const r = results.get(s.id)!;
       if (r.status === "completed") {
         completed += 1;
         // Completed attempts only — see `tallies`.
@@ -1028,7 +1083,9 @@ function ExerciseResults({
       } else if (r.status === "in-progress") inProgress += 1;
     }
     return { completed, inProgress, notStarted: roster.length - completed - inProgress, avg: pctN ? pctSum / pctN : null };
-  }, [exercise.id, roster, resultOf]);
+  }, [roster, results]);
+  const share = (n: number) => (roster.length ? (n / roster.length) * 100 : 0);
+  const shareText = (n: number) => `${Math.round(share(n))}% of students`;
 
   return (
     <>
@@ -1044,26 +1101,87 @@ function ExerciseResults({
             batches && `Batch: ${batches}`]
             .filter(Boolean).join(" · ")}
         </p>
-        <div className="mt-2.5 flex flex-wrap gap-2">
-          <Stat label="Students" value={roster.length} />
-          <Stat label="Completed" value={counts.completed} tone="text-success-700" />
-          <Stat label="In Progress" value={counts.inProgress} tone="text-info-700" />
-          <Stat label="Not Started" value={counts.notStarted} tone="text-subtle" />
-          <Stat label="Avg (completed)" value={formatPercent(counts.avg)} />
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+          <StatTile icon={UsersRound} color="#475467" bg="#F2F4F7" label="Students" value={roster.length} hint="set this exercise" />
+          <StatTile icon={CheckCircle2} color="#067647" bg="#ECFDF3" label="Completed" value={counts.completed} hint={shareText(counts.completed)} />
+          <StatTile icon={Clock} color="#175CD3" bg="#EFF8FF" label="In progress" value={counts.inProgress} hint={shareText(counts.inProgress)} />
+          <StatTile icon={CircleDashed} color="#667085" bg="#F9FAFB" label="Not started" value={counts.notStarted} hint={shareText(counts.notStarted)} />
+          <StatTile
+            icon={TrendingUp} color="#C4320A" bg="#FFF4ED" label="Average score" value={formatPercent(counts.avg)}
+            hint={counts.completed ? `of ${counts.completed} completed attempt${counts.completed === 1 ? "" : "s"}` : "no completed attempt yet"}
+          />
         </div>
+        {/* Where the class stands, at a glance. */}
+        {roster.length > 0 && (
+          <div className="mt-3">
+            <div
+              className="flex h-2 overflow-hidden rounded-full bg-[#EAECF0]"
+              role="img"
+              aria-label={`${counts.completed} completed, ${counts.inProgress} in progress, ${counts.notStarted} not started`}
+            >
+              <div style={{ width: `${share(counts.completed)}%`, background: "#12B76A" }} />
+              <div style={{ width: `${share(counts.inProgress)}%`, background: "#2E90FA" }} />
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-subtle">
+              <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#12B76A]" />Completed {counts.completed}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#2E90FA]" />In progress {counts.inProgress}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#D0D5DD]" />Not started {counts.notStarted}</span>
+            </div>
+          </div>
+        )}
       </div>
       <Card
         toolbar={(
           <>
-            <span className="text-xs text-subtle">
-              {sel.picked ? `${sel.picked} of ${rows.length} selected` : `${rows.length} student${rows.length === 1 ? "" : "s"} — tick rows to print only those`}
-            </span>
-            <PrintMenu
+            {/* Search + floating-label filters over the list */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-3 pt-1">
+              <span className="relative">
+                <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search name, reg no…"
+                  aria-label="Search students"
+                  className="h-9 w-52 rounded-[10px] border border-[#e7ddd1] bg-surface pl-7 pr-7 text-xs text-body shadow-xs focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+                />
+                {query && (
+                  <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-faint hover:text-heading">
+                    <X size={13} />
+                  </button>
+                )}
+              </span>
+              <BorderLabel label="Status" className={`${REPORT_FIELD} w-[150px]`}>
+                <MappingMultiFilter label="Status" options={statusOptions} value={statusF} onChange={setStatusF} placeholder="All statuses" />
+              </BorderLabel>
+              {batchOptions.length > 1 && (
+                <BorderLabel label="Batch" className={`${REPORT_FIELD} w-[150px]`}>
+                  <MappingMultiFilter label="Batches" options={batchOptions} value={batchF} onChange={setBatchF} placeholder="All batches" />
+                </BorderLabel>
+              )}
+              {levelOptions.length > 0 && (
+                <BorderLabel label="Performance level" className={`${REPORT_FIELD} w-[170px]`}>
+                  <MappingMultiFilter label="Performance levels" options={levelOptions} value={levelF} onChange={setLevelF} placeholder="All levels" />
+                </BorderLabel>
+              )}
+              {filtered && (
+                <button type="button" onClick={clearFilters} className="inline-flex h-9 items-center gap-1 rounded-[10px] px-2 text-xs font-medium text-subtle hover:bg-row-hover hover:text-heading">
+                  <RotateCcw size={12} /> Clear
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-subtle">
+                {sel.picked
+                  ? `${sel.picked} of ${rows.length} selected`
+                  : `${rows.length}${filtered ? ` of ${roster.length}` : ""} student${(filtered ? roster.length : rows.length) === 1 ? "" : "s"}`}
+              </span>
+              <PrintMenu
               layouts={["exercise-summary", "exercise-questions"]}
               scopeLabel={sel.picked ? `${sel.picked} selected` : `all ${rows.length}`}
               disabled={rows.length === 0}
               onPick={(layout) => onPrint(layout, rows)}
             />
+            </div>
           </>
         )}
       >
@@ -1084,9 +1202,9 @@ function ExerciseResults({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={11} text="No students match." />}
+            {rows.length === 0 && <EmptyRow colSpan={11} text={filtered ? "No students match these filters." : "No students."} />}
             {rows.map((s, i) => {
-              const r = resultOf(exercise.id, s.id);
+              const r = results.get(s.id)!;
               const started = r.status !== "not-started";
               return (
                 <tr key={s.id} onClick={() => onView(s.id)} className={`cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover ${selected.has(s.id) ? "bg-brand-wash/40" : ""}`}>

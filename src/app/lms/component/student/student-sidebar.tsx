@@ -145,7 +145,7 @@ const routeKeyOf = (href: string) => {
 // rendered — grouping only fixes the order of a flat list.
 const SECTION_GROUPS: Record<string, string[]> = {
   "": ["dashboard"],
-  "Learning": ["courses", "codinganalytics", "assignments", "resources", "feedback"],
+  "Learning": ["courses", "codinganalytics", "assignments", "grades", "resources", "feedback"],
   "Connect": ["messages", "notifications", "studentcalendar"],
   "Account": ["profile", "settings", "help", "progress"],
 }
@@ -431,11 +431,9 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
     const sorted = [...user.permissions].filter(p => p.isActive).sort((a, b) => (a.order || 0) - (b.order || 0))
     if (!sorted.length) return getDefaultSidebarItems(userAnalytics)
     const items = sorted
-      // Grades is not a student page: /lms/pages/grade(s) is the trainer's
-      // client → service → course grading picker, so a seeded `grades` grant
-      // put a row in the learner's rail that only ever led somewhere they
-      // can't use. Dropped here as well as from the defaults below, so the
-      // rail stays free of it no matter how the user doc is seeded.
+      // A seeded `grade` / `grades` grant is dropped here: Grades is injected
+      // below for every student instead (one entry, always /lms/pages/grades),
+      // whatever the user doc carries.
       .filter(p => !['grade', 'grades'].includes(routeKeyOf(permissionKeyToRoute(p.permissionKey))))
       .map(permission => {
         const route = permissionKeyToRoute(permission.permissionKey)
@@ -503,6 +501,28 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
         color: "orange",
       })
     }
+
+    // Grades, on the same terms: /lms/pages/grades opens for every role
+    // (providers.tsx) and the server shows a student only their own marks and
+    // answers, so it needs no permission on the user doc.
+    // Placed right after Assignments (else just before Feedback) — the rail
+    // keeps the order items arrive in.
+    const gradesRoute = `${BASE_PATH}grades`
+    if (!items.some((it) => it.href === gradesRoute)) {
+      const afterAssignments = items.findIndex((it) => routeKeyOf(it.href) === "assignments")
+      const feedbackAt = items.findIndex((it) => it.href === feedbackRoute)
+      const at = afterAssignments >= 0 ? afterAssignments + 1 : feedbackAt >= 0 ? feedbackAt : items.length
+      items.splice(at, 0, {
+        icon: Trophy,
+        label: "Grades",
+        href: gradesRoute,
+        permissionKey: "grades",
+        isActive: getIsActive(gradesRoute),
+        count: 0,
+        progress: 0,
+        color: "orange",
+      })
+    }
     return items
   }
 
@@ -523,6 +543,8 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
     { icon: BookOpen, label: "My Courses", href: `${BASE_PATH}courses`, progress: analytics.overallProgress },
     { icon: Code2, label: "Coding Analytics", href: `${BASE_PATH}codinganalytics`, count: 0, progress: 0 },
     { icon: ClipboardCheck, label: "Assignments", href: `${BASE_PATH}assignments`, count: analytics.attemptedExercises, progress: 0 },
+    // The student's own grades: courses → exercises → their questions and answers.
+    { icon: Trophy, label: "Grades", href: `${BASE_PATH}grades`, count: 0, progress: 0 },
     // Student feedback list — every open feedback form on the student's
     // courses, with Give feedback / Done actions. Route: /lms/pages/feedback.
     { icon: MessageCircle, label: "Feedback", href: `${BASE_PATH}feedback`, count: 0, progress: 0 },
