@@ -216,7 +216,8 @@ const POC_COMPANION_ROUTES: Record<string, string[]> = {
 // server validates it on every call, so the whole /assessment subtree has to
 // sit outside the LMS auth gate — a redirect to /login would strand exactly
 // the person the link was sent to.
-const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/']
+// /set-password checks the login token itself (first-login password step).
+const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/', '/set-password']
 const PUBLIC_ROUTE_PREFIXES = ['/assessment']
 
 // `/dev/*` holds the component layout harnesses (see src/app/dev/*), which
@@ -591,6 +592,13 @@ function AuthWrapper({ children }: { children: ReactNode }) {
           return
         }
 
+        // First login: a student who hasn't set their own password yet goes
+        // back to that step from any page (app/set-password clears the flag).
+        if (localStorage.getItem("smartcliff_mustSetPassword") === "true") {
+          router.replace("/set-password")
+          return
+        }
+
         // A POC landing on either legacy dashboard — a stale bookmark, an old
         // firstPermissionKey redirect, a hardcoded link — is sent to its own
         // console rather than shown Access Restricted. Checked BEFORE the gate
@@ -659,6 +667,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
     localStorage.removeItem("smartcliff_originalRole")
     localStorage.removeItem("smartcliff_roleValue")
     localStorage.removeItem("smartcliff_userData")
+    localStorage.removeItem("smartcliff_mustSetPassword")
   }
 
   // Match route loading while authentication and permissions resolve.
@@ -671,7 +680,7 @@ function AuthWrapper({ children }: { children: ReactNode }) {
   if (
     !isSuperAdminRoute &&
     !isDevHarnessPath(pathname) &&
-    !['/login', '/login', '/register', '/forgot-password', '/'].includes(pathname) &&
+    !['/login', '/login', '/register', '/forgot-password', '/', '/set-password'].includes(pathname) &&
     !isAuthenticated
   ) {
     return <ClientWorkspaceSkeleton showTabs={false} />

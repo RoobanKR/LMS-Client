@@ -40,6 +40,8 @@ interface LoginResponse {
       [key: string]: any;
     } | string;
     firstTimeLoginDone: boolean;
+    // First login: set your own password first (app/set-password)
+    mustSetPassword?: boolean;
     permissions?: Permission[];
     [key: string]: any;
   };
@@ -269,6 +271,14 @@ const SmartCliffLogin = () => {
         if (!verifyResponse.ok) { clearAuthData(); throw new Error("Token verification failed"); }
         // IP / location / device were already captured with the login request
         // (clientInfo), so they persist even though we redirect immediately below.
+        // First login: a student still on the password they were sent sets
+        // their own before going anywhere (providers.tsx holds them there).
+        if (user.mustSetPassword) {
+          localStorage.setItem("smartcliff_mustSetPassword", "true");
+          window.location.href = "/set-password";
+          return;
+        }
+        localStorage.removeItem("smartcliff_mustSetPassword");
         if (!user.firstTimeLoginDone) localStorage.setItem("showWelcomeToast", "true");
         // Roles with a dedicated console are routed by ROLE, ahead of both
         // ?redirect= and smartcliff_firstPermissionKey. Existing POC accounts
