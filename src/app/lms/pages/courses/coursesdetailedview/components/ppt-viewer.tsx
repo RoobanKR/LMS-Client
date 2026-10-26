@@ -962,8 +962,10 @@ export default function PPTViewer({
                 }}
               />
             )}
-            {/* Panel header — 3 columns */}
-            <div className="panel-header-neutral" style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",flexShrink:0,borderRadius:"14px 14px 0 0",gap:8 }}>
+            {/* Panel header — 3 columns. Not for a framed deck (LibreOffice /
+                Office Online): it would hold only the file name, which the
+                breadcrumb row already shows — the slide gets the height. */}
+            {!showMode && <div className="panel-header-neutral" style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",flexShrink:0,borderRadius:"14px 14px 0 0",gap:8 }}>
               {/* Left: filename */}
               <div style={{ display:"flex",alignItems:"center",gap:7,flex:1,minWidth:0 }}>
                 <div style={{ width:22,height:22,borderRadius:6,background:"#F3F4F6",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
@@ -1040,10 +1042,10 @@ export default function PPTViewer({
                   </button>
                 )}
               </div>
-            </div>
+            </div>}
 
-            {/* Slide display area */}
-            <div style={{ flex:1, overflow:"auto", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px 16px", background:"#EAECF0", borderRadius:"0 0 14px 14px", position:"relative" }}>
+            {/* Slide display area — a framed deck gets less padding, none in fullscreen */}
+            <div style={{ flex:1, overflow:"auto", display:"flex", alignItems:"center", justifyContent:"center", padding: showMode ? (isFullscreen ? 0 : "8px") : "18px 16px", background: showMode && isFullscreen ? "#000" : "#EAECF0", borderRadius: showMode ? 14 : "0 0 14px 14px", position:"relative" }}>
 
               {/* Auto-converting spinner */}
               {autoConverting && (

@@ -1185,9 +1185,34 @@ export default function PPTViewer({
         )}
       </div>
 
+      {/* A framed deck (LibreOffice / Office Online) has no slide controls of
+          ours, so the file name, fullscreen and download join this row and the
+          second header row is dropped — more height for the slide. */}
+      {showMode && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flexShrink: 1 }}>
+          <FileText size={14} style={{ flexShrink: 0, color: "#fb923c" }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#1e293b", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={title}>
+            {title}
+          </span>
+          {!isStudent && isTeacher && (
+            <span style={{ fontSize: 10, backgroundColor: "#7c3aed", padding: "2px 8px", borderRadius: 999, color: "white", fontWeight: 600, flexShrink: 0 }}>
+              Teacher Mode
+            </span>
+          )}
+          <button onClick={handleFullscreen} title="Fullscreen — slide only"
+            style={{ padding: "5px 8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", display: "flex", flexShrink: 0 }}>
+            <Maximize size={13} />
+          </button>
+          <button onClick={handleDownload} title="Download"
+            style={{ padding: "5px 8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", display: "flex", flexShrink: 0 }}>
+            <Download size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Close button - RIGHT CORNER of breadcrumb */}
-      <button 
-        onClick={onClose} 
+      <button
+        onClick={onClose}
         style={{ 
           display: "flex",
           alignItems: "center",
@@ -1218,8 +1243,8 @@ export default function PPTViewer({
       </button>
     </div>
 
-    {/* Main header bar with file info and controls */}
-    <div style={{
+    {/* Main header bar with file info and controls (slide images only — see above) */}
+    {!showMode && <div style={{
       padding: "10px 14px",
       display: "flex",
       alignItems: "center",
@@ -1357,7 +1382,7 @@ export default function PPTViewer({
           <Download size={13} />
         </button>
       </div>
-    </div>
+    </div>}
   </div>
 )}
       {/* ── BODY ──────────────────────────────────────────────────────────── */}
@@ -1370,11 +1395,12 @@ export default function PPTViewer({
             flex: 1,
             overflowY: "auto",
             overflowX: "auto",
-            backgroundColor: "#374151",
+            // A framed deck in fullscreen goes edge to edge on black.
+            backgroundColor: showMode && isFullscreen ? "#000" : "#374151",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            padding: "16px 16px 24px",
+            padding: showMode ? (isFullscreen ? 0 : "10px 12px") : "16px 16px 24px",
             gap: 12,
           }}
         >
