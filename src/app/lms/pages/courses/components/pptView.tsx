@@ -1260,8 +1260,8 @@ export default function PPTViewer({
 
       {/* Right side - Controls */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        {/* Slide navigation — not in the LibreOffice show, which moves with its own controls */}
-        {!isLibreShow && <div style={{ 
+        {/* Slide navigation — not for a deck shown in a frame (LibreOffice / Office Online), which has its own controls */}
+        {!showMode && <div style={{
           display: "flex", 
           alignItems: "center", 
           gap: 4, 
@@ -1322,8 +1322,8 @@ export default function PPTViewer({
           </button>
         </div>}
 
-        {/* Zoom controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+        {/* Zoom controls — slide images only; a framed deck has its own */}
+        {!showMode && <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
           <button 
             onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} 
             style={{ padding: "5px 8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", display: "flex" }}
@@ -1339,7 +1339,7 @@ export default function PPTViewer({
           >
             <ZoomIn size={13} />
           </button>
-        </div>
+        </div>}
 
         {/* Fullscreen button */}
         <button 
@@ -1453,8 +1453,8 @@ export default function PPTViewer({
   )}
 </div>
 
-          {/* Prev / Next nav arrows below slide — mirrors PDF ergonomics (not in the LibreOffice show) */}
-          {!isLibreShow && <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+          {/* Prev / Next nav arrows below slide — mirrors PDF ergonomics (not for a framed LibreOffice / Office deck) */}
+          {!showMode && <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
             <button
               onClick={() => goToSlide(currentSlide - 1)}
               disabled={atFirstSlide}

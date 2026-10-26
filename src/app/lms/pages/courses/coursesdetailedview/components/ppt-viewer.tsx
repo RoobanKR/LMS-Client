@@ -971,8 +971,8 @@ export default function PPTViewer({
                 </div>
                 <span style={{ fontSize:12,fontWeight:600,color:"#6b7280",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{title}</span>
               </div>
-              {/* Center: slide navigation — not in the LibreOffice show, which moves with its own controls */}
-              {!isLibreShow && <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
+              {/* Center: slide navigation — not for a deck shown in a frame (LibreOffice / Office Online), which has its own controls */}
+              {!showMode && <div style={{ display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                 <button
                   onClick={() => goToSlide(currentSlide - 1)}
                   disabled={!useImageMode||atFirstSlide||!!activeMcqGroup}
@@ -1022,8 +1022,9 @@ export default function PPTViewer({
                   </span>
                 )}
               </div>}
-              {/* Right: zoom + Google Viewer switch */}
+              {/* Right: zoom (slide images only — a framed deck has its own) + Google Viewer switch */}
               <div style={{ display:"flex",alignItems:"center",gap:2,flex:1,justifyContent:"flex-end" }}>
+                {!showMode && <>
                 <button onClick={handleZoomOut} disabled={slideScale<=0.5} style={{ background:"none",border:"none",cursor:slideScale<=0.5?"not-allowed":"pointer",color:slideScale<=0.5?"#D1D5DB":"#6b7280",display:"flex",padding:"3px 5px",borderRadius:6,transition:"all 0.15s" }}>
                   <ZoomOut size={13} />
                 </button>
@@ -1031,6 +1032,7 @@ export default function PPTViewer({
                 <button onClick={handleZoomIn} disabled={slideScale>=3} style={{ background:"none",border:"none",cursor:slideScale>=3?"not-allowed":"pointer",color:slideScale>=3?"#D1D5DB":"#6b7280",display:"flex",padding:"3px 5px",borderRadius:6,transition:"all 0.15s" }}>
                   <ZoomIn size={13} />
                 </button>
+                </>}
                 {!useImageMode && !useGoogleViewer && isDirectPPT && iframeError && (
                   <button onClick={() => { setUseGoogleViewer(true); setIframeLoading(true); setIframeError(null) }}
                     style={{ fontSize:11,padding:"3px 8px",background:"#FEF3C7",color:"#D97706",borderRadius:20,border:"none",cursor:"pointer",marginLeft:6 }}>

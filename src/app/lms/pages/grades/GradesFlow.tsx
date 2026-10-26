@@ -607,6 +607,14 @@ export default function GradesFlow({
   });
   const questions = questionsQuery.data ?? [];
 
+  // The active tab's load failure, if any — shown in place of the empty state,
+  // so a refused or failed request doesn't read as "No questions found".
+  const activeLoadError = (
+    activeTab === "exercises" ? exercisesQuery.error :
+    activeTab === "students" ? studentsQuery.error :
+    questionsQuery.error
+  ) as Error | null;
+
   // Single loading flag mirroring the old shared `loading` state — only the
   // active tab's query drives the skeleton.
   const loading =
@@ -2305,12 +2313,16 @@ export default function GradesFlow({
                           {activeTab === "exercises" ? <Dumbbell className="h-6 w-6" /> : activeTab === "students" ? <Users className="h-6 w-6" /> : <HelpCircle className="h-6 w-6" />}
                         </span>
                         <h3 className="text-base font-semibold text-heading">
-                          {activeTab === "exercises" && !(searchTerm || hasActiveFilters)
+                          {activeLoadError
+                            ? `Couldn't load the ${activeTab}`
+                            : activeTab === "exercises" && !(searchTerm || hasActiveFilters)
                             ? "There are no exercises to grade"
                             : `No ${activeTab} found`}
                         </h3>
                         <p className="mt-1 text-sm text-subtle max-w-sm">
-                          {(searchTerm || hasActiveFilters)
+                          {activeLoadError
+                            ? activeLoadError.message
+                            : (searchTerm || hasActiveFilters)
                             ? "No results match your search or filters."
                             : activeTab === "exercises"
                               ? "Create an assignment or assessment first. Once learners submit, grading data will appear here."
@@ -2356,7 +2368,7 @@ export default function GradesFlow({
                             return <ExerciseCells item={item} index={absoluteIndex} />;
                           if (activeTab === "students")
                             return <StudentCells item={item} index={absoluteIndex} selectedExercise={selectedExercise} onDetails={() => setDetailStudent(item)} />;
-                          return <QuestionCells item={item} index={absoluteIndex} />;
+                          return <QuestionCells item={item} index={absoluteIndex} notStarted={!questions.some((q: any) => q.studentAttempt)} />;
                         })()}
                       </motion.tr>
                     );

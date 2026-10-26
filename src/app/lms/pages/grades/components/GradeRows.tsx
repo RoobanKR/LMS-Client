@@ -236,7 +236,9 @@ export function StudentCells({ item, index, selectedExercise, onDetails }: { ite
 //   6. Status          — Submitted (attempted) / Not attempted. Replaces the
 //                        earlier duplicate pair "Answer" + "Status" that
 //                        conveyed the same signal twice.
-export function QuestionCells({ item, index }: { item: any; index: number }) {
+// `notStarted` — no question of the exercise has an answer: the student never
+// submitted it, so its rows read "Not submitted" rather than "Not attempted".
+export function QuestionCells({ item, index, notStarted = false }: { item: any; index: number; notStarted?: boolean }) {
   const attempted = !!item.studentAttempt;
   return (
     <>
@@ -253,7 +255,7 @@ export function QuestionCells({ item, index }: { item: any; index: number }) {
       <td className={BODY}>
         {attempted
           ? <span className="inline-flex items-center gap-1 h-6 rounded-full px-2 text-2xs font-semibold ring-1 ring-inset bg-success-50 text-success-700 ring-success-500/20"><CheckCircle2 className="h-3 w-3" /> Submitted</span>
-          : <span className="inline-flex items-center gap-1 h-6 rounded-full px-2 text-2xs font-semibold ring-1 ring-inset bg-ink-100 text-ink-600 ring-ink-500/15"><XCircle className="h-3 w-3" /> Not attempted</span>}
+          : <span className="inline-flex items-center gap-1 h-6 rounded-full px-2 text-2xs font-semibold ring-1 ring-inset bg-ink-100 text-ink-600 ring-ink-500/15"><XCircle className="h-3 w-3" /> {notStarted ? "Not submitted" : "Not attempted"}</span>}
       </td>
       <td className={`${BODY} pl-2 pr-4 sm:pr-5 text-right`}>
         {/* View — opens the answer drawer (the answer, its marks, test-case
