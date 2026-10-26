@@ -2331,7 +2331,7 @@ export default function SqlEditor({
     initialQuery = `-- Write your SQL query here\n-- Example: SELECT * FROM employees;`,
     theme = "light",
     showSubmitButton = true,
-    submitLabel = "Submit Answer",
+    submitLabel = "Submit Question",
     showDatabaseControls = true,
     readOnly = false,
     onQueryChange,

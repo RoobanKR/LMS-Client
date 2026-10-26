@@ -3368,12 +3368,14 @@ export default function CodeEditor({
         }
     };
 
-    // Submit first asks whether to add an AI review. Nothing to submit (empty
+    // Submit asks whether to add an AI review only when the exercise turned
+    // that on (Exercise Settings › AI code review). Nothing to submit (empty
     // or unchanged code) goes straight to submitCode, which says why.
+    const aiReviewOn = (exData as any)?.evaluationMethod?.aiReview === true;
     const askThenSubmit = () => {
         if (isRunning) return;
-        if (codeIsEmpty || unchangedSinceSubmit) { void submitCode(); return; }
-        setAiPromptOpen(true);
+        if (aiReviewOn && !codeIsEmpty && !unchangedSinceSubmit) { setAiPromptOpen(true); return; }
+        void submitCode();
     };
     const startAiReview = async () => {
         const q: any = currentQuestion;
@@ -3751,6 +3753,8 @@ export default function CodeEditor({
     const wsIsLinkQ = !!(wsLiveQ?.isLinkQuestion && wsLiveQ?.questionLink);
     const wsListed = getFilteredAndSortedProblems();
     const wsNoun = isPracticeActivity(category, subcategory) ? 'Practice' : category === 'We_Do' ? 'Assignment' : category === 'You_Do' ? 'Assessment' : 'Exercise';
+    // The Finish button calls a We Do assignment an exercise ("Finish Exercise").
+    const finishNoun = wsNoun === 'Assignment' ? 'Exercise' : wsNoun;
 
     // Finish — the whole-exercise submit (was "Submit Exercise" on the old
     // breadcrumb row): attempt-limit and all-questions gates, evaluate the
@@ -4480,7 +4484,7 @@ export default function CodeEditor({
                                     }}
                                 >
                                     <CheckCircle style={{ width: 13, height: 13 }} />
-                                    {attemptsMaxed ? 'Limit Reached' : alreadySubmitted ? 'Submitted ✓' : 'Submit Answer'}
+                                    {attemptsMaxed ? 'Limit Reached' : alreadySubmitted ? 'Submitted ✓' : 'Submit Question'}
                                 </button>
                             </div>
                             {/* No iframe — link questions always open on the
@@ -4492,7 +4496,7 @@ export default function CodeEditor({
                                 </div>
                                 <p className={`text-xs max-w-md ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} style={{ fontFamily: FONT }}>
                                     Open the problem in a new tab, solve it there, then come back and press
-                                    <b> Submit Answer</b>.
+                                    <b> Submit Question</b>.
                                 </p>
                                 <button
                                     onClick={() => window.open(linkUrl, '_blank', 'noopener,noreferrer')}
@@ -5160,7 +5164,7 @@ export default function CodeEditor({
                                     onClick={askThenSubmit}
                                     disabled={submitBlocked}
                                     title={codeIsEmpty ? 'Write your code before submitting' : unchangedSinceSubmit ? 'Already submitted — change your code to submit again' : 'Submit your answer to this question'}
-                                    aria-label="Submit answer"
+                                    aria-label="Submit question"
                                     className="max-sm:min-w-0! max-sm:flex-1 max-sm:px-2!"
                                     style={{
                                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -5173,7 +5177,7 @@ export default function CodeEditor({
                                     }}
                                 >
                                     {isRunning && <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />}
-                                    {attemptsMaxed ? 'Limit Reached' : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Answer'}
+                                    {attemptsMaxed ? 'Limit Reached' : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Question'}
                                 </button>
                             )}
                             {/* Finish — only on the last question: evaluates it if
@@ -5185,7 +5189,7 @@ export default function CodeEditor({
                                 onClick={() => { void finishExercise(); }}
                                 disabled={isRunning}
                                 title={`Finish and submit the whole ${wsNoun.toLowerCase()}`}
-                                aria-label={`Finish ${wsNoun.toLowerCase()}`}
+                                aria-label={`Finish ${finishNoun.toLowerCase()}`}
                                 className="max-sm:min-w-0! max-sm:flex-1 max-sm:px-2!"
                                 style={{
                                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -5196,7 +5200,7 @@ export default function CodeEditor({
                                     opacity: isRunning ? 0.7 : 1, whiteSpace: 'nowrap',
                                 }}
                             >
-                                Finish {wsNoun}
+                                Finish {finishNoun}
                             </button>
                             </>)}
                         </div>

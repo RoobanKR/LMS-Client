@@ -4454,7 +4454,7 @@ else:
                                 : unchangedSinceSubmit ? 'Already submitted — change your code to submit again'
                                 : 'Submit your answer to this question'
                             }
-                            aria-label="Submit answer"
+                            aria-label="Submit question"
                             className="max-sm:min-w-0! max-sm:w-full! max-sm:px-2!"
                             style={{
                                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -4473,7 +4473,7 @@ else:
                             {isRunning && <Loader2 size={13} className="animate-spin" />}
                             {(exercise?.questionBehavior?.attemptLimitEnabled && userAttempts >= (exercise?.questionBehavior?.maxAttempts || 1))
                                 ? 'Limit Reached'
-                                : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Answer'}
+                                : (unchangedSinceSubmit && !isRunning) ? 'Submitted ✓' : 'Submit Question'}
                         </button>
     </>);
     const workspaceActions = (<>
@@ -5209,7 +5209,7 @@ else:
                                     }}
                                 >
                                     <CheckCircle style={{ width: 13, height: 13 }} />
-                                    {attemptsMaxed ? 'Limit Reached' : alreadySubmitted ? 'Submitted ✓' : 'Submit Answer'}
+                                    {attemptsMaxed ? 'Limit Reached' : alreadySubmitted ? 'Submitted ✓' : 'Submit Question'}
                                 </button>
                             </div>
                             {/* No iframe — link questions always open on the
@@ -5221,7 +5221,7 @@ else:
                                 </div>
                                 <p className={`text-xs max-w-md ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} style={{ fontFamily: FONT }}>
                                     Open the problem in a new tab, solve it there, then come back and press
-                                    <b> Submit Answer</b>.
+                                    <b> Submit Question</b>.
                                 </p>
                                 <button
                                     onClick={() => window.open(linkUrl, '_blank', 'noopener,noreferrer')}

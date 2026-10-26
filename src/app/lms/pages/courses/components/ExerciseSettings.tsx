@@ -4782,6 +4782,41 @@ notifyStudentChannels: { dashboard: true, gmail: false, whatsapp: false },
               })()}
             </div>
 
+            {/* AI code review — its own row (off by default): Submit asks the
+                student whether to add an AI review of their code. */}
+            <div className={`${assignmentStyles.generalFields} es-subfields`}>
+              {(() => {
+                const aiOn = normalizeEvaluationMethod(formData.evaluationMethod).aiReview === true;
+                return (
+                  <ConfigRow label="AI code review"
+                    help='When on, Submit asks students "Evaluate your code with AI?" — a Yes adds an AI review of their code (complexity, suggestions) to the results. When off, Submit just submits.'
+                    note={aiOn ? 'Submit asks students whether to add an AI review.' : 'Submit goes straight in — no AI question.'}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 40 }}>
+                      <button type="button" role="switch" aria-checked={aiOn} aria-label="AI code review"
+                        onClick={() => setFormData(prev => {
+                          const em = normalizeEvaluationMethod(prev.evaluationMethod);
+                          return { ...prev, evaluationMethod: { ...em, aiReview: !em.aiReview } };
+                        })}
+                        style={{
+                          position: 'relative', width: 35, height: 20, borderRadius: 999, border: 'none',
+                          cursor: 'pointer', flexShrink: 0, transition: 'background .16s',
+                          background: aiOn ? D.emerald : '#DEDAD5',
+                        }}>
+                        <span style={{
+                          position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%',
+                          background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'transform .16s',
+                          transform: aiOn ? 'translateX(15px)' : 'none',
+                        }} />
+                      </button>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: aiOn ? D.emerald : D.textHint }}>
+                        {aiOn ? 'Enabled' : 'Off'}
+                      </span>
+                    </div>
+                  </ConfigRow>
+                );
+              })()}
+            </div>
+
             <div className={`${assignmentStyles.generalFields} es-subfields`}
               style={programmingLevelMismatch ? { opacity: 0.4, pointerEvents: 'none' as const } : undefined}>
               <ConfigRow label="Question flow" required

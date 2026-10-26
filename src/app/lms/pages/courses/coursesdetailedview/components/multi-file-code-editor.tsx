@@ -326,9 +326,10 @@ export default function MultiFileCodeEditor({
   const [aiPromptOpen, setAiPromptOpen] = useState(false)
   const [aiReview, setAiReview] = useState<AiReviewState | null>(null)
   const [resultsView, setResultsView] = useState<"tests" | "ai">("tests")
-  // The question a running review belongs to — a late answer for a question
-  // the student has moved off is dropped.
-  const aiReviewFor = useRef("")
+  // Each question's AI review, kept like its test result: coming back to a
+  // question shows its review again, and a review that finishes after the
+  // student moved on is filed under its own question.
+  const aiReviewsByQuestion = useRef(new Map<string, AiReviewState>())
   const [testResult, setTestResult] = useState<TestResultState | null>(null)
   // Each question's last finished Run tests / Submit result, so coming back to
   // a question shows its result (and the Test results button) again; a
@@ -407,6 +408,9 @@ export default function MultiFileCodeEditor({
     : category === 'You_Do' ? 'assessment'
     : 'exercise'
   const ActivityNoun = activityNoun.charAt(0).toUpperCase() + activityNoun.slice(1)
+  // The Finish button calls a We Do assignment an exercise ("Finish Exercise").
+  const finishNoun = activityNoun === "assignment" ? "exercise" : activityNoun
+  const FinishNoun = finishNoun.charAt(0).toUpperCase() + finishNoun.slice(1)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const currentQuestion = questions[currentQuestionIndex] || null
   // The question on screen right now — a run that finishes after the student
@@ -538,6 +542,8 @@ export default function MultiFileCodeEditor({
       .catch(() => {})
   }, [exercise?._id, preview])
   const exData = fullExercise ?? exercise
+  // Exercise Settings › AI code review — Submit asks "Evaluate your code with AI?"
+  const aiReviewOn = exData?.evaluationMethod?.aiReview === true
 
   // ─── Available languages from exercise ──────────────────────────────────────
   const availableLanguages = useMemo<SupportedLanguage[]>(() => {
@@ -692,9 +698,8 @@ export default function MultiFileCodeEditor({
     setSelectedCaseIndex(0)
     setBottomTab('terminal')
     setResultsOpen(false)
-    setAiReview(null)
+    setAiReview(aiReviewsByQuestion.current.get(shownQuestionId.current) ?? null)
     setResultsView('tests')
-    aiReviewFor.current = ''
 
     // Load per-question notes from localStorage for the freshly-selected
     // question. Miss = blank scratchpad. Storage key includes both
@@ -2057,18 +2062,23 @@ export default function MultiFileCodeEditor({
     }
   }
 
-  // Submit first asks whether to add an AI review. Nothing to submit (empty
-  // or unchanged code) goes straight to submitQuestion, which says why.
+  // Submit asks whether to add an AI review only when the exercise turned
+  // that on (Exercise Settings › AI code review). Nothing to submit (empty or
+  // unchanged code) goes straight to submitQuestion, which says why.
   const askThenSubmit = () => {
     if (isSubmitQuestionGuardRef.current) return
-    if (codeIsEmpty || unchangedSinceSubmit) { void submitQuestion(); return }
-    setAiPromptOpen(true)
+    if (aiReviewOn && !codeIsEmpty && !unchangedSinceSubmit) { setAiPromptOpen(true); return }
+    void submitQuestion()
   }
   const startAiReview = async () => {
     const q: any = currentQuestion
     const questionId = q?._id ? String(q._id) : "q"
-    aiReviewFor.current = questionId
-    setAiReview({ status: "loading" })
+    // Saved under its question; painted only while that question is on screen.
+    const showReview = (review: AiReviewState) => {
+      aiReviewsByQuestion.current.set(questionId, review)
+      if (shownQuestionId.current === questionId) setAiReview(review)
+    }
+    showReview({ status: "loading" })
     setResultsView("ai")
     setResultsOpen(true)
     // The whole project, each file under its path — the shape the AI grader sees.
@@ -2083,9 +2093,9 @@ export default function MultiFileCodeEditor({
           constraints: q?.constraints || [],
         },
       })
-      if (aiReviewFor.current === questionId) setAiReview({ status: "done", data })
+      showReview({ status: "done", data })
     } catch (e: any) {
-      if (aiReviewFor.current === questionId) setAiReview({ status: "error", error: e?.message || "AI review failed." })
+      showReview({ status: "error", error: e?.message || "AI review failed." })
     }
   }
 
@@ -2483,7 +2493,7 @@ export default function MultiFileCodeEditor({
                 }}
                 disabled={isSubmitting}
                 title={`Review all answers and finish the ${activityNoun}`}
-                aria-label={`Finish ${activityNoun}`}
+                aria-label={`Finish ${finishNoun}`}
                 className="max-sm:min-w-0! max-sm:w-full! max-sm:px-2!"
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -2495,7 +2505,7 @@ export default function MultiFileCodeEditor({
                 }}
               >
                 {isSubmitting && <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />}
-                Finish {ActivityNoun}
+                Finish {FinishNoun}
               </button>
   </>);
   const visualizeAction = (<>
@@ -2534,7 +2544,7 @@ export default function MultiFileCodeEditor({
                     : unchangedSinceSubmit ? "Already submitted — change your code to submit again"
                     : "Submit your answer to this question"
                   }
-                  aria-label="Submit answer"
+                  aria-label="Submit question"
                   className="max-sm:min-w-0! max-sm:w-full! max-sm:px-2!"
                   style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -2546,7 +2556,7 @@ export default function MultiFileCodeEditor({
                   }}
                 >
                   {isSubmittingQuestion && <Loader2 size={13} className="animate-spin" />}
-                  {unchangedSinceSubmit && !isSubmittingQuestion ? "Submitted ✓" : "Submit Answer"}
+                  {unchangedSinceSubmit && !isSubmittingQuestion ? "Submitted ✓" : "Submit Question"}
                 </button>
               )}
 
@@ -2940,7 +2950,7 @@ export default function MultiFileCodeEditor({
           <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 max-sm:p-5 text-center" style={{ background: UI.page }}>
             <div className="text-md font-bold" style={{ color: UI.navy }}>This question opens on {hostOf(_lq.questionLink)}</div>
             <p className="text-xs max-w-md" style={{ color: UI.muted }}>
-              Open the problem in a new tab, solve it there, then come back and press <b>Submit Answer</b>.
+              Open the problem in a new tab, solve it there, then come back and press <b>Submit Question</b>.
             </p>
             <div className="flex items-center gap-2 flex-wrap justify-center">
               <button
@@ -2958,7 +2968,7 @@ export default function MultiFileCodeEditor({
                   style={{ background: (isSubmittingQuestion || isSubmitting || solvedQuestions.has(currentQuestionIndex)) ? "#9ca3af" : UI.teal, border: "none", cursor: "pointer" }}
                 >
                   {isSubmittingQuestion ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
-                  {solvedQuestions.has(currentQuestionIndex) ? "Submitted ✓" : "Submit Answer"}
+                  {solvedQuestions.has(currentQuestionIndex) ? "Submitted ✓" : "Submit Question"}
                 </button>
               )}
             </div>
@@ -3314,7 +3324,7 @@ export default function MultiFileCodeEditor({
                   <CheckCircle style={{ width: 17, height: 17 }} />
                 </span>
                 <h2 id="finish-modal-title" style={{ fontSize: 17, fontWeight: 700, color: "#101828", margin: 0, flex: 1 }}>
-                  {isSubmitting ? "Finishing…" : `Finish ${activityNoun}?`}
+                  {isSubmitting ? "Finishing…" : `Finish ${finishNoun}?`}
                 </h2>
                 <button
                   type="button"
@@ -3457,7 +3467,7 @@ export default function MultiFileCodeEditor({
                   }}
                 >
                   {isSubmitting && <Loader2 size={13} className="animate-spin" />}
-                  {isSubmitting ? "Finishing…" : `Finish ${activityNoun}`}
+                  {isSubmitting ? "Finishing…" : `Finish ${finishNoun}`}
                 </button>
               </div>
             </div>
@@ -3543,6 +3553,7 @@ export default function MultiFileCodeEditor({
         onSubmitOnly={() => {
           setAiPromptOpen(false)
           // An earlier review was of earlier code.
+          aiReviewsByQuestion.current.delete(shownQuestionId.current)
           setAiReview(null)
           setResultsView("tests")
           void submitQuestion()

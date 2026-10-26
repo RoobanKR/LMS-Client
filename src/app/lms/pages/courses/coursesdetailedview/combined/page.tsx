@@ -241,8 +241,8 @@ const CombinedExerciseMixed = () => {
   const courseId    = searchParams.get('courseId')    || '';
   const category    = searchParams.get('category')    || '';
   const subcategory = searchParams.get('subcategory') || '';
-  // The whole-exercise submit: "Finish Assignment" (We Do) / "Finish Assessment" (You Do).
-  const finishLabel = `Finish ${category === 'You_Do' ? 'Assessment' : 'Assignment'}`;
+  // The whole-exercise submit: "Finish Exercise" (We Do) / "Finish Assessment" (You Do).
+  const finishLabel = `Finish ${category === 'You_Do' ? 'Assessment' : 'Exercise'}`;
   const nodeId      = searchParams.get('nodeId')      || '';
   const nodeName    = searchParams.get('nodeName')    || '';
   const nodeType    = searchParams.get('nodeType')    || 'exercise';
@@ -976,7 +976,7 @@ const CombinedExerciseMixed = () => {
                   initialQuery={currentQuestion.starterCode || currentQuestion.solutions?.startedCode || `-- ${currentQuestion.description || 'Write your SQL query here'}\n\n`}
                   theme="light"
                   showSubmitButton={true}
-                  submitLabel="Submit Answer"
+                  submitLabel="Submit Question"
                   showDatabaseControls={true}
                   onSubmit={submitSqlAnswer}
                   registerSubmit={(fn) => { questionSubmitRef.current = fn; }}
@@ -1067,8 +1067,8 @@ const CombinedExerciseMixed = () => {
           {isMcqQuestion && !hasMcqAnswer
             ? <><AlertCircle size={12} /> Select Answer</>
             : isLastQuestion
-              ? <><CheckCircle size={12} /> Submit Answer</>
-              : <>Submit Answer <ChevronRight size={13} /></>
+              ? <><CheckCircle size={12} /> Submit Question</>
+              : <>Submit Question <ChevronRight size={13} /></>
           }
         </button>
       </div>

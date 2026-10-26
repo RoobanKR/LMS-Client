@@ -71,6 +71,12 @@ export interface EvaluationMethodSetting {
    * On by default for a new exercise.
    */
   liveInteraction?: boolean;
+  /**
+   * AI code review on Submit. When on, Submit asks the student "Evaluate your
+   * code with AI?" and a Yes adds an AI review (complexity, suggestions) to the
+   * results. Off = Submit just submits. Off by default.
+   */
+  aiReview?: boolean;
 }
 
 export const EVALUATION_METHOD_OPTIONS: { value: EvaluationMethod; label: string }[] = [
@@ -105,6 +111,7 @@ export const DEFAULT_EVALUATION_METHOD: EvaluationMethodSetting = {
     testCasesCount: DEFAULT_AI_TEST_CASES_COUNT,
   },
   liveInteraction: true,
+  aiReview: false,
 };
 
 /**
@@ -134,8 +141,13 @@ export const normalizeEvaluationMethod = (raw: any): EvaluationMethodSetting => 
   const rawMode = raw?.ai?.testCasesCountMode;
   const testCasesCountMode: AiTestCasesCountMode =
     rawMode === 'perQuestion' ? 'perQuestion' : 'common';
-  // Live compiler is on unless the exercise explicitly turned it off.
-  return { method, ai: { criteria, testCasesCountMode, testCasesCount }, liveInteraction: raw?.liveInteraction !== false };
+  // Live compiler is on unless the exercise explicitly turned it off; the AI
+  // code review is off unless the exercise turned it on.
+  return {
+    method, ai: { criteria, testCasesCountMode, testCasesCount },
+    liveInteraction: raw?.liveInteraction !== false,
+    aiReview: raw?.aiReview === true,
+  };
 };
 
 const LIVE_INFO = 'Adds a Run button to the student\'s code editor that opens a live console: the program runs and waits for input as the student types it. Run tests keeps working as before.';

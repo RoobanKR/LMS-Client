@@ -695,7 +695,7 @@ const ProgrammingRenderer: React.FC<{ question: Question }> = ({ question }) => 
         <div className="flex flex-col items-center justify-center gap-3 p-10 text-center rounded-lg border border-dashed border-slate-300 bg-slate-50">
           <div className="text-[14px] font-bold text-slate-700">This question opens on {hostOf(linkUrl)}</div>
           <p className="text-[12px] text-slate-500 max-w-md">
-            Students get an "Open the problem" button, solve it on the site, then press Submit Answer here.
+            Students get an "Open the problem" button, solve it on the site, then press Submit Question here.
           </p>
           <a
             href={linkUrl}
