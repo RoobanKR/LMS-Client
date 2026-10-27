@@ -31,7 +31,7 @@ export type PrintLayout =
 export const LAYOUT_LABEL: Record<PrintLayout, { label: string; hint: string }> = {
   "exercise-list": { label: "Exercise list", hint: "One row per exercise, with how the students did" },
   "exercise-summary": { label: "Summary", hint: "One row per student" },
-  "exercise-questions": { label: "With question details", hint: "Every question for each student" },
+  "exercise-questions": { label: "With question details", hint: "One row per student, a column per question" },
   "student-totals": { label: "Totals only", hint: "One row per student, all exercises summed" },
   "student-exercises": { label: "Exercise-wise", hint: "Each student's result in every exercise" },
   "student-questions": { label: "With question details", hint: "Every question of every exercise" },
@@ -57,6 +57,52 @@ const QUESTION_FIELDS: FieldRow[] = [
   { key: "qScored", label: "Marks Scored", scope: "service", column: "Scored", dataKey: "qScored" },
   { key: "qStatus", label: "Question Status", scope: "service", column: "Status", dataKey: "qStatus" },
 ];
+
+// The exercise figures on a "With question details" sheet, in the order the
+// team's own sheets put them: Performance Level, Marks(100), Marks(total).
+const QUESTION_SHEET_TOTALS: FieldRow[] = [
+  { key: "stStatus", label: "Test Status", scope: "service", column: "Test Status", dataKey: "stStatus" },
+  { key: "scale", label: "Performance Level", scope: "service", column: "Performance Level", dataKey: "scale" },
+  { key: "stPercent", label: "Marks (100)", scope: "service", column: "Marks (100)", dataKey: "stPercent" },
+  { key: "stMarks", label: "Total Marks", scope: "service", column: "Total Marks", dataKey: "stMarks" },
+];
+
+const questionKey = (questionId: string) => `q_${questionId}`;
+
+export interface QuestionColumn { id: string; no: number; title: string; max: number }
+
+/** The questions of one exercise for these students, in question order —
+ *  the columns of its "With question details" sheet. */
+export function exerciseQuestionColumns(
+  exercise: ReportExercise,
+  students: ReportStudent[],
+  src: PrintSources,
+): QuestionColumn[] {
+  const seen = new Map<string, QuestionColumn>();
+  for (const s of students) {
+    for (const q of src.questionsOf(exercise, s)) {
+      if (!seen.has(q.questionId)) seen.set(q.questionId, { id: q.questionId, no: q.no, title: q.title, max: q.max });
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.no - b.no);
+}
+
+/** "With question details" fields: the student, the exercise figures, then
+ *  one column per question — "1. Title (10)" holding the marks scored. */
+export function exerciseQuestionFields(questions: QuestionColumn[]): { fields: FieldRow[]; defaults: Set<string> } {
+  const perQuestion: FieldRow[] = questions.map((q) => ({
+    key: questionKey(q.id),
+    label: `${q.no}. ${q.title}`,
+    scope: "service",
+    column: `${q.no}. ${q.title} (${round1(q.max)})`,
+    dataKey: questionKey(q.id),
+  }));
+  const base = LAYOUT_FIELDS["exercise-questions"];
+  return {
+    fields: [...base.fields, ...perQuestion],
+    defaults: new Set([...base.defaults, ...perQuestion.map((f) => f.key)]),
+  };
+}
 
 export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: Set<string> }> = {
   "exercise-list": {
@@ -85,15 +131,12 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
     ],
     defaults: new Set(["student", "regNo", "status", "marks", "percent", "scale"]),
   },
+  // One row per student; the per-question columns depend on the exercise, so
+  // the printed sheet takes its fields from exerciseQuestionFields() — this
+  // entry is the question-less base.
   "exercise-questions": {
-    fields: [
-      ...STUDENT_FIELDS,
-      { key: "stMarks", label: "Total Marks", scope: "client", column: "Total Marks", dataKey: "stMarks" },
-      { key: "stPercent", label: "Marks (100)", scope: "client", column: "Marks (100)", dataKey: "stPercent" },
-      { key: "stStatus", label: "Test Status", scope: "client", column: "Test Status", dataKey: "stStatus" },
-      ...QUESTION_FIELDS,
-    ],
-    defaults: new Set(["student", "regNo", "stMarks", "stStatus", "qNo", "question", "qMax", "qScored", "qStatus"]),
+    fields: [...STUDENT_FIELDS, ...QUESTION_SHEET_TOTALS],
+    defaults: new Set(["student", "regNo", "scale", "stPercent", "stMarks"]),
   },
   "student-totals": {
     fields: [
@@ -231,16 +274,28 @@ export function exerciseBlocks(
         }],
       };
     }
+    // With question details: ONE row per student, each question's marks in
+    // its own column (exerciseQuestionFields). An answer not given — or not
+    // evaluated yet — reads 0, as on the Excel sheet; a student who never
+    // started has the question columns empty.
+    const perQuestion: Record<string, string> = {};
+    if (answered(r)) {
+      for (const q of src.questionsOf(exercise, s)) {
+        perQuestion[questionKey(q.questionId)] =
+          q.status === "pending" || q.status === "not_answered" ? "0" : String(round1(q.scored));
+      }
+    }
     return {
       client: cells.client,
       business: cells.business,
-      clientExtras: {
-        ...cells.extras,
-        stMarks: formatMarks(r.scored, r.total, answered(r)),
-        stPercent: formatPercent(r.percent),
+      clientExtras: cells.extras,
+      services: [{
         stStatus: STATUS_LABEL[r.status],
-      },
-      services: questionRows(r, answered(r) ? src.questionsOf(exercise, s) : []),
+        scale: r.scale || "—",
+        stPercent: formatPercent(r.percent),
+        stMarks: formatMarks(r.scored, r.total, answered(r)),
+        ...perQuestion,
+      }],
     };
   });
 }

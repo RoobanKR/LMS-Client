@@ -296,21 +296,27 @@ export function PreviewPage({
                                 {headers.map((header, index) => {
                                     const role = reportColumnRole(header, index)
                                     const align: React.CSSProperties['textAlign'] = reportColumnCentered(role) ? 'center' : 'left'
+                                    // Headers wrap like the print sheet and
+                                    // PDF do — a long label (a question's
+                                    // title, "Performance Level") reads in
+                                    // full instead of ending in "…". The
+                                    // paginator reserves the extra height.
                                     return (
                                         <th
                                             key={`${header}-${index}`}
                                             style={{
                                                 border: '1px solid #a6b4c5',
-                                                padding: '0 4px',
+                                                padding: '2px 4px',
                                                 height: `${REPORT_ROW_MM}mm`,
-                                                lineHeight: `${REPORT_ROW_MM}mm`,
+                                                lineHeight: '1.2',
                                                 background: '#5a7690',
                                                 color: '#fff',
                                                 textAlign: align,
                                                 fontWeight: 700,
-                                                whiteSpace: 'nowrap',
+                                                whiteSpace: 'normal',
                                                 overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
+                                                wordBreak: 'break-word',
+                                                overflowWrap: 'anywhere',
                                                 verticalAlign: 'middle',
                                             }}
                                         >{header}</th>

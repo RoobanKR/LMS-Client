@@ -292,18 +292,20 @@ export function paginateReport(format: ReportFormat, table: ReportTable): Pagina
         ? { width: box.height, height: box.width }
         : { width: box.width, height: box.height }
 
-    // The header takes one min-height row. What is left is the vertical
-    // budget every data row has to share, which the wrap-aware packer
-    // below consumes one row at a time. Kept as a millimetre budget
-    // rather than a "how many rows" count so a row that grew to two
-    // lines counts as two lines' worth, not one — that is what fixes
-    // the 17-vs-13 mismatch the reader was seeing between the print
-    // sheet and the editor canvas.
-    const availableMm = Math.max(REPORT_ROW_MM, layout.height - REPORT_ROW_MM)
     // Column widths in percent, cached once — the wrap estimator runs
     // for every row so a memo saves a couple of Kilobytes of allocation
     // over a long report.
     const widthsPct = reportColumnWidths(table.headers)
+    // The header takes its own wrapped height — one min-height row, more
+    // when a long label (a question's title) breaks across lines. What is
+    // left is the vertical budget every data row has to share, which the
+    // wrap-aware packer below consumes one row at a time. Kept as a
+    // millimetre budget rather than a "how many rows" count so a row that
+    // grew to two lines counts as two lines' worth, not one — that is what
+    // fixes the 17-vs-13 mismatch the reader was seeing between the print
+    // sheet and the editor canvas.
+    const headerMm = estimateRowMm(table.headers, widthsPct, layout.width)
+    const availableMm = Math.max(REPORT_ROW_MM, layout.height - headerMm)
     // A last-resort ceiling for the still-widely-used legacy path below,
     // which just counts rows.
     const rowsPerPage = Math.max(1, Math.floor(availableMm / REPORT_ROW_MM))

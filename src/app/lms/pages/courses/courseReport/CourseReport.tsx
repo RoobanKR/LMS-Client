@@ -13,7 +13,7 @@ import {
   NextStepGlow, REPORT_FIELD, REPORT_PRIMARY_BTN, ReportEmptyState, useNextStepNudge,
 } from "@/app/lms/shared/report/reportKit";
 import { phaseOrdinal } from "@/lib/phaseGroups";
-import { PrintPreviewModal } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
+import { PrintPreviewModal, type FieldRow } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
 import type { ServiceMapping } from "@/app/lms/pages/servicemapping/api/serviceMappingService";
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
 import {
@@ -23,7 +23,8 @@ import {
 } from "./reportData";
 import { fetchReportPayload, liveBatches } from "./reportApi";
 import {
-  exerciseBlocks, exerciseListBlocks, LAYOUT_FIELDS, studentBlocks, studentTotalsBlocks,
+  exerciseBlocks, exerciseListBlocks, exerciseQuestionColumns, exerciseQuestionFields, LAYOUT_FIELDS,
+  studentBlocks, studentTotalsBlocks,
   type PrintLayout, type PrintSources, type StudentLine,
 } from "./courseReportPrint";
 import { usePrintSetup } from "./usePrintSetup";
@@ -87,6 +88,9 @@ interface PrintJob {
   fileBase: string;
   /** Extra words for the sheet's "Filtered by" line (e.g. who was ticked). */
   scopeNote: string;
+  /** The sheet's columns when they depend on the exercise — "With question
+   *  details" has one per question. Absent = the layout's own LAYOUT_FIELDS. */
+  fields?: { fields: FieldRow[]; defaults: Set<string> };
   /** Set when printing from the student drawer. The print modal sits on a
    *  lower layer than the drawer, so the drawer steps aside while it is open
    *  and comes back when it closes. */
@@ -385,7 +389,7 @@ export default function CourseReport() {
   );
   const printFields = useMemo(() => {
     if (!printJob) return undefined;
-    const { fields } = LAYOUT_FIELDS[printJob.layout];
+    const { fields } = printJob.fields ?? LAYOUT_FIELDS[printJob.layout];
     // No subcategory column when it would only repeat Type; no Phase column
     // for a course that does not run in phases.
     return fields.filter((f) => (showSubcategory || f.key !== "subcategory") && (phaseNames.length > 0 || f.key !== "phase"));
@@ -743,6 +747,9 @@ export default function CourseReport() {
             setPrintJob({
               layout,
               blocks: exerciseBlocks(layout as "exercise-summary" | "exercise-questions", currentExercise, chosen, printSources),
+              fields: layout === "exercise-questions"
+                ? exerciseQuestionFields(exerciseQuestionColumns(currentExercise, chosen, printSources))
+                : undefined,
               excel: (filename) => exportExerciseWorkbook({
                 ...excelBase(filename),
                 exercises: [currentExercise],
@@ -814,6 +821,7 @@ export default function CourseReport() {
           setPrintJob({
             layout: "exercise-questions",
             blocks: exerciseBlocks("exercise-questions", exercise, [student], printSources),
+            fields: exerciseQuestionFields(exerciseQuestionColumns(exercise, [student], printSources)),
             excel: (filename) => exportExerciseWorkbook({
               ...excelBase(filename),
               exercises: [exercise],
@@ -843,7 +851,7 @@ export default function CourseReport() {
         initialFormat={initialFormat}
         meta={printMeta}
         fields={printFields}
-        defaultEnabled={printJob ? LAYOUT_FIELDS[printJob.layout].defaults : undefined}
+        defaultEnabled={printJob ? (printJob.fields ?? LAYOUT_FIELDS[printJob.layout]).defaults : undefined}
         filenameBase={printJob ? `${fileSafe(printJob.fileBase)}-${new Date().toISOString().slice(0, 10)}` : undefined}
         keepBlocksTogether
         noFillerRows
