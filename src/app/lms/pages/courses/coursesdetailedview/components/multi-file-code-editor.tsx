@@ -1885,7 +1885,8 @@ export default function MultiFileCodeEditor({
       totalFiles: submitFiles.length,
       isMultiFile: true,
       status: submitStatus,
-      score: submitScore,
+      // Non-graded exercise: no marks are stored (the server enforces it too).
+      score: exData?.isGraded !== false ? submitScore : 0,
       isTestSubmission,
       questionStartedAt: questionOpenedAtRef.current[String(questionId)] || undefined,
       // Only send when the client actually produced a breakdown, so Manual
@@ -2046,7 +2047,8 @@ export default function MultiFileCodeEditor({
         // The student stays on this question with its Test Result showing —
         // moving on is their choice (Next / the question list).
         const r = result.result
-        const graded = r && r.cases.length > 0 && typeof r.score === "number"
+        // A non-graded exercise never shows marks — just "submitted".
+        const graded = exData?.isGraded !== false && r && r.cases.length > 0 && typeof r.score === "number"
         // Click-through, so it never covers or blocks the header's Submit /
         // Finish buttons, and hovering it cannot pause its auto-dismiss.
         toast.success(
