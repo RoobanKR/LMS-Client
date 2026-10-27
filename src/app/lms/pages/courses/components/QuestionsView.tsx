@@ -10,7 +10,7 @@ import {
   X, Database, AlertTriangle,
   CheckCircle, Trash2,
   ChevronLeft, ChevronRight,
-  FileText,
+  FileText, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
@@ -680,15 +680,57 @@ const getScore = (q: Question) => Math.round(q.questionType === 'mcq' ? q.mcqQue
       else if (Array.isArray(result.data)) fetched = result.data;
       else if (Array.isArray(result.questions)) fetched = result.questions;
       else if (Array.isArray(exercise.questions)) fetched = exercise.questions;
-      fetched = [...fetched].reverse().map((q, i) => ({ ...q, questionNumber: fetched.length - i }));
+      // Stored order = the order students get in the editor (↑ / ↓ change it).
+      fetched = fetched.map((q, i) => ({ ...q, questionNumber: i + 1 }));
       setQuestions(fetched); setCurrentPage(1);
     } catch {
       setQuestions(Array.isArray(exercise.questions)
-        ? [...exercise.questions].reverse().map((q, i) => ({ ...q, questionNumber: exercise.questions.length - i }))
+        ? exercise.questions.map((q, i) => ({ ...q, questionNumber: i + 1 }))
         : []);
       toast.error('Failed to load questions.', { position: 'top-right' });
     } finally { setLoadingQuestions(false); }
   };
+
+  // ── Order (↑ / ↓) ──────────────────────────────────────────────────────────
+  // A move shows at once and is saved shortly after the last click, so a burst
+  // of clicks is one request. A save still pending when the view closes is
+  // sent then.
+  const orderSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingOrder = useRef<string[] | null>(null);
+  const saveQuestionOrder = async (questionIds: string[]) => {
+    pendingOrder.current = null;
+    const pm: Record<string, string> = { module: 'modules', submodule: 'submodules', topic: 'topics', subtopic: 'subtopics' };
+    try {
+      const res = await fetch(`${API_BASE_URL}/questions-reorder/${pm[nodeType.toLowerCase()] || nodeType}/${nodeId}/${exercise._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ tabType, subcategory, questionIds }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success('Question order saved', { id: 'question-order' });
+    } catch {
+      toast.error('Could not save the question order.', { id: 'question-order' });
+      await fetchQuestions();
+    }
+  };
+  const moveQuestion = (questionId: string, delta: -1 | 1) => {
+    const from = questions.findIndex(q => q._id === questionId);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= questions.length) return;
+    const next = [...questions];
+    [next[from], next[to]] = [next[to], next[from]];
+    setQuestions(next.map((q, i) => ({ ...q, questionNumber: i + 1 })));
+    pendingOrder.current = next.map(q => q._id);
+    if (orderSaveTimer.current) clearTimeout(orderSaveTimer.current);
+    orderSaveTimer.current = setTimeout(() => {
+      if (pendingOrder.current) void saveQuestionOrder(pendingOrder.current);
+    }, 600);
+  };
+  useEffect(() => () => {
+    if (orderSaveTimer.current) clearTimeout(orderSaveTimer.current);
+    if (pendingOrder.current) void saveQuestionOrder(pendingOrder.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // In Questions.tsx, update the handleAction function:
 
@@ -977,6 +1019,8 @@ const handleAction = async (type: string, q: Question) => {
       && (filterSource === 'all' || sourceKeyOf((q as any).source) === filterSource);
   });
   const anyFilter = filterDifficulty !== 'all' || filterType !== 'all' || filterSource !== 'all';
+  // ↑ / ↓ move within the full list, so they wait until nothing narrows it.
+  const orderLocked = !!searchTerm || anyFilter;
 
   const itemsPerPage = autoItemsPerPage;
   const totalPages   = Math.max(1, Math.ceil(filteredQs.length / itemsPerPage));
@@ -1832,6 +1876,7 @@ const addBtnDisabled = isAddingQuestions || (() => {
                   // Every column but Question has a fixed width, so the
                   // question title takes all the room that is left.
                   { label: '#',          cls: 'w-10 px-2' },
+                  { label: 'Order',      cls: 'w-16 px-1 text-center' },
                   { label: 'Question',   cls: 'px-3' },
                   ...(showMcqCol ? [{ label: 'Options', cls: 'w-[24%] px-3' }] : []),
                   ...((isCombined || isPureOthers) ? [{ label: 'Type', cls: 'w-24 px-3' }] : []),
@@ -1905,6 +1950,28 @@ const addBtnDisabled = isAddingQuestions || (() => {
                           {rowNum}
                         </span>
                       )}
+                    </td>
+
+                    {/* Order — ↑ / ↓ move the question; students get this order */}
+                    <td className="px-1 py-2.5 align-middle">
+                      <div className="flex items-center justify-center gap-0.5">
+                        {([-1, 1] as const).map(delta => {
+                          const pos = startIdx + idx;
+                          const edge = delta === -1 ? pos <= 0 : pos >= questions.length - 1;
+                          const Icon = delta === -1 ? ArrowUp : ArrowDown;
+                          return (
+                            <button key={delta} type="button"
+                              disabled={orderLocked || edge}
+                              title={orderLocked ? 'Clear search and filters to change the order' : delta === -1 ? 'Move up' : 'Move down'}
+                              aria-label={`Move question ${rowNum} ${delta === -1 ? 'up' : 'down'}`}
+                              onClick={() => moveQuestion(q._id, delta)}
+                              className="h-6 w-6 rounded-md flex items-center justify-center transition-colors text-[#8b8b9e] hover:text-[#F27757] hover:bg-[#F27757]/10 disabled:text-[#e4e4ed] disabled:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                              style={{ border: 'none' }}>
+                              <Icon size={13} />
+                            </button>
+                          );
+                        })}
+                      </div>
                     </td>
 
                     {/* Title + desc */}
