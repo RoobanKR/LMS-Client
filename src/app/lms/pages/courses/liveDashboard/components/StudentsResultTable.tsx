@@ -64,6 +64,8 @@ export interface StudentsResultTableProps {
   /** False for a non-graded assignment/assessment: the Marks, Percentage and
    *  Scale columns are left out. Defaults to true. */
   graded?: boolean;
+  /** A learner's batch name(s). When given, a Batch column follows Student. */
+  batchOf?: (studentId: string) => string[] | undefined;
 }
 
 
@@ -268,6 +270,7 @@ export default function StudentsResultTable({
   statusFilter = "all",
   toolbar,
   graded = true,
+  batchOf,
 }: StudentsResultTableProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSize>(10);
@@ -480,6 +483,11 @@ export default function StudentsResultTable({
               <th className="border-b border-gray-200 px-3 py-2 text-left text-[11px] font-medium text-gray-500 min-w-[220px] bg-gray-50">
                 <SortableHeader label="Student" columnKey="student" align="left" active={sortKey} dir={sortDir} onToggle={toggleSort} />
               </th>
+              {batchOf && (
+                <th className="border-b border-gray-200 px-3 py-2 text-left text-[11px] font-medium text-gray-500 w-[130px] bg-gray-50">
+                  Batch
+                </th>
+              )}
               <th className="border-b border-gray-200 px-3 py-2 text-left text-[11px] font-medium text-gray-500 w-[130px] bg-gray-50">
                 <SortableHeader label="Test Status" columnKey="status" align="left" active={sortKey} dir={sortDir} onToggle={toggleSort} />
               </th>
@@ -566,6 +574,22 @@ export default function StudentsResultTable({
                         </div>
                       </div>
                     </td>
+                    {batchOf && (
+                      <td className="w-[130px] px-3 py-1.5">
+                        {batchOf(s.id)?.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {batchOf(s.id)!.map((name) => (
+                              <span key={name} title={name}
+                                className="max-w-[120px] truncate rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[12.5px] text-gray-400">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="w-[130px] px-3 py-1.5">
                       <TestStatusPill status={status} />
                     </td>
@@ -725,7 +749,7 @@ export default function StudentsResultTable({
               })}
               {pagedStudents.length === 0 && (
                 <tr>
-                  <td colSpan={graded ? 8 : 5} className="px-4 py-8 text-center text-[12.5px] text-gray-400">
+                  <td colSpan={(graded ? 8 : 5) + (batchOf ? 1 : 0)} className="px-4 py-8 text-center text-[12.5px] text-gray-400">
                     No learners match this search or filter.
                   </td>
                 </tr>

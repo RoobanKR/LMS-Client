@@ -102,6 +102,7 @@ import {
   ManualMarkOverride,
   FeedbackCard,
   GradingActions,
+  TestResultColumn,
 } from './components/console';
 import type {
   CodeTabId,
@@ -175,6 +176,16 @@ const RIGHT_PANEL_MAX_WIDTH = 720;
 const RIGHT_PANEL_WIDTH_KEY = 'reviewSubmission.gradingPanelWidth';
 const clampPanelWidth = (w: number): number =>
   Math.min(RIGHT_PANEL_MAX_WIDTH, Math.max(RIGHT_PANEL_MIN_WIDTH, Math.round(w)));
+
+// The Test Result column at the far right — same drag + remember pattern,
+// plus a remembered open / collapsed state.
+const TEST_COL_DEFAULT_WIDTH = 320;
+const TEST_COL_MIN_WIDTH = 260;
+const TEST_COL_MAX_WIDTH = 560;
+const TEST_COL_WIDTH_KEY = 'reviewSubmission.testResultWidth';
+const TEST_COL_OPEN_KEY = 'reviewSubmission.testResultOpen';
+const clampTestColWidth = (w: number): number =>
+  Math.min(TEST_COL_MAX_WIDTH, Math.max(TEST_COL_MIN_WIDTH, Math.round(w)));
 
 // --- INTERFACES ---
 interface MCQOption {
@@ -3220,6 +3231,47 @@ builtins.input = _async_input
     if (isResizingGradingPanel) return;
     window.localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(gradingPanelWidth));
   }, [isResizingGradingPanel, gradingPanelWidth]);
+
+  // Test Result column — its handle is on its left edge too, so dragging
+  // left widens it.
+  const [testColOpen, setTestColOpen] = useState(true);
+  const [testColWidth, setTestColWidth] = useState(TEST_COL_DEFAULT_WIDTH);
+  const [isResizingTestCol, setIsResizingTestCol] = useState(false);
+  const testColDragRef = useRef({ x: 0, width: TEST_COL_DEFAULT_WIDTH });
+
+  useEffect(() => {
+    const stored = Number(window.localStorage.getItem(TEST_COL_WIDTH_KEY));
+    if (Number.isFinite(stored) && stored > 0) setTestColWidth(clampTestColWidth(stored));
+    if (window.localStorage.getItem(TEST_COL_OPEN_KEY) === 'false') setTestColOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizingTestCol) return;
+    const onMove = (e: MouseEvent) => setTestColWidth(
+      clampTestColWidth(testColDragRef.current.width + testColDragRef.current.x - e.clientX),
+    );
+    const onUp = () => setIsResizingTestCol(false);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizingTestCol]);
+
+  useEffect(() => {
+    if (isResizingTestCol) return;
+    window.localStorage.setItem(TEST_COL_WIDTH_KEY, String(testColWidth));
+  }, [isResizingTestCol, testColWidth]);
+
+  const showTestCol = (open: boolean) => {
+    setTestColOpen(open);
+    window.localStorage.setItem(TEST_COL_OPEN_KEY, String(open));
+  };
   // Fullscreen sizes the editor off the real viewport instead of a CSS calc so
   // Monaco (which needs a pixel height) doesn't have to re-measure on mount.
   const [viewportHeight, setViewportHeight] = useState(928);
@@ -3560,7 +3612,8 @@ builtins.input = _async_input
       setTestResult(null);
     }
     setSelectedCaseIndex(0);
-    setBottomTab(bd && (bd.method === 'testcase' || bd.method === 'ai') && evalMethod !== 'manual' ? 'test-result' : 'terminal');
+    // Results live in the Test Result column; the bottom panel is the terminal.
+    setBottomTab('terminal');
   }, [submissionQuestion, selectedQuestion, evalMethod]);
 
   // Stop a live run when the trainer moves to another question / student or
@@ -4015,7 +4068,7 @@ builtins.input = _async_input
       return;
     }
     if (isRunningTests) return;
-    setBottomTab('test-result');
+    showTestCol(true);
     setIsRunningTests(true);
     try {
       if (evalMethod === 'ai') {
@@ -4586,10 +4639,9 @@ builtins.input = _async_input
                   onToggleExpand={() => setWorkspaceExpanded((v) => !v)}
                 />
 
-                {/* Terminal + Test Result — same two-tab surface the multi-file
-                    student editor uses. Collapsed by default; Run Code opens
-                    it and picks the tab that matches the exercise's
-                    evaluation method. */}
+                {/* Terminal — as in the multi-file student editor, the test
+                    results have their own panel: the Test Result column at
+                    the far right. */}
                 <div className="border-t border-[#E7EEF8] bg-white">
                   <div className="flex items-center justify-between px-3 py-1.5">
                     <div className="flex items-center gap-2">
@@ -4608,8 +4660,7 @@ builtins.input = _async_input
                       <BottomPanel
                         activeTab={bottomTab}
                         onTabChange={setBottomTab}
-                        // Manual: nothing is evaluated, so no Test Result tab.
-                        mode={evalMethod === 'manual' ? 'terminal' : 'both'}
+                        mode="terminal"
                         liveTerminal={false}
                         isSubmitting={false}
                         testResult={testResult}
@@ -4747,6 +4798,53 @@ builtins.input = _async_input
                 saved={saveSuccess}
               />
             </div>
+          )}
+
+          {/* ── LAST: Test Result column — code answers that are auto-graded
+              (test cases or AI). Drag its left edge to resize, → / ← to
+              collapse; both are remembered. */}
+          {!workspaceExpanded && evalMethod !== 'manual' && !!selectedQuestion
+            && !(isFrontendReview && frontendSubmissionData) && !isOthersReview
+            && !isQuestionMCQ(selectedQuestion) && (
+            <>
+              {testColOpen && (
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize test result column"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    testColDragRef.current = { x: e.clientX, width: testColWidth };
+                    setIsResizingTestCol(true);
+                  }}
+                  onDoubleClick={() => setTestColWidth(TEST_COL_DEFAULT_WIDTH)}
+                  title="Drag to resize • double-click to reset"
+                  className={`group relative -mx-1.5 hidden w-3 flex-none cursor-col-resize items-center justify-center lg:flex ${
+                    isResizingTestCol ? 'text-[#2563EB]' : 'text-[#8090AF]'
+                  }`}
+                >
+                  <span
+                    className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 rounded-full transition-colors ${
+                      isResizingTestCol ? 'bg-[#2563EB]' : 'bg-[#DEE7F3] group-hover:bg-[#2563EB]'
+                    }`}
+                  />
+                  <span
+                    className={`relative flex h-8 w-3.5 items-center justify-center rounded-[4px] border bg-white shadow-sm transition-colors ${
+                      isResizingTestCol ? 'border-[#2563EB]' : 'border-[#DEE7F3] group-hover:border-[#2563EB]'
+                    }`}
+                  >
+                    <ChevronsLeftRight className="h-3 w-3" />
+                  </span>
+                </div>
+              )}
+              <TestResultColumn
+                state={testResult}
+                open={testColOpen}
+                onToggle={() => showTestCol(!testColOpen)}
+                width={testColWidth}
+                showScore={!isNonGraded}
+              />
+            </>
           )}
         </div>
       </div>

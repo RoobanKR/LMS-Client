@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ChevronDown,
+  ChevronRight,
   AlertTriangle,
   Search,
   Check,
@@ -171,6 +172,8 @@ export default function SessionDetail() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<UiStatus>("all");
+  // Batch tab next to "Students" — "all" or one batch's name.
+  const [batchTab, setBatchTab] = useState("all");
   // Currently-open "Send Message" modal — `null` when closed, a
   // StudentProgress when the kebab item was clicked. Owned here (not in the
   // table) so the modal renders once and is unaffected by row re-renders
@@ -264,21 +267,55 @@ export default function SessionDetail() {
   }, [students, courseData, courseId, assessmentId]);
 
 
-  const total = studentsWithMarks.length;
+  // Each learner's batch(es), read off the course roster (already narrowed to
+  // a trainer's own batches above), and the batches that hold any of them —
+  // in course order.
+  const { batchNames, batchesOf } = useMemo(() => {
+    const ids = new Set(studentsWithMarks.map((s) => s.id));
+    const map = new Map<string, string[]>();
+    const names: string[] = [];
+    for (const b of courseData?.batchAndParticipants || []) {
+      const name = String(b?.batchName || "").trim();
+      if (!name) continue;
+      for (const p of b?.users || []) {
+        const id = String(p?.user?._id || p?.user || p?._id || "");
+        if (!ids.has(id)) continue;
+        const list = map.get(id) || [];
+        if (!list.includes(name)) list.push(name);
+        map.set(id, list);
+        if (!names.includes(name)) names.push(name);
+      }
+    }
+    return { batchNames: names, batchesOf: map };
+  }, [courseData, studentsWithMarks]);
+  // Tabs only when the list spans more than one batch; a tab whose batch has
+  // gone falls back to All.
+  const showBatchTabs = batchNames.length > 1;
+  const activeBatch = showBatchTabs && batchNames.includes(batchTab) ? batchTab : "all";
+  // A trainer sees their own batch, so the column would repeat one name.
+  const showBatchColumn = !batchScoped && batchNames.length > 0;
+  const visibleStudents = useMemo(
+    () => (activeBatch === "all"
+      ? studentsWithMarks
+      : studentsWithMarks.filter((s) => batchesOf.get(s.id)?.includes(activeBatch))),
+    [studentsWithMarks, batchesOf, activeBatch],
+  );
+
+  const total = visibleStudents.length;
   // Learner-status counts — single pass so the strip + banners + filter
   // headline all agree.
   const learnerStats = useMemo(() => {
     let notStarted = 0;
     let inProgress = 0;
     let completed = 0;
-    for (const s of studentsWithMarks) {
+    for (const s of visibleStudents) {
       const st = deriveTestStatus(s);
       if (st === "submitted") completed++;
       else if (st === "not-started") notStarted++;
       else inProgress++;
     }
     return { notStarted, inProgress, completed };
-  }, [studentsWithMarks]);
+  }, [visibleStudents]);
 
   const exercise = useMemo(() => findExercise(courseData, assessmentId), [courseData, assessmentId]);
   // A non-graded assignment / assessment has no marks to show — the table,
@@ -483,6 +520,11 @@ export default function SessionDetail() {
   }
 
   const breadcrumbLabel = meta.typeLabel || (subcategory ? subcategory.replace(/_/g, " ") : "Assessment");
+  // Where the exercise lives — module › topic › … › type › exercise. Each
+  // level truncates on its own so none of them disappears.
+  const crumbs = [moduleName, submoduleName, topicName, subtopicName, breadcrumbLabel, assessmentName]
+    .map((c) => (c || "").trim())
+    .filter(Boolean);
 
   return (
     // Whole-page scroll: no `h-full` cage, no inner overflow container. The
@@ -495,13 +537,30 @@ export default function SessionDetail() {
         <button
           type="button"
           onClick={goBack}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+          className="flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
         >
           <ArrowLeft size={12} /> Back
         </button>
-        <nav aria-label="Breadcrumb" className="flex items-center text-[12px] text-gray-500 min-w-0 flex-1">
-          {/* Type context only — the header card's h1 below carries the name. */}
-          <span className="text-gray-500 whitespace-nowrap truncate">{breadcrumbLabel}</span>
+        <nav aria-label="Breadcrumb" className="flex items-center text-[12px] text-gray-500 min-w-0 flex-1 overflow-hidden">
+          <ol className="flex min-w-0 flex-nowrap items-center">
+            {crumbs.map((crumb, i) => {
+              const last = i === crumbs.length - 1;
+              return (
+                // Phones keep only the exercise; the full trail from sm up.
+                <li key={`${crumb}-${i}`} className={`min-w-0 items-center ${last ? "flex" : "hidden sm:flex"}`}>
+                  {i > 0 && <ChevronRight size={13} className="mx-0.5 shrink-0 text-gray-300" aria-hidden="true" />}
+                  <span
+                    title={crumb}
+                    className={`truncate ${last
+                      ? "max-w-[320px] font-semibold text-gray-800"
+                      : "min-w-[48px] max-w-[180px] text-gray-500"}`}
+                  >
+                    {crumb}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
         </nav>
         {/* Share + kebab removed — trainer feedback: the header should not
             carry extra actions; the assessment header + report modal cover
@@ -544,7 +603,8 @@ export default function SessionDetail() {
         ) : (
           <StudentsResultTable
             graded={graded}
-            students={studentsWithMarks}
+            students={visibleStudents}
+            batchOf={showBatchColumn ? (id) => batchesOf.get(id) : undefined}
             assessmentId={assessmentId}
             assessmentName={assessmentName || "Session"}
             courseData={courseData}
@@ -560,11 +620,34 @@ export default function SessionDetail() {
             statusFilter={statusFilter}
             toolbar={(
               <div className="sticky top-0 z-30 flex min-h-[52px] flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-white px-3 py-2">
-                <div className="flex shrink-0 items-center gap-2.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                   <h2 className="text-[15px] font-bold text-slate-950">Students</h2>
                   <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-medium text-violet-700">
-                    {total} learners
+                    {total} {total === 1 ? "learner" : "learners"}
                   </span>
+                  {/* One tab per batch — the list, counts and report follow it. */}
+                  {showBatchTabs && (
+                    <div role="tablist" aria-label="Batch" className="flex flex-wrap items-center gap-1">
+                      {["all", ...batchNames].map((name) => {
+                        const active = activeBatch === name;
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            onClick={() => setBatchTab(name)}
+                            className={`h-7 max-w-[160px] truncate rounded-md border px-2.5 text-[11px] font-medium transition-colors ${active
+                              ? "border-violet-600 bg-violet-600 text-white"
+                              : "border-indigo-100 bg-white text-slate-600 hover:border-violet-300 hover:text-violet-700"}`}
+                            title={name === "all" ? "All batches" : name}
+                          >
+                            {name === "all" ? "All batches" : name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
                   <div className="relative w-full min-w-0 sm:w-auto">
@@ -674,7 +757,7 @@ export default function SessionDetail() {
         graded={graded}
         open={reportOpen}
         onClose={() => setReportOpen(false)}
-        students={studentsWithMarks}
+        students={visibleStudents}
         courseData={courseData}
         courseId={courseId}
         exerciseId={assessmentId}
