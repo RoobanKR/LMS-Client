@@ -16,7 +16,7 @@ export { default as OverallMarksCard } from "./OverallMarksCard";
 export { default as ManualMarkOverride } from "./ManualMarkOverride";
 export { default as FeedbackCard, FEEDBACK_MAX, QUICK_COMMENTS } from "./FeedbackCard";
 export { default as GradingActions } from "./GradingActions";
-export { default as TestResultColumn } from "./TestResultColumn";
+export { default as TestResultPanel } from "./TestResultPanel";
 
 export type { ConsoleLogLine } from "./InputOutputPanel";
 export type { QuestionFilterOption } from "./DifficultySelect";

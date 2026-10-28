@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
-import { Code, FileCheck2, FlaskConical, Loader2, Lock, Play, RotateCcw } from "lucide-react";
+import { ClipboardCheck, Code, FileCheck2, FlaskConical, Loader2, Lock, Play, RotateCcw, X } from "lucide-react";
 import { C } from "./tokens";
 import CodeTabs from "./CodeTabs";
 // CodeToolbar (language dropdown + Multi-file / Single file chip + Run Code +
@@ -13,7 +13,9 @@ import CodeTabs from "./CodeTabs";
 import CodeEditor from "./CodeEditor";
 import FileExplorer from "./FileExplorer";
 import LanguageMark from "./LanguageMark";
+import TestResultPanel from "./TestResultPanel";
 import type { CodeTabId, ConsoleFile, ConsoleTestCase } from "./types";
+import type { TestResultState } from "@/app/lms/pages/courses/coursesdetailedview/components/multi-file/BottomPanel";
 
 interface CodeWorkspaceProps {
   activeTab: CodeTabId;
@@ -35,8 +37,8 @@ interface CodeWorkspaceProps {
   /** Omitted on review: the stored output is shown instead of a re-run. */
   onRun?: () => void;
   /** Run tests — runs the question's test cases (or the AI grader) into the
-   *  Test Result tab. Passed only for an auto-evaluated exercise. Nothing is
-   *  saved: review never submits, only the student does. */
+   *  Test Result panel. Passed only for an auto-evaluated exercise. Nothing
+   *  is saved: review never submits, only the student does. */
   onRunTests?: () => void;
   runningTests?: boolean;
   onReset?: () => void;
@@ -51,11 +53,28 @@ interface CodeWorkspaceProps {
   testCases: ConsoleTestCase[];
   solution: string;
 
+  /** The Test Result panel, docked at the right of the Student Answer code —
+   *  answers graded by test cases or AI. */
+  showTestResult?: boolean;
+  testResult?: TestResultState | null;
+  /** Graded exercises show the score in the Test Result panel. */
+  showScore?: boolean;
+
   /** Editor slab height in the normal (non-fullscreen) layout. */
   editorHeight: number;
   expanded: boolean;
   onToggleExpand: () => void;
 }
+
+// The Test Result panel's width is the trainer's — dragged, then remembered
+// per browser like the grading rail, as is whether it is open.
+const RESULTS_DEFAULT_WIDTH = 380;
+const RESULTS_MIN_WIDTH = 280;
+const RESULTS_MAX_WIDTH = 720;
+/** What the code keeps when the panel is dragged wide. */
+const EDITOR_MIN_WIDTH = 240;
+const RESULTS_WIDTH_KEY = "reviewSubmission.testResultWidth";
+const RESULTS_OPEN_KEY = "reviewSubmission.testResultOpen";
 
 function EmptyPanel({
   icon: Icon,
@@ -105,6 +124,9 @@ export default function CodeWorkspace({
   hints,
   testCases,
   solution,
+  showTestResult = false,
+  testResult = null,
+  showScore = true,
   editorHeight,
   expanded,
   onToggleExpand,
@@ -127,6 +149,66 @@ export default function CodeWorkspace({
   const isProject = files.length > 1;
   const panelHeight = editorHeight;
 
+  // ── Test Result panel: open / closed and its width, both remembered ──
+  const [resultsOpen, setResultsOpen] = useState(true);
+  const [resultsWidth, setResultsWidth] = useState(RESULTS_DEFAULT_WIDTH);
+  const [resizingResults, setResizingResults] = useState(false);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef({ x: 0, width: RESULTS_DEFAULT_WIDTH });
+
+  useEffect(() => {
+    try {
+      const w = Number(window.localStorage.getItem(RESULTS_WIDTH_KEY));
+      if (Number.isFinite(w) && w > 0) setResultsWidth(Math.min(RESULTS_MAX_WIDTH, Math.max(RESULTS_MIN_WIDTH, w)));
+      if (window.localStorage.getItem(RESULTS_OPEN_KEY) === "false") setResultsOpen(false);
+    } catch { /* storage unavailable — defaults stand */ }
+  }, []);
+
+  const showResults = (open: boolean) => {
+    setResultsOpen(open);
+    try { window.localStorage.setItem(RESULTS_OPEN_KEY, String(open)); } catch { /* ignore */ }
+  };
+
+  // Running the tests brings the results into view.
+  useEffect(() => { if (runningTests) setResultsOpen(true); }, [runningTests]);
+
+  useEffect(() => {
+    if (!resizingResults) return;
+    // The handle is on the panel's left edge: dragging left widens it. The
+    // code always keeps EDITOR_MIN_WIDTH.
+    const onMove = (e: MouseEvent) => {
+      const room = (rowRef.current?.clientWidth || 0) - EDITOR_MIN_WIDTH;
+      const max = Math.max(RESULTS_MIN_WIDTH, Math.min(RESULTS_MAX_WIDTH, room));
+      const next = dragRef.current.width + dragRef.current.x - e.clientX;
+      setResultsWidth(Math.round(Math.min(max, Math.max(RESULTS_MIN_WIDTH, next))));
+    };
+    const onUp = () => setResizingResults(false);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [resizingResults]);
+
+  useEffect(() => {
+    if (resizingResults) return;
+    try { window.localStorage.setItem(RESULTS_WIDTH_KEY, String(resultsWidth)); } catch { /* ignore */ }
+  }, [resizingResults, resultsWidth]);
+
+  // Passed / total, for the toggle's badge.
+  const testBadge = testResult && testResult.status !== "evaluating"
+    ? {
+      passed: testResult.passedCount ?? testResult.cases.filter((c) => c.passed).length,
+      total: testResult.totalCount ?? testResult.cases.length,
+    }
+    : null;
+  const resultsShown = showTestResult && resultsOpen;
+
   return (
     <section className="flex flex-none flex-col overflow-hidden rounded-[8px] border border-[#E5E7EB] bg-white">
       <CodeTabs active={activeTab} onChange={onTabChange} />
@@ -134,7 +216,7 @@ export default function CodeWorkspace({
       {activeTab === "editor" && (
         <>
           {activeFile ? (
-            <div className="flex" style={{ height: panelHeight }}>
+            <div ref={rowRef} className="flex" style={{ height: panelHeight }}>
               {isProject && (
                 <FileExplorer
                   files={files}
@@ -166,6 +248,26 @@ export default function CodeWorkspace({
                       Reset the toolbar carried, just moved inline. Handlers,
                       disabled state, and running spinner are unchanged. */}
                   <div className="flex shrink-0 items-center gap-1.5 self-center pl-1.5 sm:gap-2 sm:pl-0">
+                    {/* Opens / closes the Test Result panel beside the code. */}
+                    {showTestResult && (
+                      <button
+                        type="button"
+                        onClick={() => showResults(!resultsOpen)}
+                        aria-pressed={resultsOpen}
+                        title={resultsOpen ? "Hide test results" : "Show test results"}
+                        className={`flex h-[26px] items-center gap-1.5 rounded-[6px] border px-2 text-[12px] font-semibold transition-colors sm:px-2.5 ${resultsOpen
+                          ? "border-[#B9CDEA] bg-[#EEF4FF] text-[#0667F9]"
+                          : "border-[#E5E7EB] bg-white text-[#39496B] hover:border-[#B9CDEA] hover:bg-[#F7FAFF]"}`}
+                      >
+                        <ClipboardCheck className="h-[13px] w-[13px]" />
+                        Test Result
+                        {testBadge && testBadge.total > 0 && (
+                          <span className={`rounded-full px-1.5 text-[10.5px] font-bold ${testBadge.passed === testBadge.total ? "bg-[#ECFDF3] text-[#046C4E]" : "bg-[#FEF3F2] text-[#B42318]"}`}>
+                            {testBadge.passed}/{testBadge.total}
+                          </span>
+                        )}
+                      </button>
+                    )}
                     {onRun && (
                     <button
                       type="button"
@@ -225,6 +327,49 @@ export default function CodeWorkspace({
                   />
                 </div>
               </div>
+
+              {/* Test Result, docked at the right of the code: drag its left
+                  edge to resize (double-click resets), ✕ closes it — the
+                  Test Result button above brings it back. */}
+              {resultsShown && (
+                <>
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize test results"
+                    title="Drag to resize • double-click to reset"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      dragRef.current = { x: e.clientX, width: resultsWidth };
+                      setResizingResults(true);
+                    }}
+                    onDoubleClick={() => setResultsWidth(RESULTS_DEFAULT_WIDTH)}
+                    className={`w-1.5 flex-none cursor-col-resize transition-colors ${resizingResults ? "bg-[#0667F9]" : "bg-[#2A3647] hover:bg-[#0667F9]"}`}
+                  />
+                  <aside
+                    style={{ width: resultsWidth }}
+                    className="flex min-w-0 flex-none flex-col bg-white"
+                    aria-label="Test results"
+                  >
+                    <div className="flex h-[34px] flex-none items-center gap-2 border-b border-[#E7EEF8] bg-[#F8FAFE] px-3">
+                      <ClipboardCheck className="h-4 w-4 text-[#0667F9]" />
+                      <span className="flex-1 truncate text-[12.5px] font-semibold text-[#0B1437]">Test Result</span>
+                      <button
+                        type="button"
+                        onClick={() => showResults(false)}
+                        title="Close test results"
+                        aria-label="Close test results"
+                        className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[#53658C] transition-colors hover:bg-[#EEF4FF] hover:text-[#0667F9]"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar">
+                      <TestResultPanel state={testResult} showScore={showScore} onRunTests={onRunTests} />
+                    </div>
+                  </aside>
+                </>
+              )}
             </div>
           ) : (
             <div
