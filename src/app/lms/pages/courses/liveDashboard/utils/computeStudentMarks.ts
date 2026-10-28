@@ -616,7 +616,43 @@ export interface QuestionBreakdownRow {
   sectionId: string;
   /** Owning section's display name (e.g. "Part A"). Empty for non-section. */
   sectionName: string;
+  /** Test cases the stored answer passed / ran (test-case or AI grading);
+   *  null when none ran for it. */
+  testsPassed: number | null;
+  testsTotal: number | null;
+  /** Fully right: every test case passed, a correct MCQ choice, a solved
+   *  answer, or full marks from the grader. */
+  correct: boolean;
 }
+
+/** The test cases a stored answer ran, from its evaluation breakdown. */
+const testsOf = (sub: Loose | undefined): { passed: number; total: number } | null => {
+  const bd = sub?.evaluationBreakdown;
+  const tc = bd?.testcase;
+  if (tc && Number(tc.total) > 0) return { passed: Number(tc.passed) || 0, total: Number(tc.total) };
+  const ai = bd?.ai;
+  if (ai && Number(ai.totalTestCases) > 0) return { passed: Number(ai.passedTestCases) || 0, total: Number(ai.totalTestCases) };
+  if (ai && Array.isArray(ai.testCases) && ai.testCases.length) {
+    return { passed: ai.testCases.filter((c: Loose) => c?.passed).length, total: ai.testCases.length };
+  }
+  return null;
+};
+
+// `isCorrect` alone is not trusted for code: the submit path also sets it for
+// any score ≥ 70, so it is read only for MCQ.
+const isAnswerCorrect = (
+  question: Loose,
+  sub: Loose | undefined,
+  tests: { passed: number; total: number } | null,
+  max: number,
+): boolean => {
+  if (!sub) return false;
+  if (tests) return tests.passed === tests.total;
+  if (isQuestionMCQ(question)) return !!sub.isCorrect;
+  const status = String(sub.status || "").toLowerCase();
+  if (status === "solved") return true;
+  return status === "evaluated" && max > 0 && Number(sub.score) >= max;
+};
 
 // Match the title-normalization used by StudentDetailsPage — titles in the
 // payload can occasionally arrive as content-block arrays/objects.
@@ -777,6 +813,7 @@ export const getStudentQuestionsBreakdown = (args: {
     const title = asText(rawTitle) || `Question ${idx + 1}`;
 
     const section = resolveQuestionSection(q, sections);
+    const tests = testsOf(sub);
 
     return {
       questionId: String(q._id),
@@ -790,6 +827,9 @@ export const getStudentQuestionsBreakdown = (args: {
       timeTakenSeconds,
       sectionId: section.id,
       sectionName: section.name,
+      testsPassed: tests ? tests.passed : null,
+      testsTotal: tests ? tests.total : null,
+      correct: isAnswerCorrect(q, sub, tests, totalMark),
     };
   });
 };

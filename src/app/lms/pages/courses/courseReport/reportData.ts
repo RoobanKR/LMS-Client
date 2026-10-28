@@ -108,6 +108,11 @@ export interface QuestionRow {
   max: number;
   scored: number;
   status: BreakdownStatus;
+  /** Test cases passed / run for the answer; null when none ran. */
+  testsPassed: number | null;
+  testsTotal: number | null;
+  /** The answer is fully right (see getStudentQuestionsBreakdown). */
+  correct: boolean;
 }
 
 export const QUESTION_STATUS_LABEL: Record<BreakdownStatus, string> = {
@@ -431,6 +436,9 @@ export function questionsFor(
     max: r.totalMark,
     scored: r.scoredMark,
     status: r.status,
+    testsPassed: r.testsPassed,
+    testsTotal: r.testsTotal,
+    correct: r.correct,
   }));
 }
 

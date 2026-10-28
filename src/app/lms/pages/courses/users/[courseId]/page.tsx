@@ -1,1302 +1,914 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { 
-  Users, Search, ChevronLeft, Loader2, 
-  BookOpen, CheckCircle, Clock, XCircle,
-  ArrowLeft, ChevronDown, ChevronUp, Calendar, CalendarDays
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
-import { getAuthToken } from '@/apiServices/studentcoursepage';
-import { StudentLayout } from '../../../../component/student/student-layout';
-import DashboardLayout from '../../../../component/layout';
-import { StaffLayout } from '../../../../component/stafflayout/staff-layout';
-import { Loading } from '@/components/loading-ui/loading';
-import { API_ORIGIN } from '@/lib/apiBase'
+import React, { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ArrowLeft, CheckCircle2, ChevronRight, ClipboardList, FlaskConical, ListChecks,
+  RotateCcw, Search, Trophy, UsersRound, X, XCircle,
+} from "lucide-react";
+import { getUserId, SESSION_KEYS } from "@/lib/session";
+import { fetchReportPayload } from "@/app/lms/pages/courses/courseReport/reportApi";
+import {
+  collectExercises, collectStudents, formatDate, formatPercent, QUESTION_STATUS_LABEL, round1, totalsFor,
+  type ReportExercise, type ReportStudent, type Section,
+} from "@/app/lms/pages/courses/courseReport/reportData";
+import { Dash, StatusChip, TD, TD_NUM, TH } from "@/app/lms/pages/courses/courseReport/ReportUi";
+import { buildCells, cellKey, pct, questionInsights, sumCells, type Cell } from "./insightsData";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface CategoryProgress {
-  total: number;
-  completed: number;
-  percentage?: number;
+// ─── Course Insights ─────────────────────────────────────────────────────────
+//
+// What the course's We Do / You Do work looks like, from the answers students
+// stored: how many questions they solved, how many were fully right, how many
+// test cases passed, and — for graded exercises only — the marks.
+//
+//   [header]   course · batches · students · exercises
+//   [filters]  Batch · Activity · Exercise · Search
+//   [tiles]    the figures for whatever the filters select
+//   [lists]    All exercises: Exercises | Students
+//              One exercise:  Students (per question on expand) | Questions
+//
+// Built on the Course Report's payload and marks functions, so a figure here
+// is the figure the report prints.
+
+const SECTION_LABEL: Record<Section, string> = { We_Do: "We Do", You_Do: "You Do" };
+
+const CARD = "rounded-xl border border-hairline bg-surface shadow-xs";
+const CONTROL = "h-9 rounded-control border border-hairline-strong bg-surface px-2.5 text-xs text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15";
+const PAGE_SIZE = 50;
+
+type StudentSort = "name" | "correct-desc" | "correct-asc" | "tests-desc" | "marks-desc";
+type StatusFilter = "" | "completed" | "in-progress" | "not-started";
+
+/** Who is looking: a trainer sees the students of the batches they teach. */
+function useViewer() {
+  const [viewer, setViewer] = useState<{ trainer: boolean; id: string } | null>(null);
+  useEffect(() => {
+    let trainer = false;
+    let id = "";
+    try {
+      trainer = [SESSION_KEYS.originalRole, SESSION_KEYS.renameRole, SESSION_KEYS.roleValue, SESSION_KEYS.role, SESSION_KEYS.userRole]
+        .some((k) => (localStorage.getItem(k) || "").toLowerCase().includes("trainer"));
+      id = getUserId() || "";
+    } catch { /* storage unavailable — treated as a non-trainer */ }
+    setViewer({ trainer, id });
+  }, []);
+  return viewer;
 }
 
-interface ProgressData {
-  total: number;
-  completed: number;
-  percentage: number;
-  details?: Record<string, CategoryProgress>;
-}
+const activityOf = (ex: ReportExercise) => `${SECTION_LABEL[ex.section]} · ${ex.subcategory || "Exercises"}`;
 
-interface UserProgress {
-  student: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    department?: string;
-    role?: {
-      renameRole: string;
-      originalRole: string;
-      roleValue: string;
-    };
-  };
-  progress: {
-    overall: number;
-    I_Do: ProgressData;
-    We_Do: ProgressData;
-    You_Do: ProgressData;
-  };
-  lastActivity?: string;
-}
-
-interface CourseUsersData {
-  course: {
-    _id: string;
-    courseName: string;
-    courseCode: string;
-    courseLevel: string;
-    serviceType: string;
-  };
-  stats: {
-    totalStudents: number;
-    averageProgress: number;
-    completedStudents: number;
-    inProgressStudents: number;
-    notStartedStudents: number;
-  };
-  // The batches this list is drawn from — a trainer's own, or every batch of
-  // the course for anyone else. `phase` is "" unless the course runs in phases.
-  cohorts?: { batchName: string; phase: string }[];
-  students: UserProgress[];
-  pedagogySummary?: {
-    I_Do: { totalItems: number; categories: string[] };
-    We_Do: { totalItems: number; categories: string[] };
-    You_Do: { totalItems: number; categories: string[] };
-  };
-}
-
-// ─── API Service ─────────────────────────────────────────────────────────────
-const fetchCourseUsers = async (courseId: string): Promise<CourseUsersData> => {
-  const token = getAuthToken();
-  const response = await fetch(`${API_ORIGIN}/staff/analytics/course/${courseId}/students`, {
-    cache: 'no-store',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch course users');
-  }
-
-  const result = await response.json();
-  
-  if (result.success && result.data) {
-    return result.data;
-  }
-  
-  return result;
+/** "We_Do" or "We_Do|practical" against an exercise. */
+const matchesActivity = (ex: ReportExercise, activity: string) => {
+  if (!activity) return true;
+  const [section, sub] = activity.split("|");
+  return ex.section === section && (!sub || ex.subcategoryKey === sub);
 };
 
-// ─── Design Tokens ──────────────────────────────────────────────────────────
-const T = {
-  orange: '#F27757',
-  orangeDark: '#E0623F',
-  orangeGlow: 'rgba(242,119,87,0.22)',
-  orangeLight: 'rgba(242,119,87,0.08)',
-  textMain: '#1a1a2e',
-  textSub: '#6b6b7e',
-  textMuted: '#8b8b9e',
-  textHint: '#bcbccc',
-  border: '#ecedf1',
-  bg: '#ffffff',
-  pageBg: '#f8f8fa',
-  dark: {
-    bg: '#1a1a2e',
-    surface: '#222240',
-    card: '#252545',
-    border: '#2e2e4a',
-    textMain: '#e8e8f0',
-    textSub: '#a0a0b8',
-    textMuted: '#6b6b88',
-    textHint: '#4a4a66',
-    pageBg: '#12121f'
-  }
-};
+// ─── Small pieces ────────────────────────────────────────────────────────────
 
-// ─── Status Badge ────────────────────────────────────────────────────────────
-const StatusBadge = ({ progress }: { progress: number }) => {
-  if (progress >= 80) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" 
-        style={{ background: '#ecfdf5', color: '#059669' }}>
-        <CheckCircle className="w-3 h-3" /> Completed
-      </span>
-    );
-  } else if (progress > 0) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" 
-        style={{ background: '#fff7ed', color: '#ea580c' }}>
-        <Clock className="w-3 h-3" /> In Progress
-      </span>
-    );
-  }
+function Tile({ icon: Icon, label, value, hint, color, bg }: {
+  icon: typeof UsersRound; label: string; value: React.ReactNode; hint?: string; color: string; bg: string;
+}) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" 
-      style={{ background: '#f1f5f9', color: '#64748b' }}>
-      <XCircle className="w-3 h-3" /> Not Started
-    </span>
-  );
-};
-
-const ProgressRing = ({ percentage, size = 40, strokeWidth = 4, showLabel = true }: { 
-  percentage: number; 
-  size?: number; 
-  strokeWidth?: number;
-  showLabel?: boolean;
-}) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const pct = Math.min(Math.max(percentage, 0), 100);
-  const greenLength = (pct / 100) * circumference;
-  const redLength = circumference - greenLength;
-  const [isHovered, setIsHovered] = useState(false);
-  const glowColor = pct >= 80 ? 'rgba(16,185,129,0.55)' : 'rgba(239,68,68,0.55)';
-
-  return (
-    <motion.div
-      className="relative inline-flex items-center justify-center"
-      style={{ width: size, height: size, cursor: 'pointer' }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
-      animate={{
-        scale: isHovered ? 1.15 : 1,
-        filter: isHovered ? `drop-shadow(0 0 6px ${glowColor})` : 'drop-shadow(0 0 0 rgba(0,0,0,0))',
-      }}
-      transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-    >
-      <svg className="transform -rotate-90" width={size} height={size}>
-        {/* Red portion — "not completed" share, fills the rest of the ring */}
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#ef4444"
-          strokeWidth={strokeWidth}
-          initial={{ strokeDasharray: `0 ${circumference}`, strokeDashoffset: 0 }}
-          whileInView={{ strokeDasharray: `${redLength} ${circumference}`, strokeDashoffset: -greenLength }}
-          viewport={{ once: false, amount: 0.4 }}
-          transition={{ duration: 1, ease: 'easeOut' }}
-        />
-        {/* Green portion — "completed" share, starts at 12 o'clock */}
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#10b981"
-          strokeWidth={strokeWidth}
-          strokeLinecap="butt"
-          initial={{ strokeDasharray: `0 ${circumference}` }}
-          whileInView={{ strokeDasharray: `${greenLength} ${circumference}` }}
-          viewport={{ once: false, amount: 0.4 }}
-          transition={{ duration: 1, ease: 'easeOut' }}
-        />
-      </svg>
-      {showLabel && (
-        <motion.span
-          className="absolute text-[10px] font-bold"
-          style={{ color: T.textMain }}
-          animate={{ scale: isHovered ? 1.2 : 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-        >
-          {Math.round(pct)}%
-        </motion.span>
-      )}
-    </motion.div>
-  );
-};
-
-// ─── Category Progress Component ────────────────────────────────────────────
-const CategoryProgressBar = ({ category, progress, isDark }: { 
-  category: string; 
-  progress: CategoryProgress;
-  isDark: boolean;
-}) => {
-  const percentage = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
-  
-  return (
-    <div className="flex items-center gap-2 py-0.5">
-      <span className="text-[10px] font-medium w-20 truncate" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-        {category}:
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-hairline bg-surface px-3.5 py-3 shadow-xs">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: bg, color }}>
+        <Icon size={17} />
       </span>
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden flex" style={{ background: '#ef4444' }}>
-        <motion.div 
-          className="h-full"
-          style={{ background: '#10b981' }}
-          initial={{ width: '0%' }}
-          whileInView={{ width: `${percentage}%` }}
-          viewport={{ once: false, amount: 0.5 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-        />
+      <div className="min-w-0">
+        <div className="text-2xs font-semibold uppercase tracking-wide text-subtle">{label}</div>
+        <div className="mt-0.5 text-lg font-bold leading-tight text-heading tabular-nums">{value}</div>
+        {hint && <div className="mt-0.5 truncate text-2xs text-faint" title={hint}>{hint}</div>}
       </div>
-      <span className="text-[9px] font-medium min-w-[60px] text-right" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-        {progress.completed}/{progress.total}
-      </span>
     </div>
   );
-};
+}
 
-const getStatusColor = (pct: number): string => (pct >= 80 ? '#10b981' : '#ef4444');
-const getStatusLabel = (pct: number): string => (pct >= 80 ? 'Completed' : 'Not Completed');
-
-const ThresholdLegend = ({ isDark }: { isDark: boolean }) => {
-  const items: { label: string; color: string }[] = [
-    { label: 'Completed', color: '#10b981' },
-    { label: 'Not Completed', color: '#ef4444' },
-  ];
+/** A percentage with a thin bar under it. */
+function Meter({ part, whole, tone = "#12B76A" }: { part: number; whole: number; tone?: string }) {
+  if (whole <= 0) return <Dash />;
+  const p = Math.round((part / whole) * 100);
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      {items.map((it) => (
-        <span key={it.label} className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: it.color }} />
-          {it.label}
-        </span>
+    <div className="ml-auto w-[88px]">
+      <div className="text-right text-xs font-semibold tabular-nums text-heading">{p}%</div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#EAECF0]">
+        <div className="h-full rounded-full" style={{ width: `${p}%`, background: tone }} />
+      </div>
+    </div>
+  );
+}
+
+/** "x / y" with the share underneath. */
+function Count({ part, whole }: { part: number; whole: number }) {
+  if (whole <= 0) return <Dash />;
+  return (
+    <div className="text-right tabular-nums">
+      <div className="text-xs font-semibold text-heading">{part} / {whole}</div>
+      <div className="text-2xs text-faint">{pct(part, whole)}</div>
+    </div>
+  );
+}
+
+function Tabs<T extends string>({ value, onChange, tabs }: {
+  value: T; onChange: (v: T) => void; tabs: { key: T; label: string; icon: React.ReactNode; count?: number }[];
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-control border border-hairline-strong bg-surface" role="tablist">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          role="tab"
+          aria-selected={value === t.key}
+          onClick={() => onChange(t.key)}
+          className={`inline-flex h-9 items-center gap-1.5 px-3.5 text-xs font-medium transition-colors ${
+            value === t.key ? "bg-brand-strong text-white" : "text-body hover:bg-row-hover"
+          }`}
+        >
+          {t.icon} {t.label}
+          {t.count != null && <span className={`rounded-full px-1.5 text-2xs ${value === t.key ? "bg-white/20" : "bg-canvas text-subtle"}`}>{t.count}</span>}
+        </button>
       ))}
     </div>
   );
-};
+}
 
-// ─── Monthly Overall Chart ──────────────────────────────────────────────────
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEK_LABELS = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'];
-
-type TimeView = 'monthly' | 'weekly';
-
-const TimeViewToggle = ({ view, setView, isDark }: { view: TimeView; setView: (v: TimeView) => void; isDark: boolean }) => {
+function Pager({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (p: number) => void }) {
+  if (pages <= 1) return null;
   return (
-    <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: isDark ? T.dark.surface : '#f1f5f9' }}>
-      <button
-        onClick={() => setView('monthly')}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-          view === 'monthly' 
-            ? 'text-white shadow-sm' 
-            : ''
-        }`}
-        style={{
-          background: view === 'monthly' ? T.orange : 'transparent',
-          color: view === 'monthly' ? '#fff' : (isDark ? T.dark.textSub : T.textSub),
-        }}
-      >
-        <Calendar className="w-3.5 h-3.5" />
-        Monthly
-      </button>
-      <button
-        onClick={() => setView('weekly')}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-          view === 'weekly' 
-            ? 'text-white shadow-sm' 
-            : ''
-        }`}
-        style={{
-          background: view === 'weekly' ? T.orange : 'transparent',
-          color: view === 'weekly' ? '#fff' : (isDark ? T.dark.textSub : T.textSub),
-        }}
-      >
-        <CalendarDays className="w-3.5 h-3.5" />
-        Weekly
-      </button>
+    <div className="flex items-center justify-between border-t border-hairline px-3 py-2 text-xs text-subtle">
+      <span>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}</span>
+      <span className="flex gap-1.5">
+        <button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)} className="rounded-control border border-hairline-strong px-2.5 py-1 hover:bg-row-hover disabled:opacity-40">Prev</button>
+        <button type="button" disabled={page >= pages} onClick={() => onPage(page + 1)} className="rounded-control border border-hairline-strong px-2.5 py-1 hover:bg-row-hover disabled:opacity-40">Next</button>
+      </span>
     </div>
   );
+}
+
+const usePaged = <T,>(rows: T[], resetKey: string) => {
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [resetKey]);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safe = Math.min(page, pages);
+  return { page: safe, pages, setPage, rows: rows.slice((safe - 1) * PAGE_SIZE, safe * PAGE_SIZE) };
 };
 
-// ─── Monthly Chart ──────────────────────────────────────────────────────────
-const MonthlyChart = ({
-  students,
-  isDark,
-  hovered,
-  setHovered,
-}: {
-  students: UserProgress[];
-  isDark: boolean;
-  hovered: number | null;
-  setHovered: (index: number | null) => void;
-}) => {
-  const monthlyData = useMemo(() => {
-    const buckets = new Map<string, { label: string; sortKey: string; students: UserProgress[] }>();
-    students.forEach((s) => {
-      if (!s.lastActivity) return;
-      const d = new Date(s.lastActivity);
-      if (isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
-      const label = `${MONTH_LABELS[d.getMonth()]} ${d.getFullYear()}`;
-      if (!buckets.has(key)) buckets.set(key, { label, sortKey: key, students: [] });
-      buckets.get(key)!.students.push(s);
-    });
-    const arr = Array.from(buckets.values()).sort((a, b) => (a.sortKey > b.sortKey ? 1 : -1));
-    return arr.map((b) => ({
-      label: b.label,
-      value: b.students.reduce((a, s) => a + (s.progress?.overall || 0), 0) / b.students.length,
-      count: b.students.length,
-    }));
-  }, [students]);
+function Empty({ text }: { text: string }) {
+  return <p className="px-4 py-10 text-center text-xs text-subtle">{text}</p>;
+}
 
-  const currentYear = new Date().getFullYear();
-  
-  const monthDataMap = useMemo(() => {
-    const map = new Map<number, { value: number; count: number; label: string }>();
-    monthlyData.forEach((m) => {
-      const monthIndex = MONTH_LABELS.findIndex(label => m.label.startsWith(label));
-      if (monthIndex !== -1) {
-        map.set(monthIndex, { value: m.value, count: m.count, label: m.label });
-      }
-    });
-    return map;
-  }, [monthlyData]);
+function Correctness({ ok }: { ok: boolean }) {
+  return ok
+    ? <CheckCircle2 size={16} className="text-[#12B76A]" aria-label="Correct" />
+    : <XCircle size={16} className="text-[#F04438]" aria-label="Not correct" />;
+}
 
-  const allMonths = useMemo(() => {
-    return MONTH_LABELS.map((month, index) => {
-      const data = monthDataMap.get(index);
-      return {
-        label: `${month} ${currentYear}`,
-        value: data ? data.value : 0,
-        count: data ? data.count : 0,
-        hasData: !!data,
-      };
-    });
-  }, [monthDataMap, currentYear]);
+// ─── Page ────────────────────────────────────────────────────────────────────
 
-  const width = 680;
-  const height = 260;
-  const padding = { top: 28, right: 16, bottom: 44, left: 46 };
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-  const gridLines = [0, 20, 40, 60, 80, 100];
-  const yFor = (v: number) => padding.top + chartHeight - (Math.min(Math.max(v, 0), 100) / 100) * chartHeight;
-
-  if (allMonths.length === 0) {
-    return (
-      <div className="w-full max-w-3xl text-center py-10">
-        <p className="text-sm" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-          No activity dates available yet to build a month-by-month view.
-        </p>
-      </div>
-    );
-  }
-
-  const groupWidth = chartWidth / allMonths.length;
-  const barWidth = Math.min(56, groupWidth * 0.5);
-
-  const monthsWithData = allMonths.map((m, i) => ({ ...m, index: i })).filter(m => m.hasData);
-  const topMonth = monthsWithData.length > 0 
-    ? monthsWithData.reduce((best, m) => (best === null || m.value > best.value ? m : best), monthsWithData[0])
-    : null;
-
-  return (
-    <div className="w-full max-w-3xl">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1">
-        <span className="text-sm font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
-          Monthly Overall Progress
-        </span>
-        <ThresholdLegend isDark={isDark} />
-      </div>
-      <p className="text-[11px] mb-3" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-        Average overall completion, grouped by month of last activity
-      </p>
-
-      <div className="relative">
-        <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
-          {gridLines.map((g) => (
-            <g key={g}>
-              <line
-                x1={padding.left} x2={padding.left + chartWidth}
-                y1={yFor(g)} y2={yFor(g)}
-                stroke={isDark ? T.dark.border : '#eef0f4'}
-                strokeWidth={1}
-              />
-              <text
-                x={padding.left - 10} y={yFor(g)}
-                textAnchor="end" dominantBaseline="middle"
-                fontSize="10" fill={isDark ? T.dark.textMuted : T.textMuted}
-              >
-                {g}%
-              </text>
-            </g>
-          ))}
-
-          <line
-            x1={padding.left} x2={padding.left + chartWidth}
-            y1={yFor(80)} y2={yFor(80)}
-            stroke="#10b981" strokeWidth={1} strokeDasharray="4 4" opacity={0.4}
-          />
-          <text x={padding.left + chartWidth} y={yFor(80) - 6} textAnchor="end" fontSize="9" fill="#10b981" opacity={0.7}>
-            80% threshold
-          </text>
-
-          {allMonths.map((m, mi) => {
-            const barColor = m.hasData ? getStatusColor(m.value) : '#e5e7eb';
-            const barX = padding.left + mi * groupWidth + (groupWidth - barWidth) / 2;
-            const displayValue = m.hasData ? m.value : 0;
-            const yPosition = yFor(displayValue);
-            const heightValue = chartHeight - (yPosition - padding.top);
-            
-            return (
-              <g key={m.label}>
-                <motion.rect
-                  x={barX}
-                  width={barWidth}
-                  rx={6}
-                  fill={barColor}
-                  style={{ 
-                    cursor: m.hasData ? 'pointer' : 'default',
-                    opacity: m.hasData ? 1 : 0.3,
-                  }}
-                  initial={{ y: padding.top + chartHeight, height: 0 }}
-                  whileInView={{ y: yPosition, height: heightValue }}
-                  whileHover={m.hasData ? { scale: 1.05, filter: `drop-shadow(0 0 8px ${barColor}99)` } : {}}
-                  viewport={{ once: false, amount: 0.3 }}
-                  onHoverStart={() => m.hasData && setHovered(mi)}
-                  onHoverEnd={() => setHovered(null)}
-                  transition={{ duration: 0.9, delay: mi * 0.04, ease: 'easeOut' }}
-                />
-
-                <text
-                  x={barX + barWidth / 2}
-                  y={padding.top + chartHeight + 18}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fontWeight="600"
-                  fill={isDark ? T.dark.textSub : T.textSub}
-                >
-                  {m.label.split(' ')[0]}
-                </text>
-                <text
-                  x={barX + barWidth / 2}
-                  y={padding.top + chartHeight + 32}
-                  textAnchor="middle"
-                  fontSize="9"
-                  fill={m.hasData ? (isDark ? T.dark.textMuted : T.textMuted) : (isDark ? T.dark.textHint : T.textHint)}
-                >
-                  {m.hasData ? `${m.count} student${m.count !== 1 ? 's' : ''}` : 'No data'}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-
-        {hovered !== null && allMonths[hovered]?.hasData && (
-          <div
-            className="absolute pointer-events-none z-50 px-4 py-3 rounded-lg shadow-xl text-sm font-bold"
-            style={{
-              left: '50%',
-              top: '12px',
-              transform: 'translateX(-50%)',
-              background: isDark ? T.dark.card : '#ffffff',
-              border: `1px solid ${isDark ? T.dark.border : T.border}`,
-              color: isDark ? T.dark.textMain : T.textMain,
-              minWidth: '120px',
-              textAlign: 'center',
-              boxShadow: isDark 
-                ? '0 10px 40px rgba(0,0,0,0.5)' 
-                : '0 10px 40px rgba(0,0,0,0.15)',
-            }}
-          >
-            <div style={{ color: getStatusColor(allMonths[hovered].value), fontSize: '18px' }}>
-              {Math.round(allMonths[hovered].value)}%
-            </div>
-            <div className="text-[11px] font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-              {allMonths[hovered].label}
-            </div>
-            <div className="text-[10px] font-normal" style={{ color: isDark ? T.dark.textHint : T.textHint }}>
-              {allMonths[hovered].count} student{allMonths[hovered].count !== 1 ? 's' : ''}
-            </div>
-            <div 
-              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-              style={{
-                bottom: '-8px',
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderTop: `8px solid ${isDark ? T.dark.card : '#ffffff'}`,
-              }}
-            />
-          </div>
-        )}
-      </div>
-
-      {topMonth && (
-        <p className="text-[11px] mt-2 text-center font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-          Best month: <span style={{ color: T.orange, fontWeight: 700 }}>{topMonth.label}</span> at{' '}
-          <span style={{ color: T.orange, fontWeight: 700 }}>{Math.round(topMonth.value)}%</span>
-        </p>
-      )}
-    </div>
-  );
-};
-
-// ─── Weekly Chart ───────────────────────────────────────────────────────────
-const WeeklyChart = ({
-  students,
-  isDark,
-  hovered,
-  setHovered,
-}: {
-  students: UserProgress[];
-  isDark: boolean;
-  hovered: number | null;
-  setHovered: (index: number | null) => void;
-}) => {
-  const weeklyData = useMemo(() => {
-    const buckets = new Map<string, { label: string; sortKey: string; students: UserProgress[] }>();
-    students.forEach((s) => {
-      if (!s.lastActivity) return;
-      const d = new Date(s.lastActivity);
-      if (isNaN(d.getTime())) return;
-      
-      // Get the week number (1-52)
-      const startOfYear = new Date(d.getFullYear(), 0, 1);
-      const days = Math.floor((d.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-      const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-      
-      const key = `${d.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
-      const label = `Week ${weekNumber} ${d.getFullYear()}`;
-      
-      if (!buckets.has(key)) buckets.set(key, { label, sortKey: key, students: [] });
-      buckets.get(key)!.students.push(s);
-    });
-    
-    const arr = Array.from(buckets.values()).sort((a, b) => (a.sortKey > b.sortKey ? 1 : -1));
-    return arr.map((b) => ({
-      label: b.label,
-      value: b.students.reduce((a, s) => a + (s.progress?.overall || 0), 0) / b.students.length,
-      count: b.students.length,
-    }));
-  }, [students]);
-
-  const width = 680;
-  const height = 260;
-  const padding = { top: 28, right: 16, bottom: 44, left: 46 };
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-  const gridLines = [0, 20, 40, 60, 80, 100];
-  const yFor = (v: number) => padding.top + chartHeight - (Math.min(Math.max(v, 0), 100) / 100) * chartHeight;
-
-  if (weeklyData.length === 0) {
-    return (
-      <div className="w-full max-w-3xl text-center py-10">
-        <p className="text-sm" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-          No activity dates available yet to build a week-by-week view.
-        </p>
-      </div>
-    );
-  }
-
-  // Show last 12 weeks or all if less
-  const displayData = weeklyData.slice(-12);
-  const groupWidth = chartWidth / displayData.length;
-  const barWidth = Math.min(56, groupWidth * 0.5);
-
-  const dataWithIndex = displayData.map((m, i) => ({ ...m, index: i }));
-  const topWeek = dataWithIndex.length > 0 
-    ? dataWithIndex.reduce((best, m) => (best === null || m.value > best.value ? m : best), dataWithIndex[0])
-    : null;
-
-  return (
-    <div className="w-full max-w-3xl">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1">
-        <span className="text-sm font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
-          Weekly Overall Progress
-        </span>
-        <ThresholdLegend isDark={isDark} />
-      </div>
-      <p className="text-[11px] mb-3" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-        Average overall completion, grouped by week of last activity (last 12 weeks)
-      </p>
-
-      <div className="relative">
-        <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
-          {gridLines.map((g) => (
-            <g key={g}>
-              <line
-                x1={padding.left} x2={padding.left + chartWidth}
-                y1={yFor(g)} y2={yFor(g)}
-                stroke={isDark ? T.dark.border : '#eef0f4'}
-                strokeWidth={1}
-              />
-              <text
-                x={padding.left - 10} y={yFor(g)}
-                textAnchor="end" dominantBaseline="middle"
-                fontSize="10" fill={isDark ? T.dark.textMuted : T.textMuted}
-              >
-                {g}%
-              </text>
-            </g>
-          ))}
-
-          <line
-            x1={padding.left} x2={padding.left + chartWidth}
-            y1={yFor(80)} y2={yFor(80)}
-            stroke="#10b981" strokeWidth={1} strokeDasharray="4 4" opacity={0.4}
-          />
-          <text x={padding.left + chartWidth} y={yFor(80) - 6} textAnchor="end" fontSize="9" fill="#10b981" opacity={0.7}>
-            80% threshold
-          </text>
-
-          {displayData.map((m, mi) => {
-            const barColor = getStatusColor(m.value);
-            const barX = padding.left + mi * groupWidth + (groupWidth - barWidth) / 2;
-            const yPosition = yFor(m.value);
-            const heightValue = chartHeight - (yPosition - padding.top);
-            
-            return (
-              <g key={m.label}>
-                <motion.rect
-                  x={barX}
-                  width={barWidth}
-                  rx={6}
-                  fill={barColor}
-                  style={{ cursor: 'pointer' }}
-                  initial={{ y: padding.top + chartHeight, height: 0 }}
-                  whileInView={{ y: yPosition, height: heightValue }}
-                  whileHover={{ scale: 1.05, filter: `drop-shadow(0 0 8px ${barColor}99)` }}
-                  viewport={{ once: false, amount: 0.3 }}
-                  onHoverStart={() => setHovered(mi)}
-                  onHoverEnd={() => setHovered(null)}
-                  transition={{ duration: 0.9, delay: mi * 0.04, ease: 'easeOut' }}
-                />
-
-                <text
-                  x={barX + barWidth / 2}
-                  y={padding.top + chartHeight + 18}
-                  textAnchor="middle"
-                  fontSize="9"
-                  fontWeight="600"
-                  fill={isDark ? T.dark.textSub : T.textSub}
-                >
-                  {m.label.split(' ')[0]} {m.label.split(' ')[1]?.slice(2,4)}
-                </text>
-                <text
-                  x={barX + barWidth / 2}
-                  y={padding.top + chartHeight + 30}
-                  textAnchor="middle"
-                  fontSize="8"
-                  fill={isDark ? T.dark.textMuted : T.textMuted}
-                >
-                  {m.count} student{m.count !== 1 ? 's' : ''}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-
-        {hovered !== null && displayData[hovered] && (
-          <div
-            className="absolute pointer-events-none z-50 px-4 py-3 rounded-lg shadow-xl text-sm font-bold"
-            style={{
-              left: '50%',
-              top: '12px',
-              transform: 'translateX(-50%)',
-              background: isDark ? T.dark.card : '#ffffff',
-              border: `1px solid ${isDark ? T.dark.border : T.border}`,
-              color: isDark ? T.dark.textMain : T.textMain,
-              minWidth: '120px',
-              textAlign: 'center',
-              boxShadow: isDark 
-                ? '0 10px 40px rgba(0,0,0,0.5)' 
-                : '0 10px 40px rgba(0,0,0,0.15)',
-            }}
-          >
-            <div style={{ color: getStatusColor(displayData[hovered].value), fontSize: '18px' }}>
-              {Math.round(displayData[hovered].value)}%
-            </div>
-            <div className="text-[11px] font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-              {displayData[hovered].label}
-            </div>
-            <div className="text-[10px] font-normal" style={{ color: isDark ? T.dark.textHint : T.textHint }}>
-              {displayData[hovered].count} student{displayData[hovered].count !== 1 ? 's' : ''}
-            </div>
-            <div 
-              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-              style={{
-                bottom: '-8px',
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderTop: `8px solid ${isDark ? T.dark.card : '#ffffff'}`,
-              }}
-            />
-          </div>
-        )}
-      </div>
-
-      {topWeek && (
-        <p className="text-[11px] mt-2 text-center font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-          Best week: <span style={{ color: T.orange, fontWeight: 700 }}>{topWeek.label}</span> at{' '}
-          <span style={{ color: T.orange, fontWeight: 700 }}>{Math.round(topWeek.value)}%</span>
-        </p>
-      )}
-    </div>
-  );
-};
-
-// ─── Category Rings Compare ──────────────────────────────────────────────────
-const CategoryRingsCompare = ({
-  categories,
-  size = 200,
-  isDark,
-}: {
-  categories: { label: string; percentage: number }[];
-  size?: number;
-  isDark: boolean;
-}) => {
-  const cx = size / 2;
-  const cy = size / 2;
-  const thickness = 15;
-  const gap = 5;
-  const avg = categories.length ? categories.reduce((a, c) => a + c.percentage, 0) / categories.length : 0;
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center gap-6">
-      <motion.div
-        className="relative inline-flex items-center justify-center"
-        style={{ width: size, height: size, cursor: 'pointer' }}
-        whileHover={{ scale: 1.05 }}
-        transition={{ type: 'spring', stiffness: 250, damping: 20 }}
-      >
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90">
-          {categories.map((c, i) => {
-            const r = size / 2 - 6 - i * (thickness + gap);
-            const circumference = 2 * Math.PI * r;
-            const pct = Math.min(Math.max(c.percentage, 0), 100);
-            const greenLength = (pct / 100) * circumference;
-            const redLength = circumference - greenLength;
-            return (
-              <g key={c.label}>
-                <motion.circle
-                  cx={cx} cy={cy} r={r} fill="none"
-                  stroke="#ef4444" strokeWidth={thickness}
-                  initial={{ strokeDasharray: `0 ${circumference}`, strokeDashoffset: 0 }}
-                  whileInView={{ strokeDasharray: `${redLength} ${circumference}`, strokeDashoffset: -greenLength }}
-                  viewport={{ once: false, amount: 0.4 }}
-                  transition={{ duration: 1, delay: i * 0.15, ease: 'easeOut' }}
-                />
-                <motion.circle
-                  cx={cx} cy={cy} r={r} fill="none"
-                  stroke="#10b981" strokeWidth={thickness}
-                  initial={{ strokeDasharray: `0 ${circumference}` }}
-                  whileInView={{ strokeDasharray: `${greenLength} ${circumference}` }}
-                  viewport={{ once: false, amount: 0.4 }}
-                  transition={{ duration: 1, delay: i * 0.15, ease: 'easeOut' }}
-                />
-              </g>
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Avg</span>
-          <span className="text-xl font-bold leading-none" style={{ color: isDark ? T.dark.textMain : T.textMain }}>{Math.round(avg)}%</span>
-        </div>
-      </motion.div>
-      <div className="flex flex-col gap-2.5">
-        {categories.map((c) => (
-          <div key={c.label} className="flex items-center gap-2.5">
-            <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: getStatusColor(c.percentage) }} />
-            <span className="text-sm font-medium w-16" style={{ color: isDark ? T.dark.textSub : T.textSub }}>{c.label}</span>
-            <span className="text-sm font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>{Math.round(c.percentage)}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ─── Main Component ──────────────────────────────────────────────────────────
-export default function CourseUsersPage() {
+export default function CourseInsightsPage() {
   const params = useParams();
   const router = useRouter();
-  const courseId = params?.courseId as string;
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isDark, setIsDark] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [isRoleLoading, setIsRoleLoading] = useState(true);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [timeView, setTimeView] = useState<TimeView>('monthly');
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const courseId = String(params?.courseId || "");
+  const viewer = useViewer();
 
-  // ─── Dark mode detection ──────────────────────────────────────────────────
-  useEffect(() => {
-    const checkDark = () => setIsDark(document.documentElement.classList.contains('dark'));
-    checkDark();
-    const observer = new MutationObserver(checkDark);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
-
-  // ─── User role detection ──────────────────────────────────────────────────
-  useEffect(() => {
-    try {
-      const role = localStorage.getItem('smartcliff_roleValue') || 
-                   localStorage.getItem('smartcliff_userRole') || 
-                   'student';
-      setUserRole(role.toLowerCase());
-    } catch {
-      setUserRole('student');
-    } finally {
-      setIsRoleLoading(false);
-    }
-  }, []);
-
-  // ─── Toggle row expansion ──────────────────────────────────────────────────
-  const toggleRow = (studentId: string) => {
-    const newSet = new Set(expandedRows);
-    if (newSet.has(studentId)) {
-      newSet.delete(studentId);
-    } else {
-      newSet.add(studentId);
-    }
-    setExpandedRows(newSet);
-  };
-
-  // ─── Fetch course users ────────────────────────────────────────────────────
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['course-users', courseId],
-    queryFn: () => fetchCourseUsers(courseId),
-    enabled: !!courseId,
-    retry: 1,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+  // Same query as the Course Report, so the two share one download.
+  const { data: payload, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["courseReport", "payload", courseId],
+    queryFn: () => fetchReportPayload(courseId),
+    enabled: Boolean(courseId),
+    staleTime: 60_000,
   });
 
-  // ─── Filter students by search ────────────────────────────────────────────
-  const filteredStudents = useMemo(() => {
-    if (!data?.students) return [];
-    if (!searchTerm.trim()) return data.students;
-    
-    const term = searchTerm.toLowerCase().trim();
-    return data.students.filter(s => 
-      s.student.firstName?.toLowerCase().includes(term) ||
-      s.student.lastName?.toLowerCase().includes(term) ||
-      s.student.email?.toLowerCase().includes(term)
-    );
-  }, [data, searchTerm]);
+  const courseName: string = payload?.course?.courseName || "Course";
+  const exercises = useMemo(() => (payload ? collectExercises(payload.views) : []), [payload]);
 
-  // ─── Cohort labels ────────────────────────────────────────────────────────
-  // "Phase I · Batch A" per batch this list is drawn from. Batch names repeat
-  // across phases on a phased course, so the phase leads the label — the name
-  // on its own would not say which cohort. Deduped because the same batch can
-  // legitimately appear twice in the roster array.
-  const cohortLabels = useMemo(() => {
-    const seen = new Set<string>();
-    const labels: string[] = [];
-    (data?.cohorts || []).forEach((c) => {
-      const label = [c.phase, c.batchName].filter(Boolean).join(' · ');
-      if (!label || seen.has(label.toLowerCase())) return;
-      seen.add(label.toLowerCase());
-      labels.push(label);
-    });
-    return labels;
-  }, [data?.cohorts]);
+  // The roster this viewer may see: a trainer, the batches that list them.
+  const students = useMemo<ReportStudent[]>(() => {
+    if (!payload || !viewer) return [];
+    const all = collectStudents(payload.course);
+    if (!viewer.trainer || !viewer.id) return all;
+    const mine = new Set(((payload.course?.batchAndParticipants || []) as any[])
+      .filter((b) => (b?.users || []).some((u: any) => String(u?.user?._id || u?.user || "") === viewer.id))
+      .map((b) => String(b?._id)));
+    return all.filter((s) => s.batchIds.some((id) => mine.has(id)));
+  }, [payload, viewer]);
 
-  const overallAvg = useMemo(
-    () => (filteredStudents.length ? filteredStudents.reduce((a, s) => a + (s.progress?.overall || 0), 0) / filteredStudents.length : 0),
-    [filteredStudents]
+  // Every (exercise, student) figure, once per load.
+  const cells = useMemo(() => buildCells(courseId, exercises, students), [courseId, exercises, students]);
+
+  // ── Filters ──
+  const [batch, setBatch] = useState("");
+  const [activity, setActivity] = useState("");
+  const [exerciseId, setExerciseId] = useState("");
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"exercises" | "students">("exercises");
+  const [exTab, setExTab] = useState<"students" | "questions">("students");
+  const [statusF, setStatusF] = useState<StatusFilter>("");
+  const [sort, setSort] = useState<StudentSort>("name");
+  const [openRow, setOpenRow] = useState<string | null>(null);
+
+  // `?exerciseId=` opens straight onto one exercise; the choice stays in the URL.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("exerciseId");
+    if (id) setExerciseId(id);
+  }, []);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (exerciseId) url.searchParams.set("exerciseId", exerciseId); else url.searchParams.delete("exerciseId");
+    window.history.replaceState(null, "", url.toString());
+    setOpenRow(null);
+  }, [exerciseId]);
+
+  const batchOptions = useMemo(
+    () => [...new Set(students.flatMap((s) => (s.batches.length ? s.batches : [s.batch]).filter(Boolean)))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    [students],
   );
-  const iDoAvg = useMemo(
-    () => (filteredStudents.length ? filteredStudents.reduce((a, s) => a + (s.progress?.I_Do?.percentage || 0), 0) / filteredStudents.length : 0),
-    [filteredStudents]
-  );
-  const weDoAvg = useMemo(
-    () => (filteredStudents.length ? filteredStudents.reduce((a, s) => a + (s.progress?.We_Do?.percentage || 0), 0) / filteredStudents.length : 0),
-    [filteredStudents]
-  );
-  const youDoAvg = useMemo(
-    () => (filteredStudents.length ? filteredStudents.reduce((a, s) => a + (s.progress?.You_Do?.percentage || 0), 0) / filteredStudents.length : 0),
-    [filteredStudents]
+  const scopedStudents = useMemo(
+    () => (batch ? students.filter((s) => (s.batches.length ? s.batches : [s.batch]).includes(batch)) : students),
+    [students, batch],
   );
 
-  // ─── Loading state ──────────────────────────────────────────────────────────
-  if (isRoleLoading || isLoading) {
+  // Activity options: each section, then its subcategories.
+  const activityGroups = useMemo(() => {
+    const groups = new Map<Section, Map<string, string>>();
+    for (const ex of exercises) {
+      if (!groups.has(ex.section)) groups.set(ex.section, new Map());
+      groups.get(ex.section)!.set(ex.subcategoryKey, ex.subcategory || "Exercises");
+    }
+    return [...groups.entries()].map(([section, subs]) => ({
+      section,
+      subs: [...subs.entries()].sort((a, b) => a[1].localeCompare(b[1])),
+    }));
+  }, [exercises]);
+
+  // Exercises set for at least one student in view, in the chosen activity.
+  const activityExercises = useMemo(
+    () => exercises.filter((ex) => matchesActivity(ex, activity)
+      && scopedStudents.some((s) => cells.has(cellKey(ex.id, s.id)))),
+    [exercises, activity, scopedStudents, cells],
+  );
+  const exercise = useMemo(
+    () => (exerciseId ? exercises.find((ex) => ex.id === exerciseId) || null : null),
+    [exercises, exerciseId],
+  );
+  // An exercise outside the chosen activity is let go.
+  useEffect(() => {
+    if (exercise && !matchesActivity(exercise, activity)) setExerciseId("");
+  }, [exercise, activity]);
+  const scopeExercises = useMemo(() => (exercise ? [exercise] : activityExercises), [exercise, activityExercises]);
+
+  const ql = query.trim().toLowerCase();
+  const matchesQuery = (s: ReportStudent) => !ql
+    || [s.name, s.email, s.regNo].some((v) => (v || "").toLowerCase().includes(ql));
+
+  const cellsOf = (exs: ReportExercise[], studs: ReportStudent[]) => {
+    const out: { cell: Cell; exercise: ReportExercise; student: ReportStudent }[] = [];
+    for (const ex of exs) for (const s of studs) {
+      const cell = cells.get(cellKey(ex.id, s.id));
+      if (cell) out.push({ cell, exercise: ex, student: s });
+    }
+    return out;
+  };
+
+  const scopeTotals = useMemo(
+    () => sumCells(cellsOf(scopeExercises, scopedStudents)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scopeExercises, scopedStudents, cells],
+  );
+  // The chosen exercise's students — every one (tiles, question insight) and
+  // those the search leaves.
+  const exerciseCells = useMemo(
+    () => (exercise ? cellsOf([exercise], scopedStudents) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [exercise, scopedStudents, cells],
+  );
+  const exerciseAllCells = useMemo(() => exerciseCells.map((r) => r.cell), [exerciseCells]);
+  const anyGraded = scopeExercises.some((ex) => ex.graded);
+  const filtered = Boolean(batch || activity || exerciseId || query);
+  const clearFilters = () => { setBatch(""); setActivity(""); setExerciseId(""); setQuery(""); setStatusF(""); };
+
+  // ── States ──
+  if (!courseId) return <Shell><Empty text="No course selected." /></Shell>;
+  if (isLoading || !viewer) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: isDark ? T.dark.pageBg : T.pageBg }}>
-        <Loading size="size-8" />
-      </div>
+      <Shell>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-[74px] animate-pulse rounded-xl bg-canvas" />)}
+        </div>
+        <div className="h-72 animate-pulse rounded-xl bg-canvas" />
+      </Shell>
     );
   }
-
-  // ─── Error state ──────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: isDark ? T.dark.pageBg : T.pageBg }}>
-        <div className="text-center p-8 rounded-xl" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-          <Users className="w-12 h-12 mx-auto mb-3" style={{ color: '#e11d48' }} />
-          <h3 className="text-lg font-bold mb-1" style={{ color: isDark ? T.dark.textMain : T.textMain }}>Failed to load students</h3>
-          <p className="text-sm" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>{(error as any)?.message || 'Something went wrong'}</p>
-          <button onClick={() => refetch()} className="mt-4 px-4 py-2 rounded-lg text-white text-sm font-semibold" style={{ background: T.orange }}>
-            Try Again
-          </button>
+      <Shell>
+        <div className={`${CARD} px-6 py-10 text-center`}>
+          <p className="text-sm font-semibold text-heading">Couldn&apos;t load this course</p>
+          <p className="mt-1 text-xs text-subtle">{(error as Error)?.message || "Something went wrong."}</p>
+          <button type="button" onClick={() => refetch()} className="mt-3 rounded-control bg-brand-strong px-3 py-1.5 text-xs font-semibold text-white">Try again</button>
         </div>
-      </div>
+      </Shell>
     );
   }
 
-  // ─── No data state ──────────────────────────────────────────────────────────
-  if (!data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: isDark ? T.dark.pageBg : T.pageBg }}>
-        <div className="text-center p-8 rounded-xl" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-          <Users className="w-12 h-12 mx-auto mb-3" style={{ color: T.orange }} />
-          <h3 className="text-lg font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>No students found</h3>
-          <p className="text-sm" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>This course has no enrolled students yet.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Content ────────────────────────────────────────────────────────────────
-  const content = (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-      {/* ─── Header ─── */}
-      <div className="flex items-center gap-3 sm:gap-4 mb-6">
+  const header = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
         <button
-          onClick={() => router.back()}
-          className="p-2 rounded-lg transition-all flex-shrink-0"
-          style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}
+          type="button"
+          onClick={() => (exercise ? setExerciseId("") : router.back())}
+          title={exercise ? "Back to all exercises" : "Back"}
+          aria-label={exercise ? "Back to all exercises" : "Back"}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-control border border-hairline-strong bg-surface text-subtle transition-colors hover:bg-row-hover hover:text-heading"
         >
-          <ArrowLeft className="w-5 h-5" style={{ color: isDark ? T.dark.textSub : T.textSub }} />
+          <ArrowLeft size={15} />
         </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold break-words" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
-            {data.course?.courseName || 'Course'}
-          </h1>
-          {/* Joined from the parts that exist rather than hardcoded bullets:
-              the cohorts are optional (an unphased course, a viewer who sees
-              everything) and so is the level, and a fixed " • " between them
-              leaves a stranded separator whenever one is missing.
-              The cohorts sit straight after the course code, so the header
-              says WHOSE students the count is — a trainer sees only their own
-              batches, which would otherwise read as the whole course. */}
-          <p className="text-sm" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold leading-tight tracking-[-0.01em] text-heading">Course Insights</h1>
+          <p className="truncate text-xs text-subtle" title={courseName}>
             {[
-              data.course?.courseCode,
-              ...cohortLabels,
-              data.course?.courseLevel,
-              `${data.stats?.totalStudents || 0} students`,
-            ]
-              .filter(Boolean)
-              .join(' • ')}
+              courseName,
+              viewer.trainer && batchOptions.length ? batchOptions.join(", ") : "",
+              `${students.length} student${students.length === 1 ? "" : "s"}`,
+              `${exercises.length} exercise${exercises.length === 1 ? "" : "s"}`,
+            ].filter(Boolean).join(" · ")}
           </p>
         </div>
       </div>
-
-      {/* ─── Performance Analytics ─── */}
-      {filteredStudents.length > 0 && (
-        <div className="mb-6 p-4 sm:p-5 rounded-xl" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
-            <h3 className="text-sm font-bold" style={{ color: isDark ? T.dark.textMain : T.textMain }}>Performance Analytics</h3>
-            <div className="flex flex-wrap items-center gap-3">
-              <TimeViewToggle view={timeView} setView={setTimeView} isDark={isDark} />
-              <ThresholdLegend isDark={isDark} />
-            </div>
-          </div>
-
-          {/* Monthly/Weekly Chart - Toggle based on view */}
-          <div className="flex flex-col items-center pb-6 mb-6" style={{ borderBottom: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-            {timeView === 'monthly' ? (
-              <MonthlyChart 
-                students={filteredStudents} 
-                isDark={isDark} 
-                hovered={hoveredIndex}
-                setHovered={setHoveredIndex}
-              />
-            ) : (
-              <WeeklyChart 
-                students={filteredStudents} 
-                isDark={isDark}
-                hovered={hoveredIndex}
-                setHovered={setHoveredIndex}
-              />
-            )}
-          </div>
-
-          {/* I Do / We Do / You Do — single-ring, red/green split per pedagogy stage */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pb-6 mb-6" style={{ borderBottom: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-            <div className="flex flex-col items-center">
-              <span className="text-xs font-semibold mb-3" style={{ color: isDark ? T.dark.textSub : T.textSub }}>I Do</span>
-              <ProgressRing percentage={iDoAvg} size={140} strokeWidth={14} showLabel={true} />
-              <span className="mt-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: getStatusColor(iDoAvg) }}>{getStatusLabel(iDoAvg)}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xs font-semibold mb-3" style={{ color: isDark ? T.dark.textSub : T.textSub }}>We Do</span>
-              <ProgressRing percentage={weDoAvg} size={140} strokeWidth={14} showLabel={true} />
-              <span className="mt-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: getStatusColor(weDoAvg) }}>{getStatusLabel(weDoAvg)}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xs font-semibold mb-3" style={{ color: isDark ? T.dark.textSub : T.textSub }}>You Do</span>
-              <ProgressRing percentage={youDoAvg} size={140} strokeWidth={14} showLabel={true} />
-              <span className="mt-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: getStatusColor(youDoAvg) }}>{getStatusLabel(youDoAvg)}</span>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* ─── Search ─── */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: isDark ? T.dark.textMuted : T.textMuted }} />
-        <input
-          type="text"
-          placeholder="Search students by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all"
-          style={{
-            background: isDark ? T.dark.card : T.bg,
-            border: `1.5px solid ${isDark ? T.dark.border : T.border}`,
-            color: isDark ? T.dark.textMain : T.textMain,
-          }}
+      {!exercise && (
+        <Tabs
+          value={tab}
+          onChange={(t) => { setTab(t); setOpenRow(null); }}
+          tabs={[
+            { key: "exercises", label: "Exercises", icon: <ClipboardList size={13} />, count: activityExercises.length },
+            { key: "students", label: "Students", icon: <UsersRound size={13} />, count: scopedStudents.length },
+          ]}
         />
-      </div>
-
-      {/* ─── Pedagogy Summary ─── */}
-      {data.pedagogySummary && (
-        <div className="mb-6 p-4 rounded-xl" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-          <h3 className="text-sm font-bold mb-2" style={{ color: isDark ? T.dark.textMain : T.textMain }}>Course Content Summary</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-2 rounded-lg" style={{ background: isDark ? T.dark.surface : '#f3f4f6' }}>
-              <span className="text-xs font-semibold" style={{ color: T.orange }}>I Do</span>
-              <span className="text-xs ml-2" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-                {data.pedagogySummary.I_Do.totalItems} items • {data.pedagogySummary.I_Do.categories.join(', ')}
-              </span>
-            </div>
-            <div className="p-2 rounded-lg" style={{ background: isDark ? T.dark.surface : '#f3f4f6' }}>
-              <span className="text-xs font-semibold" style={{ color: T.orange }}>We Do</span>
-              <span className="text-xs ml-2" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-                {data.pedagogySummary.We_Do.totalItems} items • {data.pedagogySummary.We_Do.categories.join(', ')}
-              </span>
-            </div>
-            <div className="p-2 rounded-lg" style={{ background: isDark ? T.dark.surface : '#f3f4f6' }}>
-              <span className="text-xs font-semibold" style={{ color: T.orange }}>You Do</span>
-              <span className="text-xs ml-2" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-                {data.pedagogySummary.You_Do.totalItems} items • {data.pedagogySummary.You_Do.categories.join(', ')}
-              </span>
-            </div>
-          </div>
-        </div>
       )}
-      
-      {/* ─── Student Table ─── */}
-      <div className="rounded-xl overflow-hidden" style={{ background: isDark ? T.dark.card : T.bg, border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-        {/* Which cohorts these rows belong to. The table itself has no batch
-            column — one row is one student — so without this the list reads as
-            "the course's students" when it is only this trainer's. */}
-        {cohortLabels.length > 0 && (
-          <div
-            className="flex flex-wrap items-center gap-2 px-4 py-3"
-            style={{ borderBottom: `1px solid ${isDark ? T.dark.border : T.border}` }}
-          >
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-              {cohortLabels.length > 1 ? 'Batches' : 'Batch'}
-            </span>
-            {cohortLabels.map((label) => (
-              <span
-                key={label}
-                className="text-xs font-medium px-2 py-1 rounded-md"
-                style={{ background: T.orangeLight, color: T.orangeDark }}
-              >
-                {label}
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] lg:min-w-0">
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Student</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Email</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>I Do</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>We Do</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>You Do</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Overall</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filteredStudents.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8">
-                      <p className="text-sm" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>No students found matching your search.</p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredStudents.map((student, index) => {
-                    const overall = student.progress?.overall || 0;
-                    const iDo = student.progress?.I_Do?.percentage || 0;
-                    const weDo = student.progress?.We_Do?.percentage || 0;
-                    const youDo = student.progress?.You_Do?.percentage || 0;
-                    const isExpanded = expandedRows.has(student.student._id);
-
-                    return (
-                      <React.Fragment key={student.student._id}>
-                        <motion.tr
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.03 }}
-                          style={{ borderBottom: index < filteredStudents.length - 1 ? `1px solid ${isDark ? T.dark.border : T.border}` : 'none' }}
-                          className="cursor-pointer hover:bg-opacity-50"
-                          onClick={() => toggleRow(student.student._id)}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = isDark ? 'rgba(255,255,255,0.03)' : '#f9fafb';
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'transparent';
-                          }}
-                        >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                                style={{ background: `linear-gradient(135deg, ${T.orange}, ${T.orangeDark})` }}>
-                                {(student.student.firstName?.[0] || 'S').toUpperCase()}
-                              </div>
-                              <span className="text-sm font-medium" style={{ color: isDark ? T.dark.textMain : T.textMain }}>
-                                {student.student.firstName} {student.student.lastName}
-                              </span>
-                              <button className="ml-1 p-0.5 rounded" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-sm" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-                              {student.student.email}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <ProgressRing percentage={iDo} size={36} strokeWidth={3} showLabel={true} />
-                              <span className="text-[9px] font-medium" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-                                {student.progress?.I_Do?.completed || 0}/{student.progress?.I_Do?.total || 0}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <ProgressRing percentage={weDo} size={36} strokeWidth={3} showLabel={true} />
-                              <span className="text-[9px] font-medium" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-                                {student.progress?.We_Do?.completed || 0}/{student.progress?.We_Do?.total || 0}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <ProgressRing percentage={youDo} size={36} strokeWidth={3} showLabel={true} />
-                              <span className="text-[9px] font-medium" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-                                {student.progress?.You_Do?.completed || 0}/{student.progress?.You_Do?.total || 0}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <ProgressRing percentage={overall} size={40} strokeWidth={4} showLabel={true} />
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <StatusBadge progress={overall} />
-                          </td>
-                        </motion.tr>
-
-                        {/* ─── Expanded Row with Category Details ─── */}
-                        {isExpanded && (
-                          <motion.tr
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <td colSpan={7} className="px-4 py-2">
-                              <div className="p-3 rounded-lg" style={{ background: isDark ? T.dark.surface : '#f9fafb', border: `1px solid ${isDark ? T.dark.border : T.border}` }}>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                  {/* I Do Details */}
-                                  <div>
-                                    <h4 className="text-xs font-bold mb-1.5" style={{ color: T.orange }}>I Do</h4>
-                                    {student.progress?.I_Do?.details && Object.keys(student.progress.I_Do.details).length > 0 ? (
-                                      Object.entries(student.progress.I_Do.details).map(([category, prog]) => (
-                                        <CategoryProgressBar key={category} category={category} progress={prog} isDark={isDark} />
-                                      ))
-                                    ) : (
-                                      <span className="text-[10px]" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>No items</span>
-                                    )}
-                                  </div>
-
-                                  {/* We Do Details */}
-                                  <div>
-                                    <h4 className="text-xs font-bold mb-1.5" style={{ color: T.orange }}>We Do</h4>
-                                    {student.progress?.We_Do?.details && Object.keys(student.progress.We_Do.details).length > 0 ? (
-                                      Object.entries(student.progress.We_Do.details).map(([category, prog]) => (
-                                        <CategoryProgressBar key={category} category={category} progress={prog} isDark={isDark} />
-                                      ))
-                                    ) : (
-                                      <span className="text-[10px]" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>No items</span>
-                                    )}
-                                  </div>
-
-                                  {/* You Do Details */}
-                                  <div>
-                                    <h4 className="text-xs font-bold mb-1.5" style={{ color: T.orange }}>You Do</h4>
-                                    {student.progress?.You_Do?.details && Object.keys(student.progress.You_Do.details).length > 0 ? (
-                                      Object.entries(student.progress.You_Do.details).map(([category, prog]) => (
-                                        <CategoryProgressBar key={category} category={category} progress={prog} isDark={isDark} />
-                                      ))
-                                    ) : (
-                                      <span className="text-[10px]" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>No items</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                          </motion.tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
-                )}
-              </AnimatePresence>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ─── Footer stats ─── */}
-      <div className="mt-4 flex flex-wrap justify-between items-center gap-2">
-        <p className="text-sm" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
-          Showing {filteredStudents.length} of {data.students?.length || 0} students
-        </p>
-        {searchTerm && filteredStudents.length !== data.students?.length && (
-          <button
-            onClick={() => setSearchTerm('')}
-            className="text-sm font-semibold"
-            style={{ color: T.orange }}
-          >
-            Clear search
-          </button>
-        )}
-      </div>
     </div>
   );
 
-  // ─── Layout wrapper ──────────────────────────────────────────────────────────
-  if (userRole === 'admin' || userRole === 'ldhead' || userRole === 'subhead' || userRole === 'programcoordinator') {
-    return <DashboardLayout>{content}</DashboardLayout>;
-  }
-  
-  if (userRole === 'student') {
-    return <StudentLayout>{content}</StudentLayout>;
-  }
-  
-  return <StaffLayout>{content}</StaffLayout>;
+  const filters = (
+    <div className={`${CARD} flex flex-wrap items-end gap-3 px-3 py-2.5`}>
+      {batchOptions.length > 1 && (
+        <label className="flex min-w-[150px] flex-1 flex-col gap-1 sm:max-w-[220px]">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Batch</span>
+          <select value={batch} onChange={(e) => setBatch(e.target.value)} className={CONTROL}>
+            <option value="">All batches</option>
+            {batchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </label>
+      )}
+      <label className="flex min-w-[170px] flex-1 flex-col gap-1 sm:max-w-[240px]">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Activity</span>
+        <select value={activity} onChange={(e) => setActivity(e.target.value)} className={CONTROL}>
+          <option value="">All activities</option>
+          {activityGroups.map((g) => (
+            <optgroup key={g.section} label={SECTION_LABEL[g.section]}>
+              <option value={g.section}>All {SECTION_LABEL[g.section]}</option>
+              {g.subs.map(([key, label]) => <option key={key} value={`${g.section}|${key}`}>{label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+      <label className="flex min-w-[220px] flex-[2_1_260px] flex-col gap-1">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Exercise</span>
+        <select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)} className={CONTROL}>
+          <option value="">All exercises ({activityExercises.length})</option>
+          {activityExercises.map((ex) => (
+            <option key={ex.id} value={ex.id}>{ex.name}{activity ? "" : ` — ${activityOf(ex)}`}</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex min-w-[200px] flex-1 flex-col gap-1">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Search student</span>
+        <span className="relative">
+          <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Name, email or reg no"
+            className={`${CONTROL} w-full pl-7 pr-7`}
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-faint hover:text-heading">
+              <X size={13} />
+            </button>
+          )}
+        </span>
+      </label>
+      {filtered && (
+        <button type="button" onClick={clearFilters} className="inline-flex h-9 items-center gap-1 rounded-control px-2 text-xs font-medium text-subtle hover:bg-row-hover hover:text-heading">
+          <RotateCcw size={12} /> Clear
+        </button>
+      )}
+    </div>
+  );
+
+  // The figures for the current selection.
+  const t = scopeTotals;
+  const tiles = (
+    <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${anyGraded ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
+      <Tile icon={UsersRound} color="#475467" bg="#F2F4F7" label="Students" value={scopedStudents.length}
+        hint={exercise ? `${t.completed} completed · ${t.inProgress} in progress` : `${scopeExercises.length} exercise${scopeExercises.length === 1 ? "" : "s"}`} />
+      <Tile icon={ClipboardList} color="#175CD3" bg="#EFF8FF" label="Completed" value={pct(t.completed, t.cells)}
+        hint={`${t.completed} of ${t.cells} ${exercise ? "students" : "attempts"}`} />
+      <Tile icon={ListChecks} color="#6941C6" bg="#F4F3FF" label="Questions solved" value={pct(t.solved, t.possible)}
+        hint={`${t.solved} of ${t.possible} answers`} />
+      <Tile icon={CheckCircle2} color="#067647" bg="#ECFDF3" label="Correct" value={pct(t.correct, t.solved)}
+        hint={`${t.correct} fully correct of ${t.solved} solved`} />
+      <Tile icon={FlaskConical} color="#B54708" bg="#FFFAEB" label="Test cases passed" value={pct(t.testsPassed, t.testsTotal)}
+        hint={t.testsTotal ? `${t.testsPassed} of ${t.testsTotal} tests` : "no test cases"} />
+      {anyGraded && (
+        <Tile icon={Trophy} color="#C4320A" bg="#FFF4ED" label="Average marks" value={formatPercent(t.avgPercent)}
+          hint="over completed, graded attempts" />
+      )}
+    </div>
+  );
+
+  return (
+    <Shell>
+      {header}
+      {filters}
+      {exercise ? (
+        <ExerciseView
+          exercise={exercise}
+          rows={ql ? exerciseCells.filter((r) => matchesQuery(r.student)) : exerciseCells}
+          allCells={exerciseAllCells}
+          tiles={tiles}
+          tab={exTab}
+          setTab={setExTab}
+          statusF={statusF}
+          setStatusF={setStatusF}
+          sort={sort}
+          setSort={setSort}
+          openRow={openRow}
+          setOpenRow={setOpenRow}
+        />
+      ) : (
+        <>
+          {tiles}
+          {exercises.length === 0 ? (
+            <div className={CARD}><Empty text="This course has no We Do or You Do exercises with questions yet." /></div>
+          ) : tab === "exercises" ? (
+            <ExerciseList
+              rows={scopeExercises.map((ex) => ({ exercise: ex, totals: sumCells(cellsOf([ex], scopedStudents)) }))}
+              onOpen={(id) => { setExerciseId(id); setExTab("students"); }}
+            />
+          ) : (
+            <StudentList
+              students={scopedStudents.filter(matchesQuery)}
+              exercises={scopeExercises}
+              cells={cells}
+              sort={sort}
+              setSort={setSort}
+              openRow={openRow}
+              setOpenRow={setOpenRow}
+              onOpenExercise={(id) => { setExerciseId(id); setExTab("students"); }}
+            />
+          )}
+        </>
+      )}
+    </Shell>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3 px-3 py-4 sm:px-5">{children}</div>;
+}
+
+// ─── All exercises: one line per exercise ────────────────────────────────────
+
+function ExerciseList({ rows, onOpen }: {
+  rows: { exercise: ReportExercise; totals: ReturnType<typeof sumCells> }[];
+  onOpen: (exerciseId: string) => void;
+}) {
+  const showMarks = rows.some((r) => r.exercise.graded);
+  return (
+    <div className={`${CARD} overflow-hidden`}>
+      <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
+        <span className="text-xs text-subtle">{rows.length} exercise{rows.length === 1 ? "" : "s"} · open one to see each student</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] border-collapse">
+          <thead className="bg-canvas">
+            <tr>
+              <th className={`${TH} w-10 text-right`}>#</th>
+              <th className={TH}>Exercise</th>
+              <th className={TH}>Activity</th>
+              <th className={`${TH} text-right`}>Questions</th>
+              <th className={`${TH} text-right`}>Completed</th>
+              <th className={`${TH} text-right`}>Solved</th>
+              <th className={`${TH} text-right`}>Correct</th>
+              <th className={`${TH} text-right`}>Tests passed</th>
+              {showMarks && <th className={`${TH} text-right`}>Avg marks</th>}
+              <th className={`${TH} w-10`} aria-label="Open" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr><td colSpan={showMarks ? 10 : 9}><Empty text="No exercises match these filters." /></td></tr>
+            )}
+            {rows.map(({ exercise: ex, totals: t }, i) => (
+              <tr key={ex.id} onClick={() => onOpen(ex.id)} className="cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover">
+                <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
+                <td className={`${TD} max-w-[320px]`}>
+                  <span className="block truncate font-semibold text-heading" title={ex.name}>{ex.name}</span>
+                  <span className="block truncate text-2xs text-faint" title={ex.location}>
+                    {[ex.location, (ex.startDate || ex.endDate) ? `${formatDate(ex.startDate)} – ${formatDate(ex.endDate)}` : ""].filter(Boolean).join(" · ")}
+                  </span>
+                </td>
+                <td className={TD}>
+                  <span className="whitespace-nowrap">{activityOf(ex)}</span>
+                  <span className="block text-2xs text-faint">{ex.graded ? `${round1(ex.totalMarks)} marks` : "Non-graded"}</span>
+                </td>
+                <td className={TD_NUM}>{ex.questionCount}</td>
+                <td className={TD_NUM}><Count part={t.completed} whole={t.cells} /></td>
+                <td className={TD}><Meter part={t.solved} whole={t.possible} tone="#7A5AF8" /></td>
+                <td className={TD}><Meter part={t.correct} whole={t.solved} /></td>
+                <td className={TD}><Meter part={t.testsPassed} whole={t.testsTotal} tone="#F79009" /></td>
+                {showMarks && <td className={TD_NUM}>{ex.graded ? formatPercent(t.avgPercent) : <span className="text-2xs text-faint">—</span>}</td>}
+                <td className={TD}><ChevronRight size={15} className="text-faint" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── All exercises: one line per student ─────────────────────────────────────
+
+function sortStudents<T extends { student: ReportStudent; correct: number; solved: number; testsPassed: number; testsTotal: number; marksPct: number | null }>(rows: T[], sort: StudentSort): T[] {
+  const share = (a: number, b: number) => (b > 0 ? a / b : -1);
+  const out = rows.slice();
+  out.sort((a, b) => {
+    switch (sort) {
+      case "correct-desc": return b.correct - a.correct || share(b.correct, b.solved) - share(a.correct, a.solved);
+      case "correct-asc": return a.correct - b.correct;
+      case "tests-desc": return share(b.testsPassed, b.testsTotal) - share(a.testsPassed, a.testsTotal);
+      case "marks-desc": return (b.marksPct ?? -1) - (a.marksPct ?? -1);
+      default: return a.student.name.localeCompare(b.student.name, undefined, { sensitivity: "base" });
+    }
+  });
+  return out;
+}
+
+function SortSelect({ sort, setSort, marks }: { sort: StudentSort; setSort: (s: StudentSort) => void; marks: boolean }) {
+  return (
+    <select value={sort} onChange={(e) => setSort(e.target.value as StudentSort)} aria-label="Sort students" className={CONTROL}>
+      <option value="name">Sort: Name A–Z</option>
+      <option value="correct-desc">Sort: Most correct</option>
+      <option value="correct-asc">Sort: Fewest correct</option>
+      <option value="tests-desc">Sort: Most tests passed</option>
+      {marks && <option value="marks-desc">Sort: Highest marks</option>}
+    </select>
+  );
+}
+
+function StudentList({ students, exercises, cells, sort, setSort, openRow, setOpenRow, onOpenExercise }: {
+  students: ReportStudent[];
+  exercises: ReportExercise[];
+  cells: Map<string, Cell>;
+  sort: StudentSort;
+  setSort: (s: StudentSort) => void;
+  openRow: string | null;
+  setOpenRow: (id: string | null) => void;
+  onOpenExercise: (exerciseId: string) => void;
+}) {
+  const showMarks = exercises.some((ex) => ex.graded);
+  const rows = useMemo(() => sortStudents(students.map((s) => {
+    const own = exercises.filter((ex) => cells.has(cellKey(ex.id, s.id)));
+    const list = own.map((ex) => ({ cell: cells.get(cellKey(ex.id, s.id))!, exercise: ex }));
+    const t = sumCells(list);
+    const marks = totalsFor(own, (id) => cells.get(cellKey(id, s.id))?.result);
+    return { student: s, own: list, ...t, marks, marksPct: marks.percent };
+  }), sort), [students, exercises, cells, sort]);
+  const paged = usePaged(rows, `${students.length}|${exercises.length}|${sort}`);
+
+  return (
+    <div className={`${CARD} overflow-hidden`}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2">
+        <span className="text-xs text-subtle">{rows.length} student{rows.length === 1 ? "" : "s"} · across {exercises.length} exercise{exercises.length === 1 ? "" : "s"}</span>
+        <SortSelect sort={sort} setSort={setSort} marks={showMarks} />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] border-collapse">
+          <thead className="bg-canvas">
+            <tr>
+              <th className={`${TH} w-8`} aria-label="Expand" />
+              <th className={`${TH} w-10 text-right`}>#</th>
+              <th className={TH}>Reg No</th>
+              <th className={TH}>Student</th>
+              <th className={TH}>Batch</th>
+              <th className={`${TH} text-right`}>Completed</th>
+              <th className={`${TH} text-right`}>Solved</th>
+              <th className={`${TH} text-right`}>Correct</th>
+              <th className={`${TH} text-right`}>Tests passed</th>
+              {showMarks && <th className={`${TH} text-right`}>Marks</th>}
+              {showMarks && <th className={`${TH} text-right`}>Marks %</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && <tr><td colSpan={showMarks ? 11 : 9}><Empty text="No students match these filters." /></td></tr>}
+            {paged.rows.map((r, i) => {
+              const open = openRow === r.student.id;
+              return (
+                <React.Fragment key={r.student.id}>
+                  <tr onClick={() => setOpenRow(open ? null : r.student.id)} aria-expanded={open} className="cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover">
+                    <td className={TD}><ChevronRight size={15} className={`text-brand-500 transition-transform ${open ? "rotate-90" : ""}`} /></td>
+                    <td className={`${TD_NUM} text-faint`}>{(paged.page - 1) * PAGE_SIZE + i + 1}</td>
+                    <td className={`${TD} whitespace-nowrap`}>{r.student.regNo || <Dash />}</td>
+                    <td className={`${TD} max-w-[240px]`}>
+                      <span className="block truncate font-semibold text-heading" title={r.student.name}>{r.student.name}</span>
+                      {r.student.email && <span className="block truncate text-2xs text-faint">{r.student.email}</span>}
+                    </td>
+                    <td className={`${TD} max-w-[160px]`}><span className="block truncate" title={r.student.batch}>{r.student.batch || <Dash />}</span></td>
+                    <td className={TD_NUM}><Count part={r.completed} whole={r.cells} /></td>
+                    <td className={TD_NUM}><Count part={r.solved} whole={r.possible} /></td>
+                    <td className={TD_NUM}><Count part={r.correct} whole={r.possible} /></td>
+                    <td className={TD_NUM}><Count part={r.testsPassed} whole={r.testsTotal} /></td>
+                    {showMarks && <td className={`${TD_NUM} font-semibold text-heading`}>{r.marks.total > 0 ? `${round1(r.marks.scored)} / ${round1(r.marks.total)}` : <Dash />}</td>}
+                    {showMarks && <td className={TD_NUM}>{formatPercent(r.marks.percent)}</td>}
+                  </tr>
+                  {open && (
+                    <tr className="bg-canvas/60">
+                      <td colSpan={showMarks ? 11 : 9} className="px-3 pb-3 pt-1 sm:pl-12">
+                        <StudentExercises rows={r.own} onOpenExercise={onOpenExercise} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <Pager page={paged.page} pages={paged.pages} total={rows.length} onPage={paged.setPage} />
+    </div>
+  );
+}
+
+/** One student's exercises, under their row. */
+function StudentExercises({ rows, onOpenExercise }: { rows: { cell: Cell; exercise: ReportExercise }[]; onOpenExercise: (id: string) => void }) {
+  if (!rows.length) return <Empty text="No exercises are set for this student here." />;
+  const showMarks = rows.some((r) => r.exercise.graded);
+  return (
+    <div className="overflow-x-auto rounded-lg border border-hairline bg-surface">
+      <table className="w-full min-w-[720px] border-collapse">
+        <thead className="bg-canvas">
+          <tr>
+            <th className={TH}>Exercise</th>
+            <th className={TH}>Status</th>
+            <th className={`${TH} text-right`}>Solved</th>
+            <th className={`${TH} text-right`}>Correct</th>
+            <th className={`${TH} text-right`}>Tests passed</th>
+            {showMarks && <th className={`${TH} text-right`}>Marks</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ cell, exercise: ex }) => (
+            <tr key={ex.id} className="border-t border-hairline">
+              <td className={`${TD} max-w-[280px]`}>
+                <button type="button" onClick={() => onOpenExercise(ex.id)} className="block max-w-full truncate text-left font-semibold text-heading hover:text-brand-strong hover:underline" title={`Open ${ex.name}`}>
+                  {ex.name}
+                </button>
+                <span className="block text-2xs text-faint">{activityOf(ex)}</span>
+              </td>
+              <td className={TD}><StatusChip status={cell.result.status} /></td>
+              <td className={TD_NUM}>{cell.solved} / {cell.result.totalQuestions || ex.questionCount}</td>
+              <td className={TD_NUM}>{cell.correct} / {cell.result.totalQuestions || ex.questionCount}</td>
+              <td className={TD_NUM}>{cell.testsTotal ? `${cell.testsPassed} / ${cell.testsTotal}` : <Dash />}</td>
+              {showMarks && (
+                <td className={TD_NUM}>
+                  {!ex.graded ? <span className="text-2xs text-faint">Non-graded</span>
+                    : cell.result.status === "not-started" ? <Dash />
+                      : `${round1(cell.result.scored)} / ${round1(cell.result.total)}`}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── One exercise ────────────────────────────────────────────────────────────
+
+function ExerciseView({
+  exercise: ex, rows, allCells, tiles, tab, setTab, statusF, setStatusF, sort, setSort, openRow, setOpenRow,
+}: {
+  exercise: ReportExercise;
+  rows: { cell: Cell; exercise: ReportExercise; student: ReportStudent }[];
+  allCells: Cell[];
+  tiles: React.ReactNode;
+  tab: "students" | "questions";
+  setTab: (t: "students" | "questions") => void;
+  statusF: StatusFilter;
+  setStatusF: (s: StatusFilter) => void;
+  sort: StudentSort;
+  setSort: (s: StudentSort) => void;
+  openRow: string | null;
+  setOpenRow: (id: string | null) => void;
+}) {
+  const graded = ex.graded;
+  const total = ex.questionCount;
+  const questions = useMemo(() => questionInsights(ex, allCells), [ex, allCells]);
+  const list = useMemo(() => sortStudents(
+    rows
+      .filter((r) => !statusF || r.cell.result.status === statusF)
+      .map((r) => ({
+        ...r,
+        correct: r.cell.correct,
+        solved: r.cell.solved,
+        testsPassed: r.cell.testsPassed,
+        testsTotal: r.cell.testsTotal,
+        marksPct: graded ? r.cell.result.percent : null,
+      })),
+    sort,
+  ), [rows, statusF, sort, graded]);
+  const paged = usePaged(list, `${ex.id}|${statusF}|${sort}|${rows.length}`);
+  const cols = graded ? 12 : 9;
+
+  return (
+    <>
+      <div className={`${CARD} px-4 py-3`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="truncate text-sm font-semibold text-heading" title={ex.name}>{ex.name}</h2>
+          <span className="rounded-full bg-canvas px-2 py-0.5 text-2xs font-medium text-subtle">{activityOf(ex)}</span>
+          <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${graded ? "bg-[#FFF4ED] text-[#C4320A]" : "bg-[#F2F4F7] text-[#475467]"}`}>
+            {graded ? `Graded · ${round1(ex.totalMarks)} marks` : "Non-graded"}
+          </span>
+        </div>
+        <p className="mt-0.5 text-2xs text-faint">
+          {[ex.location, `${total} question${total === 1 ? "" : "s"}`,
+            (ex.startDate || ex.endDate) ? `${formatDate(ex.startDate)} – ${formatDate(ex.endDate)}` : ""].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      {tiles}
+      <div className={`${CARD} overflow-hidden`}>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2">
+          <Tabs
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { key: "students", label: "Students", icon: <UsersRound size={13} />, count: rows.length },
+              { key: "questions", label: "Questions", icon: <ListChecks size={13} />, count: questions.length },
+            ]}
+          />
+          {tab === "students" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <select value={statusF} onChange={(e) => setStatusF(e.target.value as StatusFilter)} aria-label="Filter by status" className={CONTROL}>
+                <option value="">All statuses</option>
+                <option value="completed">Completed</option>
+                <option value="in-progress">In progress</option>
+                <option value="not-started">Not started</option>
+              </select>
+              <SortSelect sort={sort} setSort={setSort} marks={graded} />
+            </div>
+          )}
+        </div>
+
+        {tab === "students" ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] border-collapse">
+                <thead className="bg-canvas">
+                  <tr>
+                    <th className={`${TH} w-8`} aria-label="Expand" />
+                    <th className={`${TH} w-10 text-right`}>#</th>
+                    <th className={TH}>Reg No</th>
+                    <th className={TH}>Student</th>
+                    <th className={TH}>Batch</th>
+                    <th className={TH}>Status</th>
+                    <th className={`${TH} text-right`}>Solved</th>
+                    <th className={`${TH} text-right`}>Correct</th>
+                    <th className={`${TH} text-right`}>Tests passed</th>
+                    {/* A non-graded exercise has no marks to show. */}
+                    {graded && <th className={`${TH} text-right`}>Marks</th>}
+                    {graded && <th className={`${TH} text-right`}>Marks %</th>}
+                    {graded && <th className={TH}>Level</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.length === 0 && <tr><td colSpan={cols}><Empty text="No students match these filters." /></td></tr>}
+                  {paged.rows.map((r, i) => {
+                    const open = openRow === r.student.id;
+                    const res = r.cell.result;
+                    const started = res.status !== "not-started";
+                    return (
+                      <React.Fragment key={r.student.id}>
+                        <tr onClick={() => setOpenRow(open ? null : r.student.id)} aria-expanded={open} className="cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover">
+                          <td className={TD}><ChevronRight size={15} className={`text-brand-500 transition-transform ${open ? "rotate-90" : ""}`} /></td>
+                          <td className={`${TD_NUM} text-faint`}>{(paged.page - 1) * PAGE_SIZE + i + 1}</td>
+                          <td className={`${TD} whitespace-nowrap`}>{r.student.regNo || <Dash />}</td>
+                          <td className={`${TD} max-w-[240px]`}>
+                            <span className="block truncate font-semibold text-heading" title={r.student.name}>{r.student.name}</span>
+                            {r.student.email && <span className="block truncate text-2xs text-faint">{r.student.email}</span>}
+                          </td>
+                          <td className={`${TD} max-w-[160px]`}><span className="block truncate" title={r.student.batch}>{r.student.batch || <Dash />}</span></td>
+                          <td className={TD}><StatusChip status={res.status} /></td>
+                          <td className={TD_NUM}><Count part={r.solved} whole={res.totalQuestions || total} /></td>
+                          <td className={TD_NUM}><Count part={r.correct} whole={res.totalQuestions || total} /></td>
+                          <td className={TD_NUM}><Count part={r.testsPassed} whole={r.testsTotal} /></td>
+                          {graded && <td className={`${TD_NUM} font-semibold text-heading`}>{started ? `${round1(res.scored)} / ${round1(res.total)}` : `— / ${round1(res.total)}`}</td>}
+                          {graded && <td className={TD_NUM}>{formatPercent(res.percent)}</td>}
+                          {graded && <td className={TD}>{res.scale || <Dash />}</td>}
+                        </tr>
+                        {open && (
+                          <tr className="bg-canvas/60">
+                            <td colSpan={cols} className="px-3 pb-3 pt-1 sm:pl-12">
+                              <AnswerTable cell={r.cell} graded={graded} />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={paged.page} pages={paged.pages} total={list.length} onPage={paged.setPage} />
+          </>
+        ) : (
+          <QuestionList rows={questions} graded={graded} />
+        )}
+      </div>
+    </>
+  );
+}
+
+/** One student's answers in one exercise, question by question. */
+function AnswerTable({ cell, graded }: { cell: Cell; graded: boolean }) {
+  if (!cell.questions.length) return <Empty text="Not started — no answers yet." />;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-hairline bg-surface">
+      <table className="w-full min-w-[640px] border-collapse">
+        <thead className="bg-canvas">
+          <tr>
+            <th className={`${TH} w-12 text-right`}>Q.</th>
+            <th className={TH}>Question</th>
+            <th className={TH}>Status</th>
+            <th className={`${TH} text-center`}>Correct</th>
+            <th className={`${TH} text-right`}>Tests passed</th>
+            {graded && <th className={`${TH} text-right`}>Marks</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {cell.questions.map((q) => {
+            const answered = q.status === "submitted" || q.status === "evaluated";
+            return (
+              <tr key={q.questionId} className="border-t border-hairline">
+                <td className={`${TD_NUM} text-faint`}>{q.no}</td>
+                <td className={`${TD} max-w-[380px]`}><span className="line-clamp-2" title={q.title}>{q.title}</span></td>
+                <td className={TD}>{QUESTION_STATUS_LABEL[q.status]}</td>
+                <td className={`${TD} text-center`}>{answered ? <span className="inline-flex"><Correctness ok={q.correct} /></span> : <Dash />}</td>
+                <td className={TD_NUM}>{q.testsTotal ? `${q.testsPassed} / ${q.testsTotal}` : <Dash />}</td>
+                {graded && <td className={TD_NUM}>{answered ? `${round1(q.scored)} / ${round1(q.max)}` : `— / ${round1(q.max)}`}</td>}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Each question across the class — which ones students find hard. */
+function QuestionList({ rows, graded }: { rows: ReturnType<typeof questionInsights>; graded: boolean }) {
+  if (!rows.length) return <Empty text="This exercise has no questions." />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[860px] border-collapse">
+        <thead className="bg-canvas">
+          <tr>
+            <th className={`${TH} w-12 text-right`}>Q.</th>
+            <th className={TH}>Question</th>
+            <th className={TH}>Difficulty</th>
+            <th className={`${TH} text-right`}>Answered</th>
+            <th className={`${TH} text-right`}>Correct</th>
+            <th className={`${TH} text-right`}>Tests passed</th>
+            {graded && <th className={`${TH} text-right`}>Avg marks</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((q) => (
+            <tr key={q.questionId} className="border-t border-hairline">
+              <td className={`${TD_NUM} text-faint`}>{q.no}</td>
+              <td className={`${TD} max-w-[420px]`}><span className="line-clamp-2 font-medium text-heading" title={q.title}>{q.title}</span></td>
+              <td className={TD}>{q.difficulty || <Dash />}</td>
+              <td className={TD_NUM}><Count part={q.answered} whole={q.students} /></td>
+              <td className={TD}><Meter part={q.correct} whole={q.answered} /></td>
+              <td className={TD}><Meter part={q.testsPassed} whole={q.testsTotal} tone="#F79009" /></td>
+              {graded && <td className={TD_NUM}>{q.avgMarks == null ? <Dash /> : `${q.avgMarks} / ${round1(q.max)}`}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
