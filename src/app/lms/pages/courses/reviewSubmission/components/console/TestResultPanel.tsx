@@ -79,36 +79,19 @@ export default function TestResultPanel({ state, showScore = true, onRunTests }:
   const TitleIcon = evaluating ? Loader2 : hasCounts && passed === total ? CheckCircle2 : XCircle;
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Overview */}
-      <div className="rounded-[10px] border p-3.5" style={{ borderColor: tone.border, background: tone.bg }}>
-        <div className="flex items-start gap-2">
-          <TitleIcon className={`mt-0.5 h-5 w-5 shrink-0 ${evaluating ? "animate-spin" : ""}`} style={{ color: tone.fg }} />
-          <div className="min-w-0">
-            <div className="text-[15px] font-bold" style={{ color: tone.fg }}>{title}</div>
-            {sub && <div className="mt-0.5 text-[12.5px] text-[#475467]">{sub}</div>}
-          </div>
-        </div>
+    <div className="flex flex-col gap-2.5">
+      {/* One-line summary — the list below is what the trainer reads. */}
+      <div className="flex items-center gap-2 rounded-[8px] border px-2.5 py-1.5" style={{ borderColor: tone.border, background: tone.bg }}>
+        <TitleIcon className={`h-4 w-4 shrink-0 ${evaluating ? "animate-spin" : ""}`} style={{ color: tone.fg }} />
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold" style={{ color: tone.fg }} title={sub ? `${title} · ${sub}` : title}>
+          {title}
+          {sub && <span className="font-medium text-[#475467]"> · {sub}</span>}
+        </span>
         {hasCounts && (
-          <>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {[
-                { label: "Passed", value: passed, fg: "#046C4E", Icon: CheckCircle2 },
-                { label: "Failed", value: Math.max(0, total - passed), fg: "#B42318", Icon: XCircle },
-                { label: "Total", value: total, fg: "#344054", Icon: ClipboardCheck },
-              ].map((s) => (
-                <div key={s.label} className="rounded-[9px] border border-[#EAECF0] bg-white px-3 py-2">
-                  <div className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: s.fg }}>
-                    <s.Icon className="h-3.5 w-3.5" />{s.label}
-                  </div>
-                  <div className="mt-0.5 text-[20px] font-bold leading-tight text-[#101828]">{s.value}</div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-[#FDE2E0]" aria-hidden>
-              <div className="h-full rounded-full bg-[#12B76A]" style={{ width: `${(passed / total) * 100}%` }} />
-            </div>
-          </>
+          <span className="flex shrink-0 items-center gap-2 text-[12px] font-semibold">
+            <span className="inline-flex items-center gap-1 text-[#046C4E]" title="Passed"><CheckCircle2 className="h-3.5 w-3.5" />{passed}</span>
+            <span className="inline-flex items-center gap-1 text-[#B42318]" title="Failed"><XCircle className="h-3.5 w-3.5" />{Math.max(0, total - passed)}</span>
+          </span>
         )}
       </div>
 
