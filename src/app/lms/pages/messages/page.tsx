@@ -22,7 +22,8 @@ export default function MessagesRoute() {
         }
     }, []);
     if (role === null) return null;
-    if (ADMIN_SHELL_ROLES.includes(role)) return <DashboardLayout><MessagesPage /></DashboardLayout>;
+    // The admin panel adds no padding of its own (its pages bring their own).
+    if (ADMIN_SHELL_ROLES.includes(role)) return <DashboardLayout><div className="p-3 sm:p-4 md:p-6"><MessagesPage /></div></DashboardLayout>;
     if (role === "student") return <StudentLayout><MessagesPage /></StudentLayout>;
     return <StaffLayout><MessagesPage /></StaffLayout>;
 }

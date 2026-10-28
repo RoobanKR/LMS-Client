@@ -499,7 +499,6 @@ function CourseInsightsPage() {
               setSort={setSort}
               openRow={openRow}
               setOpenRow={setOpenRow}
-              onOpenExercise={(id) => { setExerciseId(id); setExTab("students"); }}
             />
           )}
         </>
@@ -602,7 +601,7 @@ function SortSelect({ sort, setSort, marks }: { sort: StudentSort; setSort: (s: 
   );
 }
 
-function StudentList({ students, query, setQuery, exercises, cells, sort, setSort, openRow, setOpenRow, onOpenExercise }: {
+function StudentList({ students, query, setQuery, exercises, cells, sort, setSort, openRow, setOpenRow }: {
   students: ReportStudent[];
   query: string;
   setQuery: (q: string) => void;
@@ -612,7 +611,6 @@ function StudentList({ students, query, setQuery, exercises, cells, sort, setSor
   setSort: (s: StudentSort) => void;
   openRow: string | null;
   setOpenRow: (id: string | null) => void;
-  onOpenExercise: (exerciseId: string) => void;
 }) {
   const showMarks = exercises.some((ex) => ex.graded);
   const rows = useMemo(() => sortStudents(students.map((s) => {
@@ -675,7 +673,7 @@ function StudentList({ students, query, setQuery, exercises, cells, sort, setSor
                   {open && (
                     <tr className="bg-canvas/60">
                       <td colSpan={showMarks ? 11 : 9} className="px-3 pb-3 pt-1 sm:pl-12">
-                        <StudentExercises rows={r.own} onOpenExercise={onOpenExercise} />
+                        <StudentExercises key={r.student.id} rows={r.own} />
                       </td>
                     </tr>
                   )}
@@ -690,15 +688,19 @@ function StudentList({ students, query, setQuery, exercises, cells, sort, setSor
   );
 }
 
-/** One student's exercises, under their row. */
-function StudentExercises({ rows, onOpenExercise }: { rows: { cell: Cell; exercise: ReportExercise }[]; onOpenExercise: (id: string) => void }) {
+/** One student's exercises, under their row; an exercise opens this
+ *  student's answers question by question, in place. */
+function StudentExercises({ rows }: { rows: { cell: Cell; exercise: ReportExercise }[] }) {
+  const [openEx, setOpenEx] = useState<string | null>(null);
   if (!rows.length) return <Empty text="No exercises are set for this student here." />;
   const showMarks = rows.some((r) => r.exercise.graded);
+  const cols = showMarks ? 7 : 6;
   return (
     <div className="overflow-x-auto rounded-lg border border-hairline bg-surface">
       <table className="w-full min-w-[720px] border-collapse">
         <thead className="bg-canvas">
           <tr>
+            <th className={`${TH} w-8`} aria-label="Expand" />
             <th className={TH}>Exercise</th>
             <th className={TH}>Status</th>
             <th className={`${TH} text-right`}>Solved</th>
@@ -708,27 +710,43 @@ function StudentExercises({ rows, onOpenExercise }: { rows: { cell: Cell; exerci
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ cell, exercise: ex }) => (
-            <tr key={ex.id} className="border-t border-hairline">
-              <td className={`${TD} max-w-[280px]`}>
-                <button type="button" onClick={() => onOpenExercise(ex.id)} className="block max-w-full truncate text-left font-semibold text-heading hover:text-brand-strong hover:underline" title={`Open ${ex.name}`}>
-                  {ex.name}
-                </button>
-                <span className="block text-2xs text-faint">{activityOf(ex)}</span>
-              </td>
-              <td className={TD}><StatusChip status={cell.result.status} /></td>
-              <td className={TD_NUM}>{cell.solved} / {cell.result.totalQuestions || ex.questionCount}</td>
-              <td className={TD_NUM}>{cell.correct} / {cell.result.totalQuestions || ex.questionCount}</td>
-              <td className={TD_NUM}>{cell.testsTotal ? `${cell.testsPassed} / ${cell.testsTotal}` : <Dash />}</td>
-              {showMarks && (
-                <td className={TD_NUM}>
-                  {!ex.graded ? <span className="text-2xs text-faint">Non-graded</span>
-                    : cell.result.status === "not-started" ? <Dash />
-                      : `${round1(cell.result.scored)} / ${round1(cell.result.total)}`}
-                </td>
-              )}
-            </tr>
-          ))}
+          {rows.map(({ cell, exercise: ex }) => {
+            const open = openEx === ex.id;
+            return (
+              <React.Fragment key={ex.id}>
+                <tr
+                  onClick={() => setOpenEx(open ? null : ex.id)}
+                  aria-expanded={open}
+                  title={open ? "Hide questions" : "Show this student's questions"}
+                  className="cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover"
+                >
+                  <td className={TD}><ChevronRight size={15} className={`text-brand-500 transition-transform ${open ? "rotate-90" : ""}`} /></td>
+                  <td className={`${TD} max-w-[280px]`}>
+                    <span className="block truncate font-semibold text-heading" title={ex.name}>{ex.name}</span>
+                    <span className="block text-2xs text-faint">{activityOf(ex)}</span>
+                  </td>
+                  <td className={TD}><StatusChip status={cell.result.status} /></td>
+                  <td className={TD_NUM}>{cell.solved} / {cell.result.totalQuestions || ex.questionCount}</td>
+                  <td className={TD_NUM}>{cell.correct} / {cell.result.totalQuestions || ex.questionCount}</td>
+                  <td className={TD_NUM}>{cell.testsTotal ? `${cell.testsPassed} / ${cell.testsTotal}` : <Dash />}</td>
+                  {showMarks && (
+                    <td className={TD_NUM}>
+                      {!ex.graded ? <span className="text-2xs text-faint">Non-graded</span>
+                        : cell.result.status === "not-started" ? <Dash />
+                          : `${round1(cell.result.scored)} / ${round1(cell.result.total)}`}
+                    </td>
+                  )}
+                </tr>
+                {open && (
+                  <tr className="bg-canvas/60">
+                    <td colSpan={cols} className="px-3 pb-3 pt-1 sm:pl-10">
+                      <AnswerTable cell={cell} graded={ex.graded} />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -7,8 +7,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    ArrowLeft, Check, CheckCheck, Code2, Loader2, Lock, Megaphone, MessageSquare, Search, Send, Users,
+    ArrowLeft, Check, CheckCheck, ChevronDown, Code2, Loader2, Lock, Megaphone, MessageSquare, Search, Send, Users, X,
 } from "lucide-react";
+import {
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "react-toastify";
 import { getUserId } from "@/lib/session";
 import {
@@ -28,11 +31,6 @@ const dayLabel = (iso: string) => {
     if (diff === 0) return "Today";
     if (diff === 1) return "Yesterday";
     return d.toLocaleDateString([], { day: "numeric", month: "short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
-};
-const listTime = (iso: string | null) => {
-    if (!iso) return "";
-    const label = dayLabel(iso);
-    return label === "Today" ? clock(iso) : label;
 };
 
 // ─── Avatars ─────────────────────────────────────────────────────────────────
@@ -64,14 +62,25 @@ function Avatar({ thread, size = 40 }: { thread: ChatThread; size?: number }) {
     }
     return (
         <span
-            className={`flex flex-shrink-0 items-center justify-center rounded-full font-semibold ${toneOf(thread.peerId || thread.title)}`}
-            style={{ width: size, height: size, fontSize: size * 0.36 }}
+            className={`relative flex flex-shrink-0 items-center justify-center rounded-full font-semibold ${toneOf(thread.peerId || thread.title)}`}
+            style={{ width: size, height: size, fontSize: size * 0.34 }}
             aria-hidden="true"
         >
-            {(thread.title.trim()[0] || "?").toUpperCase()}
+            {initialsOf(thread.title)}
+            {thread.online && (
+                <span className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+            )}
         </span>
     );
 }
+
+// "Chitra Palanimuthu" → CP, "HARINI E" → HE, "Surya" → SU.
+const initialsOf = (name: string) => {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return "?";
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+};
 
 function UnreadBadge({ n }: { n: number }) {
     if (!n) return null;
@@ -144,43 +153,94 @@ function ExamLockCard() {
 }
 
 // ─── Conversation list ───────────────────────────────────────────────────────
-function ThreadRow({ thread, active, onOpen }: { thread: ChatThread; active: boolean; onOpen: () => void }) {
+// Compact rows in the Teams manner: initials, the name, an unread count. The
+// last message rides in the tooltip instead of a second line.
+function ThreadRow({
+    thread,
+    active,
+    showCourse,
+    onOpen,
+}: {
+    thread: ChatThread;
+    active: boolean;
+    showCourse: boolean;
+    onOpen: () => void;
+}) {
     const preview = thread.lastMessage
         ? `${thread.lastMessage.mine ? "You: " : ""}${thread.lastMessage.text.replace(/```/g, "").replace(/\s+/g, " ").trim()}`
-        : thread.kind === "group" ? thread.subtitle : "No messages yet";
+        : "";
+    const tip = [thread.title, thread.kind === "group" && thread.trainerOnly ? "Announcements" : thread.subtitle, thread.courseName, preview]
+        .filter(Boolean)
+        .join(" · ");
     return (
         <button
             type="button"
             onClick={onOpen}
+            title={tip}
             aria-current={active ? "true" : undefined}
-            className={`flex w-full items-start gap-3 border-b border-ink-100 px-4 py-3 text-left transition-colors ${
-                active ? "bg-brand-50 shadow-[inset_3px_0_0_var(--color-brand-500)]" : "hover:bg-row-hover"
+            className={`mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                active ? "bg-white shadow-xs ring-1 ring-ink-200" : "hover:bg-white/70"
             }`}
         >
-            <Avatar thread={thread} />
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="flex items-center gap-1.5">
-                    <span className="truncate text-[13.5px] font-semibold text-heading">{thread.title}</span>
-                    {thread.kind === "group" && thread.trainerOnly && (
-                        <span className="flex-shrink-0 rounded-md bg-info-50 px-1.5 py-px text-[10.5px] font-semibold text-info-700">
-                            Announcements
-                        </span>
-                    )}
-                    <span className="ml-auto flex-shrink-0 text-[11px] text-subtle">{listTime(thread.lastAt)}</span>
+            <Avatar thread={thread} size={32} />
+            <span className="min-w-0 flex-1">
+                <span className={`block truncate text-[14px] ${thread.unread ? "font-semibold text-heading" : "text-body"}`}>
+                    {thread.title}
                 </span>
-                <span className="flex items-center gap-1.5">
-                    <span className={`min-w-0 flex-1 truncate text-[12.5px] ${thread.unread ? "font-medium text-body" : "text-subtle"}`}>
-                        {preview}
-                    </span>
-                    <UnreadBadge n={thread.unread} />
-                </span>
-                {thread.kind === "direct" && (
-                    <span className="truncate text-[11px] text-faint">{thread.subtitle}</span>
-                )}
+                {showCourse && <span className="block truncate text-[11px] text-faint">{thread.courseName}</span>}
             </span>
+            <UnreadBadge n={thread.unread} />
         </button>
     );
 }
+
+function ListSection({
+    label,
+    count,
+    open,
+    onToggle,
+    children,
+}: {
+    label: string;
+    count: number;
+    open: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="pb-1">
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={open}
+                className="mx-2 mt-1 flex w-[calc(100%-1rem)] items-center gap-1.5 rounded-md px-1.5 py-1.5 text-left text-[13.5px] text-body hover:bg-white/70"
+            >
+                <ChevronDown size={15} className={`flex-shrink-0 text-subtle transition-transform ${open ? "" : "-rotate-90"}`} />
+                {label}
+                <span className="text-[12px] text-faint">{count}</span>
+            </button>
+            {open && <div className="flex flex-col gap-0.5">{children}</div>}
+        </div>
+    );
+}
+
+const FILTER_CHIPS = [
+    { id: "unread", label: "Unread" },
+    { id: "groups", label: "Groups" },
+    { id: "chats", label: "Chats" },
+] as const;
+type ChipId = (typeof FILTER_CHIPS)[number]["id"];
+type SectionId = "groups" | "chats" | "people";
+
+// Which sections a viewer folded — a per-browser convenience only.
+const FOLD_KEY = "messages.sections";
+const readFolds = (): Record<string, boolean> => {
+    try {
+        return JSON.parse(localStorage.getItem(FOLD_KEY) || "{}") || {};
+    } catch {
+        return {};
+    }
+};
 
 // ─── One conversation ────────────────────────────────────────────────────────
 function ThreadView({
@@ -352,8 +412,14 @@ function ThreadView({
                             <span className="rounded-md bg-info-50 px-1.5 py-px text-[10.5px] font-semibold text-info-700">Announcements</span>
                         )}
                     </span>
-                    <span className="truncate text-[12px] text-subtle">
-                        {thread.kind === "group" ? `${thread.subtitle} · ${thread.courseName}` : `${thread.subtitle} · ${thread.courseName}`}
+                    <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-subtle">
+                        {thread.online && (
+                            <span className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-emerald-700">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+                                Online ·
+                            </span>
+                        )}
+                        <span className="truncate">{`${thread.subtitle} · ${thread.courseName}`}</span>
                     </span>
                 </span>
             </header>
@@ -517,62 +583,87 @@ export default function MessagesPage() {
     const threads = useMemo(() => inbox?.threads || [], [inbox]);
 
     const [search, setSearch] = useState("");
-    const [filter, setFilter] = useState<"all" | "unread">("all");
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [chip, setChip] = useState<ChipId | null>(null);
+    const [courseId, setCourseId] = useState<string | null>(null);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
+    const [folds, setFolds] = useState<Record<string, boolean>>({});
+    useEffect(() => setFolds(readFolds()), []);
 
-    // Groups first, then the most recent conversations, then everyone else
-    // by name — inside each course.
-    const sections = useMemo(() => {
+    const courses = useMemo(() => {
+        const m = new Map<string, string>();
+        threads.forEach((t) => m.set(t.courseId, t.courseName));
+        return [...m.entries()].map(([id, name]) => ({ id, name }));
+    }, [threads]);
+    const multiCourse = courses.length > 1;
+    const peopleLabel = role === "student" ? "Trainers" : "Students";
+
+    // Groups (one per batch), Chats (people you have talked to, latest first)
+    // and everyone else you may message, by name.
+    const lists = useMemo(() => {
         const q = search.trim().toLowerCase();
         const pool = threads.filter((t) =>
-            (!q || t.title.toLowerCase().includes(q) || (t.email || "").toLowerCase().includes(q) || t.subtitle.toLowerCase().includes(q)) &&
-            (filter === "all" || t.unread > 0));
-        const byCourse = new Map<string, { name: string; items: ChatThread[] }>();
-        pool.forEach((t) => {
-            const s = byCourse.get(t.courseId) || { name: t.courseName, items: [] };
-            s.items.push(t);
-            byCourse.set(t.courseId, s);
-        });
-        return [...byCourse.values()].map((s) => ({
-            ...s,
-            items: [...s.items].sort((a, b) => {
-                if (a.kind !== b.kind) return a.kind === "group" ? -1 : 1;
-                const ta = a.lastAt ? new Date(a.lastAt).getTime() : 0;
-                const tb = b.lastAt ? new Date(b.lastAt).getTime() : 0;
-                if (ta !== tb) return tb - ta;
-                return a.title.localeCompare(b.title);
-            }),
-        }));
-    }, [threads, search, filter]);
+            (!courseId || t.courseId === courseId) &&
+            (!q || [t.title, t.email || "", t.subtitle, t.courseName].some((v) => v.toLowerCase().includes(q))) &&
+            (chip !== "unread" || t.unread > 0));
+        const at = (t: ChatThread) => (t.lastAt ? new Date(t.lastAt).getTime() : 0);
+        const byRecent = (a: ChatThread, b: ChatThread) => at(b) - at(a) || a.title.localeCompare(b.title);
+        return {
+            groups: chip === "chats" ? [] : pool.filter((t) => t.kind === "group").sort(byRecent),
+            chats: chip === "groups" ? [] : pool.filter((t) => t.kind === "direct" && t.lastAt).sort(byRecent),
+            people: chip === "groups" ? [] : pool.filter((t) => t.kind === "direct" && !t.lastAt).sort((a, b) => a.title.localeCompare(b.title)),
+        };
+    }, [threads, search, chip, courseId]);
+    const ordered = useMemo(() => [...lists.groups, ...lists.chats, ...lists.people], [lists]);
+
+    // A long roster starts folded; a search opens everything it matched.
+    const isOpen = (id: SectionId, count: number) =>
+        search.trim() ? true : folds[id] ?? !(id === "people" && count > 12);
+    const toggleFold = (id: SectionId, count: number) => {
+        const next = { ...folds, [id]: !isOpen(id, count) };
+        setFolds(next);
+        try {
+            localStorage.setItem(FOLD_KEY, JSON.stringify(next));
+        } catch {
+            // Folding just won't be remembered.
+        }
+    };
 
     const selected = threads.find((t) => t.key === selectedKey) || null;
     // Desktop opens the first chat; a phone starts on the list.
     useEffect(() => {
         if (selectedKey || !threads.length) return;
-        if (typeof window !== "undefined" && window.innerWidth >= 768) setSelectedKey(sections[0]?.items[0]?.key || null);
-    }, [threads, sections, selectedKey]);
+        if (typeof window !== "undefined" && window.innerWidth >= 768) setSelectedKey(ordered[0]?.key || null);
+    }, [threads, ordered, selectedKey]);
 
     const unreadTotal = threads.reduce((n, t) => n + t.unread, 0);
 
     // The chat box fills what the shell leaves below it — the student, staff
     // and admin panels differ in header and padding, so it is measured rather
-    // than guessed: down to the bottom of the panel's scroll area.
+    // than guessed: down to the bottom of the panel's scroll area, less every
+    // bottom padding/border between the box and that area.
     const boxRef = useRef<HTMLDivElement>(null);
+    const scrollerRef = useRef<HTMLElement | null>(null);
     const [boxHeight, setBoxHeight] = useState<number | null>(null);
     useLayoutEffect(() => {
         const fit = () => {
             const el = boxRef.current;
             if (!el) return;
             let scroller: HTMLElement | null = el.parentElement;
-            while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+            let below = 0;
+            while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) {
+                const cs = getComputedStyle(scroller);
+                below += parseFloat(cs.paddingBottom || "0") + parseFloat(cs.borderBottomWidth || "0");
+                scroller = scroller.parentElement;
+            }
+            scrollerRef.current = scroller;
+            if (scroller) below += parseFloat(getComputedStyle(scroller).paddingBottom || "0");
             const rect = el.getBoundingClientRect();
             // Rects are in zoomed pixels (the app zooms <html> on some screens),
             // the height we set is not — convert through the element's own ratio.
             const ratio = el.offsetHeight ? rect.height / el.offsetHeight : 1;
-            const bottom = scroller
-                ? scroller.getBoundingClientRect().bottom - parseFloat(getComputedStyle(scroller).paddingBottom || "0") * ratio
-                : window.innerHeight - 16;
-            setBoxHeight(Math.max(460, Math.floor((bottom - rect.top) / (ratio || 1))));
+            const bottom = scroller ? scroller.getBoundingClientRect().bottom : window.innerHeight - 16;
+            setBoxHeight(Math.max(460, Math.floor((bottom - rect.top) / (ratio || 1) - below)));
         };
         fit();
         // Again once the shell's slide-in has settled (it shifts the top).
@@ -583,6 +674,14 @@ export default function MessagesPage() {
             window.removeEventListener("resize", fit);
         };
     }, []);
+    // Whatever the estimate missed, the panel's own overflow says exactly: take
+    // it off so the panel never scrolls.
+    useLayoutEffect(() => {
+        const scroller = scrollerRef.current;
+        if (!boxHeight || !scroller) return;
+        const over = scroller.scrollHeight - scroller.clientHeight;
+        if (over > 0 && boxHeight - over >= 460) setBoxHeight(boxHeight - over);
+    }, [boxHeight]);
 
     let body: React.ReactNode;
     if (isLoading) {
@@ -617,55 +716,132 @@ export default function MessagesPage() {
             <div className="flex h-full min-h-0">
                 <section
                     aria-label="Chats"
-                    className={`min-h-0 w-full flex-col border-r border-ink-200 md:flex md:w-[320px] md:flex-shrink-0 lg:w-[340px] ${selected ? "hidden" : "flex"}`}
+                    className={`min-h-0 w-full flex-col border-r border-ink-200 bg-surface-sunken md:flex md:w-[300px] md:flex-shrink-0 lg:w-[320px] ${selected ? "hidden" : "flex"}`}
                 >
-                    <div className="flex flex-col gap-3 px-4 pb-3 pt-4">
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-[20px] font-bold text-heading">Messages</h1>
-                            <UnreadBadge n={unreadTotal} />
-                        </div>
-                        <label className="flex h-10 items-center gap-2 rounded-[10px] border border-ink-200 px-3 text-subtle focus-within:border-brand-400">
-                            <Search size={15} className="flex-shrink-0" />
-                            <span className="sr-only">Search chats</span>
-                            <input
-                                type="search"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder={role === "student" ? "Search chats" : "Search students"}
-                                className="min-w-0 flex-1 bg-transparent text-[13px] text-heading outline-none"
-                            />
-                        </label>
-                        <div className="flex gap-1.5" role="group" aria-label="Show">
-                            {(["all", "unread"] as const).map((f) => (
-                                <button
-                                    key={f}
-                                    type="button"
-                                    aria-pressed={filter === f}
-                                    onClick={() => setFilter(f)}
-                                    className={`h-8 rounded-full px-3 text-[12px] font-semibold transition-colors ${
-                                        filter === f ? "bg-heading text-white" : "border border-ink-200 bg-white text-body hover:bg-row-hover"
-                                    }`}
-                                >
-                                    {f === "all" ? "All" : `Unread${unreadTotal ? ` (${unreadTotal})` : ""}`}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="flex items-center gap-2 px-4 pb-2 pt-4">
+                        <h1 className="text-[20px] font-bold text-heading">Messages</h1>
+                        <UnreadBadge n={unreadTotal} />
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (searchOpen) setSearch("");
+                                setSearchOpen(!searchOpen);
+                            }}
+                            aria-label={searchOpen ? "Close search" : "Search"}
+                            aria-pressed={searchOpen}
+                            className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg text-body hover:bg-white"
+                        >
+                            {searchOpen ? <X size={18} /> : <Search size={18} />}
+                        </button>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
-                        {sections.length === 0 && (
+                    {searchOpen && (
+                        <div className="px-4 pb-2">
+                            <label className="flex h-9 items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 text-subtle focus-within:border-brand-400">
+                                <Search size={14} className="flex-shrink-0" />
+                                <span className="sr-only">Search chats</span>
+                                <input
+                                    autoFocus
+                                    type="search"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder={role === "student" ? "Search trainers and groups" : "Search students and groups"}
+                                    className="min-w-0 flex-1 bg-transparent text-[13px] text-heading outline-none"
+                                />
+                            </label>
+                        </div>
+                    )}
+                    <div className={`flex items-center gap-1.5 px-4 ${courseId ? "pb-2" : "border-b border-ink-200 pb-3"}`} role="group" aria-label="Show">
+                        {FILTER_CHIPS.map((c) => (
+                            <button
+                                key={c.id}
+                                type="button"
+                                aria-pressed={chip === c.id}
+                                onClick={() => setChip((cur) => (cur === c.id ? null : c.id))}
+                                className={`h-8 flex-shrink-0 whitespace-nowrap rounded-full border px-3 text-[12.5px] transition-colors ${
+                                    chip === c.id
+                                        ? "border-heading bg-heading font-semibold text-white"
+                                        : "border-ink-300 bg-transparent text-body hover:bg-white"
+                                }`}
+                            >
+                                {c.id === "unread" && unreadTotal ? `Unread (${unreadTotal})` : c.label}
+                            </button>
+                        ))}
+                        {multiCourse && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        aria-label="Filter by course"
+                                        className={`ml-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
+                                            courseId ? "bg-heading text-white" : "text-body hover:bg-white"
+                                        }`}
+                                    >
+                                        <ChevronDown size={16} />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="min-w-[200px]">
+                                    <DropdownMenuItem onSelect={() => setCourseId(null)}>
+                                        <Check size={14} className={courseId ? "opacity-0" : ""} /> All courses
+                                    </DropdownMenuItem>
+                                    {courses.map((c) => (
+                                        <DropdownMenuItem key={c.id} onSelect={() => setCourseId(c.id)}>
+                                            <Check size={14} className={courseId === c.id ? "" : "opacity-0"} /> {c.name}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+                    </div>
+                    {courseId && (
+                        <div className="flex items-center gap-1.5 border-b border-ink-200 px-4 pb-3 text-[12px] text-subtle">
+                            Course:
+                            <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-white py-0.5 pl-2.5 pr-1 font-semibold text-heading ring-1 ring-ink-200">
+                                <span className="truncate">{courses.find((c) => c.id === courseId)?.name}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setCourseId(null)}
+                                    aria-label="Show all courses"
+                                    className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-subtle hover:bg-row-hover"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </span>
+                        </div>
+                    )}
+                    <div className="min-h-0 flex-1 overflow-y-auto py-2">
+                        {!ordered.length && (
                             <p className="px-4 py-8 text-center text-[12.5px] text-subtle">
-                                {filter === "unread" ? "No unread messages." : "No chats match your search."}
+                                {search.trim()
+                                    ? "Nothing matches your search."
+                                    : chip === "unread" ? "No unread messages." : chip === "groups" ? "No groups." : "No chats yet."}
                             </p>
                         )}
-                        {sections.map((s) => (
-                            <div key={s.name}>
-                                <div className="px-4 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle">{s.name}</div>
-                                {s.items.map((t) => (
-                                    <ThreadRow key={t.key} thread={t} active={t.key === selectedKey} onOpen={() => setSelectedKey(t.key)} />
-                                ))}
-                            </div>
-                        ))}
-                        <p className="px-4 py-4 text-[11.5px] leading-relaxed text-faint">
+                        {([
+                            { id: "groups", label: "Groups", items: lists.groups },
+                            { id: "chats", label: "Chats", items: lists.chats },
+                            { id: "people", label: peopleLabel, items: lists.people },
+                        ] as const).map((sec) =>
+                            sec.items.length ? (
+                                <ListSection
+                                    key={sec.id}
+                                    label={sec.label}
+                                    count={sec.items.length}
+                                    open={isOpen(sec.id, sec.items.length)}
+                                    onToggle={() => toggleFold(sec.id, sec.items.length)}
+                                >
+                                    {sec.items.map((t) => (
+                                        <ThreadRow
+                                            key={t.key}
+                                            thread={t}
+                                            active={t.key === selectedKey}
+                                            showCourse={multiCourse && !courseId}
+                                            onOpen={() => setSelectedKey(t.key)}
+                                        />
+                                    ))}
+                                </ListSection>
+                            ) : null,
+                        )}
+                        <p className="px-4 pb-2 pt-3 text-[11.5px] leading-relaxed text-faint">
                             {role === "student"
                                 ? "You can chat with your batch's trainers and your batch group."
                                 : "You can chat with the students of your batches and post in each batch group."}

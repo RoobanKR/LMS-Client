@@ -15,6 +15,8 @@ export type ChatThread = {
     title: string;
     subtitle: string;
     email?: string;
+    // Direct chats: the person has the LMS open right now.
+    online?: boolean;
     trainerOnly?: boolean;
     canPost: boolean;
     unread: number;
@@ -85,9 +87,14 @@ export const markChatRead = async (conversationId: string): Promise<void> => {
 
 /** The server's message for a failed call (423 = exam lock). */
 export const chatError = (e: unknown): { status: number; message: string } => {
-    const err = e as { response?: { status?: number; data?: { message?: string } }; message?: string };
+    const err = e as { response?: { status?: number; data?: { message?: unknown } }; message?: string };
+    // The auth middleware answers with [{ key, value }] rather than a string.
+    const raw = err?.response?.data?.message;
+    const text = Array.isArray(raw)
+        ? raw.map((m) => (typeof m === "string" ? m : (m as { value?: string })?.value)).filter(Boolean).join(", ")
+        : typeof raw === "string" ? raw : "";
     return {
         status: err?.response?.status || 0,
-        message: err?.response?.data?.message || err?.message || "Something went wrong",
+        message: text || err?.message || "Something went wrong",
     };
 };
