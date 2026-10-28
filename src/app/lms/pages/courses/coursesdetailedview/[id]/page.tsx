@@ -2567,7 +2567,7 @@ const getExercisesForActivity = (): any[] => {
           {!isHeaderCollapsed && (
             <CourseBreadcrumbs
               items={buildBreadcrumbs()}
-              right={<CourseHeaderActions showNotes={courseNotesEnabled} onNotesClick={() => setShowNotesPanel(v => !v)} />}
+              right={<CourseHeaderActions courseId={courseId} showNotes={courseNotesEnabled} onNotesClick={() => setShowNotesPanel(v => !v)} />}
             />
           )}
           {!isHeaderCollapsed && (

@@ -7,6 +7,7 @@ import {
 } from "@phosphor-icons/react"
 import { T } from "./types/constants"
 import { NotificationBell } from "@/app/lms/component/NotificationBell"
+import CourseChatButton from "@/app/lms/pages/messages/CourseChatButton"
 
 interface TopBarProps {
   items: Array<{ label: string; icon?: React.ComponentType<any>; onClick?: () => void; isLast?: boolean }>
@@ -59,10 +60,10 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, tabs }) => {
   )
 }
 
-/** Notes and Notifications — the course view's page actions, at the end of
- *  the breadcrumb row. The bell is the app's shared NotificationBell, the
+/** Notes, Chat and Notifications — the course view's page actions, at the end
+ *  of the breadcrumb row. The bell is the app's shared NotificationBell, the
  *  same round control Upload Resources shows. */
-export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void; showNotes?: boolean }> = ({ onNotesClick, showNotes = true }) => {
+export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void; showNotes?: boolean; courseId?: string }> = ({ onNotesClick, showNotes = true, courseId }) => {
   const [notesLoading, setNotesLoading] = useState(false)
 
   return (
@@ -101,6 +102,9 @@ export const CourseHeaderActions: React.FC<{ onNotesClick?: () => void; showNote
           : <NotePencil size={15} weight="bold" />}
         Notes
       </button>}
+
+      {/* Chat — only when Course Setup turned it on for this course. */}
+      {courseId && <CourseChatButton courseId={courseId} />}
 
       <NotificationBell />
 

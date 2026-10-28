@@ -687,7 +687,7 @@ export default function CourseSetupForm({
                     talk to whom comes from the batch roster on the server; this
                     only turns the pieces on. */}
                 <Section title="Chat" open={open.chat} onToggle={toggle('chat')} readOnly={readOnly}>
-                    <FieldRow label="Chat for this course" tooltip="Trainers and students of this course message each other from Messages">
+                    <FieldRow label="Chat for this course" tooltip="Trainers and students of this course message each other; students open it from the Chat button inside the course">
                         <ChatSwitch
                             checked={chat.enabled}
                             onChange={(v) => setChat({ enabled: v })}
@@ -726,8 +726,16 @@ export default function CourseSetupForm({
                                     )}
                                 </span>
                             </FieldRow>
+                            <FieldRow label="Student ↔ Student">
+                                <ChatSwitch
+                                    checked={Boolean(chat.peers)}
+                                    onChange={(v) => setChat({ peers: v })}
+                                    label="Student and student chat"
+                                    note={chat.peers ? 'Students chat with classmates in their own batch' : 'Off'}
+                                />
+                            </FieldRow>
                             <p className="text-xs text-faint pt-1">
-                                No student-to-student chat. Students see only their own batch. Chat pauses for a student while they take an assessment.
+                                Students see only their own batch: its trainers, its group and, when Student ↔ Student is on, its students. Chat pauses for a student while they take an assessment.
                             </p>
                         </>
                     )}

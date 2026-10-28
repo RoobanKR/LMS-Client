@@ -230,7 +230,7 @@ const FILTER_CHIPS = [
     { id: "chats", label: "Chats" },
 ] as const;
 type ChipId = (typeof FILTER_CHIPS)[number]["id"];
-type SectionId = "groups" | "chats" | "people";
+type SectionId = "groups" | "chats" | "people" | "classmates";
 
 // Which sections a viewer folded — a per-browser convenience only.
 const FOLD_KEY = "messages.sections";
@@ -248,11 +248,14 @@ function ThreadView({
     role,
     onBack,
     onLocked,
+    inDialog = false,
 }: {
     thread: ChatThread;
     role: "student" | "trainer";
     onBack: () => void;
     onLocked: () => void;
+    // Leaves the top-right corner to the dialog's close button.
+    inDialog?: boolean;
 }) {
     const queryClient = useQueryClient();
     const me = getUserId() || "";
@@ -395,7 +398,7 @@ function ThreadView({
 
     return (
         <section aria-label={`Chat with ${thread.title}`} className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <header className="flex items-center gap-3 border-b border-ink-200 px-4 py-3 sm:px-5">
+            <header className={`flex items-center gap-3 border-b border-ink-200 px-4 py-3 sm:px-5 ${inDialog ? "pr-14 sm:pr-14" : ""}`}>
                 <button
                     type="button"
                     onClick={onBack}
@@ -533,7 +536,7 @@ function ThreadView({
                                 e.preventDefault();
                                 send();
                             }}
-                            placeholder={role === "student" ? "Type your doubt…" : "Type a message…"}
+                            placeholder={role === "student" && thread.peerRole !== "student" ? "Type your doubt…" : "Type a message…"}
                             className="block min-h-11 w-full resize-none rounded-[10px] border border-ink-200 px-3 py-2.5 text-[13.5px] text-heading outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                         />
                         {text.length > MAX_TEXT - 500 && (
@@ -560,7 +563,10 @@ function ThreadView({
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
-export default function MessagesPage() {
+// With `courseId` it is one course's chats, filling the course view's Chat
+// dialog (which `onClose` closes); without, every course, in a page shell.
+export default function MessagesPage({ courseId: fixedCourse, onClose }: { courseId?: string; onClose?: () => void } = {}) {
+    const embedded = Boolean(fixedCourse);
     const queryClient = useQueryClient();
     const [lockedLocally, setLockedLocally] = useState(false);
     const { data: inbox, isLoading, isError, error, refetch } = useQuery({
@@ -580,7 +586,10 @@ export default function MessagesPage() {
     }, [inbox]);
 
     const role = inbox?.role || "student";
-    const threads = useMemo(() => inbox?.threads || [], [inbox]);
+    const threads = useMemo(
+        () => (inbox?.threads || []).filter((t) => !fixedCourse || t.courseId === fixedCourse),
+        [inbox, fixedCourse],
+    );
 
     const [search, setSearch] = useState("");
     const [searchOpen, setSearchOpen] = useState(false);
@@ -597,6 +606,10 @@ export default function MessagesPage() {
     }, [threads]);
     const multiCourse = courses.length > 1;
     const peopleLabel = role === "student" ? "Trainers" : "Students";
+    // A student's batch-mates (Course Setup ▸ Student ↔ Student) list apart
+    // from their trainers.
+    const isClassmate = (t: ChatThread) => role === "student" && t.peerRole === "student";
+    const hasClassmates = threads.some(isClassmate);
 
     // Groups (one per batch), Chats (people you have talked to, latest first)
     // and everyone else you may message, by name.
@@ -608,17 +621,22 @@ export default function MessagesPage() {
             (chip !== "unread" || t.unread > 0));
         const at = (t: ChatThread) => (t.lastAt ? new Date(t.lastAt).getTime() : 0);
         const byRecent = (a: ChatThread, b: ChatThread) => at(b) - at(a) || a.title.localeCompare(b.title);
+        const byName = (a: ChatThread, b: ChatThread) => a.title.localeCompare(b.title);
+        const fresh = chip === "groups" ? [] : pool.filter((t) => t.kind === "direct" && !t.lastAt);
         return {
             groups: chip === "chats" ? [] : pool.filter((t) => t.kind === "group").sort(byRecent),
             chats: chip === "groups" ? [] : pool.filter((t) => t.kind === "direct" && t.lastAt).sort(byRecent),
-            people: chip === "groups" ? [] : pool.filter((t) => t.kind === "direct" && !t.lastAt).sort((a, b) => a.title.localeCompare(b.title)),
+            people: fresh.filter((t) => !isClassmate(t)).sort(byName),
+            classmates: fresh.filter(isClassmate).sort(byName),
         };
-    }, [threads, search, chip, courseId]);
-    const ordered = useMemo(() => [...lists.groups, ...lists.chats, ...lists.people], [lists]);
+        // isClassmate reads role only.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [threads, search, chip, courseId, role]);
+    const ordered = useMemo(() => [...lists.groups, ...lists.chats, ...lists.people, ...lists.classmates], [lists]);
 
     // A long roster starts folded; a search opens everything it matched.
     const isOpen = (id: SectionId, count: number) =>
-        search.trim() ? true : folds[id] ?? !(id === "people" && count > 12);
+        search.trim() ? true : folds[id] ?? !((id === "people" || id === "classmates") && count > 12);
     const toggleFold = (id: SectionId, count: number) => {
         const next = { ...folds, [id]: !isOpen(id, count) };
         setFolds(next);
@@ -646,6 +664,8 @@ export default function MessagesPage() {
     const scrollerRef = useRef<HTMLElement | null>(null);
     const [boxHeight, setBoxHeight] = useState<number | null>(null);
     useLayoutEffect(() => {
+        // In the course dialog the dialog sets the height.
+        if (embedded) return;
         const fit = () => {
             const el = boxRef.current;
             if (!el) return;
@@ -673,7 +693,7 @@ export default function MessagesPage() {
             window.clearTimeout(settle);
             window.removeEventListener("resize", fit);
         };
-    }, []);
+    }, [embedded]);
     // Whatever the estimate missed, the panel's own overflow says exactly: take
     // it off so the panel never scrolls.
     useLayoutEffect(() => {
@@ -718,8 +738,8 @@ export default function MessagesPage() {
                     aria-label="Chats"
                     className={`min-h-0 w-full flex-col border-r border-ink-200 bg-surface-sunken md:flex md:w-[300px] md:flex-shrink-0 lg:w-[320px] ${selected ? "hidden" : "flex"}`}
                 >
-                    <div className="flex items-center gap-2 px-4 pb-2 pt-4">
-                        <h1 className="text-[20px] font-bold text-heading">Messages</h1>
+                    <div className={`flex items-center gap-2 px-4 pb-2 pt-4 ${onClose ? "max-md:pr-14" : ""}`}>
+                        <h1 className="text-[20px] font-bold text-heading">{embedded ? "Chat" : "Messages"}</h1>
                         <UnreadBadge n={unreadTotal} />
                         <button
                             type="button"
@@ -744,7 +764,7 @@ export default function MessagesPage() {
                                     type="search"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    placeholder={role === "student" ? "Search trainers and groups" : "Search students and groups"}
+                                    placeholder={role !== "student" ? "Search students and groups" : hasClassmates ? "Search trainers, classmates, groups" : "Search trainers and groups"}
                                     className="min-w-0 flex-1 bg-transparent text-[13px] text-heading outline-none"
                                 />
                             </label>
@@ -820,6 +840,7 @@ export default function MessagesPage() {
                             { id: "groups", label: "Groups", items: lists.groups },
                             { id: "chats", label: "Chats", items: lists.chats },
                             { id: "people", label: peopleLabel, items: lists.people },
+                            { id: "classmates", label: "Classmates", items: lists.classmates },
                         ] as const).map((sec) =>
                             sec.items.length ? (
                                 <ListSection
@@ -842,9 +863,11 @@ export default function MessagesPage() {
                             ) : null,
                         )}
                         <p className="px-4 pb-2 pt-3 text-[11.5px] leading-relaxed text-faint">
-                            {role === "student"
-                                ? "You can chat with your batch's trainers and your batch group."
-                                : "You can chat with the students of your batches and post in each batch group."}
+                            {role !== "student"
+                                ? "You can chat with the students of your batches and post in each batch group."
+                                : hasClassmates
+                                    ? "You can chat with your batch's trainers, your classmates and your batch group."
+                                    : "You can chat with your batch's trainers and your batch group."}
                         </p>
                     </div>
                 </section>
@@ -855,6 +878,7 @@ export default function MessagesPage() {
                         thread={selected}
                         role={role}
                         onBack={() => setSelectedKey(null)}
+                        inDialog={Boolean(onClose)}
                         onLocked={() => {
                             setLockedLocally(true);
                             queryClient.invalidateQueries({ queryKey: chatKeys.inbox });
@@ -864,6 +888,25 @@ export default function MessagesPage() {
                     <div className="hidden min-w-0 flex-1 items-center justify-center bg-[#FAFBFC] text-[13px] text-subtle md:flex">
                         Pick a chat to start.
                     </div>
+                )}
+            </div>
+        );
+    }
+
+    if (embedded) {
+        return (
+            <div className="relative h-full min-h-0 overflow-hidden bg-white">
+                {body}
+                {onClose && (
+                    // Over the conversation header's right end, clear of its text.
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close chat"
+                        className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-white text-body hover:bg-row-hover"
+                    >
+                        <X size={18} />
+                    </button>
                 )}
             </div>
         );

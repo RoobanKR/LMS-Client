@@ -17,6 +17,9 @@ export type ChatThread = {
     email?: string;
     // Direct chats: the person has the LMS open right now.
     online?: boolean;
+    // Direct chats: whether the other person is a trainer or a student
+    // (a student's classmate, with Student ↔ Student on).
+    peerRole?: "trainer" | "student";
     trainerOnly?: boolean;
     canPost: boolean;
     unread: number;

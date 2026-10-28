@@ -208,6 +208,8 @@ export interface ChatSettings {
     // One group per batch, and whether only trainers may post in it.
     group: boolean;
     groupTrainerOnly: boolean;
+    // Student ↔ student 1:1 chat, within a batch.
+    peers?: boolean;
 }
 
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
@@ -215,6 +217,7 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
     direct: true,
     group: true,
     groupTrainerOnly: false,
+    peers: false,
 };
 
 export interface ValidationErrors {

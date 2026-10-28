@@ -22,9 +22,6 @@ import { cn } from "@/lib/utils"
 import { useRouter, usePathname } from "next/navigation"
 import { notificationsService, notificationKeys } from "@/app/lms/pages/notifications/api/notifications"
 import { useQuery } from "@tanstack/react-query"
-import { getToken } from "@/lib/session"
-import { chatKeys, fetchChatSummary } from "@/app/lms/pages/messages/api/peopleChat"
-import { useChatLive } from "@/app/lms/pages/messages/useChatLive"
 import { motion } from "framer-motion"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import * as LucideIcons from "lucide-react"
@@ -552,7 +549,6 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
     // courses, with Give feedback / Done actions. Route: /lms/pages/feedback.
     { icon: MessageCircle, label: "Feedback", href: `${BASE_PATH}feedback`, count: 0, progress: 0 },
     { icon: Bell, label: "Notifications", href: `${BASE_PATH}notifications`, count: 0, progress: 0 },
-    { icon: MessageSquare, label: "Messages", href: `${BASE_PATH}messages`, count: 0, progress: 0 },
     { icon: FolderOpen, label: "Resources", href: `${BASE_PATH}resources`, count: analytics.totalModules + analytics.totalTopics, progress: 0 },
     // Calendar, not "Schedule": /lms/pages/schedule has never existed, so the
     // old entry was a dead link. This is the read-only institute + enrolled
@@ -624,38 +620,12 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
     if (typeof window !== 'undefined' && window.innerWidth < 768 && onClose) onClose()
   }
 
-  // Messages — shown once a course of this student turned chat on (Course
-  // Setup ▸ Chat), with the unread count; live over the shared socket.
-  const { data: chatSummary } = useQuery({
-    queryKey: chatKeys.summary,
-    queryFn: fetchChatSummary,
-    refetchOnWindowFocus: true,
-    staleTime: 30 * 1000,
-    refetchInterval: 60 * 1000,
-    enabled: typeof window !== 'undefined' && !!getToken(),
-  })
-  useChatLive()
-  const railItems = useMemo(() => {
-    const href = `${BASE_PATH}messages`
-    const badge = chatSummary?.unread ? chatSummary.unread : undefined
-    if (sidebarItems.some(i => routeKeyOf(i.href) === 'messages')) {
-      return sidebarItems.map(i => (routeKeyOf(i.href) === 'messages' ? { ...i, badge } : i))
-    }
-    if (!chatSummary?.enabled) return sidebarItems
-    return [...sidebarItems, {
-      icon: MessageSquare,
-      label: "Messages",
-      href,
-      permissionKey: "messages",
-      isActive: getIsActive(href),
-      count: 0,
-      progress: 0,
-      color: "orange",
-      badge,
-    }]
-    // getIsActive reads pathname / activeRoute.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sidebarItems, chatSummary, pathname, activeRoute])
+  // A student's chat lives inside each course (the Chat button beside Notes),
+  // so no Messages entry here, even when a role grants one.
+  const railItems = useMemo(
+    () => sidebarItems.filter(i => routeKeyOf(i.href) !== 'messages'),
+    [sidebarItems],
+  )
 
   // Group existing (permission-driven) items into sections so the order is
   // stable; the headings themselves are never rendered.
