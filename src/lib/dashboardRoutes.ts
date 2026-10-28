@@ -108,7 +108,7 @@ export function isTrainerCourseRoute(pathname: string): boolean {
 const TRAINER_SHELL_PAGES = [
   '/lms/pages/dashboard', '/lms/pages/courses', '/lms/pages/coursemanagement', '/lms/pages/grades',
   '/lms/pages/notifications', '/lms/pages/questionbanks', '/lms/pages/reports/performance',
-  '/lms/pages/usermanagement', '/lms/pages/profile',
+  '/lms/pages/usermanagement', '/lms/pages/profile', '/lms/pages/messages',
 ];
 const TRAINER_SHELL_SECTIONS = ['logs', 'attendancemanagement', 'coursestructure/feedback', 'courses/users'];
 

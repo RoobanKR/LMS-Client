@@ -611,6 +611,8 @@ const GROUP_BY_KEY: Record<string, string> = {
     // second row is always Notification — the corner bell was retired and
     // the red pulse on this row now carries "you have unread activity".
     notifications: "Overview",
+    // People chat sits right under Notifications.
+    messages: "Overview",
     // Audit Logs reaches the staff rail as a synthetic item with no permission
     // key, so it is matched on its route instead — see navGroupLabelFor.
     logs: "System",

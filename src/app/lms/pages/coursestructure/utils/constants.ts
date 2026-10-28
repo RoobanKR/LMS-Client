@@ -128,6 +128,7 @@ export const initialCourseFormData: CourseFormDataType = {
         }]
     }],
     aiChatGlobal: false,
+    chatSettings: { enabled: false, direct: true, group: true, groupTrainerOnly: false },
     testConfiguration: {
         coreProgram: [],
         frontend: [],

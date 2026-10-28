@@ -339,6 +339,13 @@ const hasPermissionForRoute = (pathname: string): { hasAccess: boolean; required
     return { hasAccess: true, requiredPermission: 'grades' }
   }
 
+  // ── Messages (people chat): every role. The server decides who may talk to
+  //    whom from the batch roster, and an account in no chat-enabled batch
+  //    just sees an empty page. ─────────────────────────────────────────────
+  if (pathname === '/lms/pages/messages' || pathname.startsWith('/lms/pages/messages/')) {
+    return { hasAccess: true, requiredPermission: 'messages' }
+  }
+
   // ── Allow logs page for all non-student staff/admin roles ─────────────────
   if (pathname.startsWith('/lms/pages/logs')) {
     return { hasAccess: !isStudent }

@@ -195,8 +195,27 @@ export interface FormData {
     resourcesType: PedagogyResources;
     modules: Array<any>;
     aiChatGlobal: boolean;
+    // People chat for the course (Course Setup ▸ Chat). Optional so the legacy
+    // add-course popup, which never shows the section, needs no change.
+    chatSettings?: ChatSettings;
     testConfiguration: TestConfiguration;
 }
+
+export interface ChatSettings {
+    enabled: boolean;
+    // Trainer ↔ student 1:1 chat.
+    direct: boolean;
+    // One group per batch, and whether only trainers may post in it.
+    group: boolean;
+    groupTrainerOnly: boolean;
+}
+
+export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
+    enabled: false,
+    direct: true,
+    group: true,
+    groupTrainerOnly: false,
+};
 
 export interface ValidationErrors {
     client?: string;

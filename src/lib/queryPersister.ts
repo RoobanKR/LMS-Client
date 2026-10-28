@@ -133,6 +133,9 @@ const NON_PERSISTED_KEYS = new Set<string>([
   // Every feedback form with its embedded studentResponses[] — student names
   // and free-text comments. Same rule as the roster: never localStorage.
   "feedback",
+  // People chat (Messages): private conversations — must never outlive the
+  // tab on a shared lab computer, and the socket keeps them fresh anyway.
+  "peopleChat",
   // The Grades drill (exercises → students → questions). Two reasons, either
   // one sufficient:
   //   • PII — the students payload is names, emails and per-student scores,

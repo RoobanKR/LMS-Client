@@ -22,6 +22,9 @@ import { cn } from "@/lib/utils"
 import { useRouter, usePathname } from "next/navigation"
 import { notificationsService, notificationKeys } from "@/app/lms/pages/notifications/api/notifications"
 import { useQuery } from "@tanstack/react-query"
+import { getToken } from "@/lib/session"
+import { chatKeys, fetchChatSummary } from "@/app/lms/pages/messages/api/peopleChat"
+import { useChatLive } from "@/app/lms/pages/messages/useChatLive"
 import { motion } from "framer-motion"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import * as LucideIcons from "lucide-react"
@@ -621,11 +624,44 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
     if (typeof window !== 'undefined' && window.innerWidth < 768 && onClose) onClose()
   }
 
+  // Messages — shown once a course of this student turned chat on (Course
+  // Setup ▸ Chat), with the unread count; live over the shared socket.
+  const { data: chatSummary } = useQuery({
+    queryKey: chatKeys.summary,
+    queryFn: fetchChatSummary,
+    refetchOnWindowFocus: true,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
+    enabled: typeof window !== 'undefined' && !!getToken(),
+  })
+  useChatLive()
+  const railItems = useMemo(() => {
+    const href = `${BASE_PATH}messages`
+    const badge = chatSummary?.unread ? chatSummary.unread : undefined
+    if (sidebarItems.some(i => routeKeyOf(i.href) === 'messages')) {
+      return sidebarItems.map(i => (routeKeyOf(i.href) === 'messages' ? { ...i, badge } : i))
+    }
+    if (!chatSummary?.enabled) return sidebarItems
+    return [...sidebarItems, {
+      icon: MessageSquare,
+      label: "Messages",
+      href,
+      permissionKey: "messages",
+      isActive: getIsActive(href),
+      count: 0,
+      progress: 0,
+      color: "orange",
+      badge,
+    }]
+    // getIsActive reads pathname / activeRoute.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidebarItems, chatSummary, pathname, activeRoute])
+
   // Group existing (permission-driven) items into sections so the order is
   // stable; the headings themselves are never rendered.
   const groupedSections = useMemo(() => {
     const q = menuSearch.trim().toLowerCase()
-    const pool = q ? sidebarItems.filter(i => i.label.toLowerCase().includes(q)) : sidebarItems
+    const pool = q ? railItems.filter(i => i.label.toLowerCase().includes(q)) : railItems
     const routeOf = (item: SidebarItem) => normalizeRoute(item.href.replace(BASE_PATH, '').split('/')[0])
     const used = new Set<SidebarItem>()
     const sections = Object.entries(SECTION_GROUPS).map(([title, keys]) => {
@@ -640,7 +676,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
     const rest = pool.filter(item => !used.has(item))
     if (rest.length > 0) sections.push({ title: "More", items: rest })
     return sections
-  }, [sidebarItems, menuSearch])
+  }, [railItems, menuSearch])
 
   const renderSections = () => (
     groupedSections.map((section, si) => (

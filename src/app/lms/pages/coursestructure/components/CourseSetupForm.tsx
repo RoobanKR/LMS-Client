@@ -11,7 +11,8 @@ import TipTapEditor from '../../../component/tiptopEditor'
 import ResourceTypeSection, { type MappingResources } from './Resourcetypesection '
 import TestConfigurationSection, { type TestConfiguration } from './TestConfigurationSection'
 import { ValidationMessage } from './ValidationMessage'
-import type { FormData as CourseFormData, ValidationErrors } from './types'
+import { DEFAULT_CHAT_SETTINGS, type ChatSettings, type FormData as CourseFormData, type ValidationErrors } from './types'
+import { Switch } from '@/components/ui/switch'
 import type { SectionGroup } from '@/app/lms/shared/courseGroups'
 import {
     DegreeCalendarSettings, DegreeResourcesSettings, degreeGroupCount,
@@ -72,7 +73,7 @@ export type SetupFormProps = {
     mappingResources?: MappingResources | null
 }
 
-type SectionId = 'general' | 'hierarchy' | 'resources' | 'testconfig' | 'batchres' | 'batchcalendar'
+type SectionId = 'general' | 'hierarchy' | 'resources' | 'testconfig' | 'chat' | 'batchres' | 'batchcalendar'
 
 // Which error keys live in which section, so a failed save knows exactly which
 // collapsed sections to open.
@@ -81,6 +82,7 @@ const SECTION_ERROR_KEYS: Record<SectionId, string[]> = {
     hierarchy: ['checkboxOptions'],
     resources: ['resourceType'],
     testconfig: ['programmingConfiguration'],
+    chat: [],
     batchres: ['batchResources'],
     batchcalendar: ['programCalendarByBatch'],
 }
@@ -91,6 +93,7 @@ const DEFAULT_OPEN: Record<SectionId, boolean> = {
     hierarchy: false,
     resources: false,
     testconfig: false,
+    chat: false,
     batchres: false,
     batchcalendar: false,
 }
@@ -231,6 +234,32 @@ function FieldRow({
                 {error && <ValidationMessage message={error} />}
             </div>
         </div>
+    )
+}
+
+// One chat switch with its state written beside it, so the row reads as a
+// sentence ("Batch group : [on] One group per batch").
+function ChatSwitch({
+    checked,
+    onChange,
+    label,
+    note,
+}: {
+    checked: boolean
+    onChange: (next: boolean) => void
+    label: string
+    note: string
+}) {
+    return (
+        <span className="inline-flex items-center gap-2.5 min-h-9">
+            <Switch
+                checked={checked}
+                onCheckedChange={onChange}
+                aria-label={label}
+                className="data-[state=checked]:bg-brand-500 h-5 w-9"
+            />
+            <span className="text-[13px] text-body">{note}</span>
+        </span>
     )
 }
 
@@ -383,9 +412,13 @@ export default function CourseSetupForm({
     const allOpen = Object.values(open).every(Boolean)
     const toggleAll = () => {
         const to = !allOpen
-        setOpen({ general: to, hierarchy: to, resources: to, testconfig: to, batchres: to, batchcalendar: to })
+        setOpen({ general: to, hierarchy: to, resources: to, testconfig: to, chat: to, batchres: to, batchcalendar: to })
     }
     const toggle = (id: SectionId) => () => setOpen((prev) => ({ ...prev, [id]: !prev[id] }))
+
+    const chat: ChatSettings = formData.chatSettings ?? DEFAULT_CHAT_SETTINGS
+    const setChat = (patch: Partial<ChatSettings>) =>
+        setFormData((prev) => ({ ...prev, chatSettings: { ...(prev.chatSettings ?? DEFAULT_CHAT_SETTINGS), ...patch } }))
 
     // The pedagogy activity lists ride in the first structure document — the
     // same read useCourseData's transform performs, minus the icon dressing
@@ -647,6 +680,57 @@ export default function CourseSetupForm({
                             <ValidationMessage message={validationErrors.programmingConfiguration} />
                         )}
                     </div>
+                </Section>
+
+                {/* ── Chat ────────────────────────────────────────────────────
+                    Trainer ↔ student messages and one group per batch. Who can
+                    talk to whom comes from the batch roster on the server; this
+                    only turns the pieces on. */}
+                <Section title="Chat" open={open.chat} onToggle={toggle('chat')} readOnly={readOnly}>
+                    <FieldRow label="Chat for this course" tooltip="Trainers and students of this course message each other from Messages">
+                        <ChatSwitch
+                            checked={chat.enabled}
+                            onChange={(v) => setChat({ enabled: v })}
+                            label="Chat for this course"
+                            note={chat.enabled ? 'On' : 'Off'}
+                        />
+                    </FieldRow>
+                    {chat.enabled && (
+                        <>
+                            <FieldRow label="Trainer ↔ Student">
+                                <ChatSwitch
+                                    checked={chat.direct}
+                                    onChange={(v) => setChat({ direct: v })}
+                                    label="Trainer and student chat"
+                                    note={chat.direct ? "Students chat with their own batch's trainers" : 'Off'}
+                                />
+                            </FieldRow>
+                            <FieldRow label="Batch group">
+                                <span className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                                    <ChatSwitch
+                                        checked={chat.group}
+                                        onChange={(v) => setChat({ group: v })}
+                                        label="Batch group"
+                                        note={chat.group ? 'One group per batch' : 'Off'}
+                                    />
+                                    {chat.group && (
+                                        <label className="inline-flex items-center gap-2 text-[13px] text-body cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={chat.groupTrainerOnly}
+                                                onChange={(e) => setChat({ groupTrainerOnly: e.target.checked })}
+                                                className="h-4 w-4 accent-brand-600"
+                                            />
+                                            Only trainer can post (announcements)
+                                        </label>
+                                    )}
+                                </span>
+                            </FieldRow>
+                            <p className="text-xs text-faint pt-1">
+                                No student-to-student chat. Students see only their own batch. Chat pauses for a student while they take an assessment.
+                            </p>
+                        </>
+                    )}
                 </Section>
 
                 {/* ── Resources by batch ───────────────────────────────────

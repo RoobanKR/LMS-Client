@@ -179,6 +179,11 @@ export const createCourseStructure = async (courseData: any): Promise<any> => {
     formData.append('programCalendarByBatch', JSON.stringify(courseData.programCalendarByBatch));
   }
 
+  // Course Setup ▸ Chat switches — an object, so JSON like the configs above.
+  if (courseData.chatSettings !== undefined) {
+    formData.append('chatSettings', JSON.stringify(courseData.chatSettings));
+  }
+
   // Handle image separately
   if (courseData.courseImage && courseData.courseImage instanceof File) {
     formData.append('courseImage', courseData.courseImage);
@@ -204,7 +209,7 @@ export const updateCourseStructure = async (courseId: string, courseData: any): 
     // batchResources and programCalendarByBatch are sent as JSON separately,
     // so keep them out of the bracket serializer — the server parses each as
     // a JSON string.
-    const { clientConfigurations, batches, studentGroups, batchResources, programCalendarByBatch, ...rest } = courseData;
+    const { clientConfigurations, batches, studentGroups, batchResources, programCalendarByBatch, chatSettings, ...rest } = courseData;
     const formattedData = {
         ...rest,
         resourcesType: formatResourcesType(courseData.resourcesType)
@@ -236,6 +241,11 @@ export const updateCourseStructure = async (courseId: string, courseData: any): 
     // legacy caller that doesn't know the field must not wipe the record.
     if (programCalendarByBatch !== undefined) {
         formData.append('programCalendarByBatch', JSON.stringify(programCalendarByBatch));
+    }
+
+    // Same only-when-sent rule for the chat switches.
+    if (chatSettings !== undefined) {
+        formData.append('chatSettings', JSON.stringify(chatSettings));
     }
 
     // Ensure courseImage is properly handled if it's a File object

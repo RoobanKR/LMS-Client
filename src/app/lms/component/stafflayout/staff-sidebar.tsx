@@ -14,7 +14,7 @@
  */
 
 import type React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
@@ -39,6 +39,8 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import { notificationsService, notificationKeys } from "@/apiServices/notifications"
 import { getToken } from "@/lib/session"
+import { chatKeys, fetchChatSummary } from "@/app/lms/pages/messages/api/peopleChat"
+import { useChatLive } from "@/app/lms/pages/messages/useChatLive"
 import { TRAINER_COURSE_ROUTE, trainerCourseRoute } from "@/app/lms/shared/trainerCourseRoute"
 import { logoutUser } from "@/apiServices/tokenVerify"
 import { postLogout } from "@/apiServices/activityLog"
@@ -323,9 +325,34 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
     )
   }, [nData])
 
+  // Messages — shown once Course Setup turned chat on for a course this account
+  // teaches a batch of, with the unread count; live over the shared socket.
+  const { data: chatSummary } = useQuery({
+    queryKey: chatKeys.summary,
+    queryFn: fetchChatSummary,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    enabled: typeof window !== "undefined" && !!getToken(),
+  })
+  useChatLive()
+  const railItems = useMemo(() => {
+    const href = `${BASE_PATH}messages`
+    const badge = chatSummary?.unread ? chatSummary.unread : undefined
+    if (sidebarItems.some((i) => i.href === href)) {
+      return sidebarItems.map((i) => (i.href === href ? { ...i, badge } : i))
+    }
+    if (!chatSummary?.enabled) return sidebarItems
+    const item: SidebarItem = { icon: getIconByName("message-square"), label: "Messages", href, permissionKey: "messages", badge }
+    const notifIdx = sidebarItems.findIndex((i) => canonicalPermissionKey(i.permissionKey).includes("notification"))
+    const next = [...sidebarItems]
+    next.splice(notifIdx >= 0 ? notifIdx + 1 : next.length, 0, item)
+    return next
+  }, [sidebarItems, chatSummary])
+
   // Every href the rail offers, parents and children alike — the pool a prefix
   // match has to win against. Same rule as the admin rail; see the note there.
-  const allHrefs = sidebarItems.flatMap((item) => [
+  const allHrefs = railItems.flatMap((item) => [
     item.href,
     ...(item.children || []).map((child) => child.href),
   ]).filter(Boolean)
@@ -389,7 +416,7 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
   // Same sections, same order, same buckets as the admin sidebar — one shared
   // implementation, keeping permission order inside each group and dropping
   // empty ones.
-  const navGroups = groupSidebarItems(sidebarItems)
+  const navGroups = groupSidebarItems(railItems)
 
   return (
     <TooltipPrimitive.Provider delayDuration={200} skipDelayDuration={100}>

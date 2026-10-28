@@ -8,7 +8,7 @@ import { transformTestConfigurationForBackend, transformTestConfigurationForFron
 import { pedagogyStructureApi } from '@/app/lms/pages/dynamicfieldsettings/api/pedagogyStructureService'
 import { initialCourseFormData } from '../utils/constants'
 import { initializeResourcesType, generateNextCourseId, applyMappingResourceDefaults } from '../utils/helpers'
-import type { FormData as CourseFormData, ValidationErrors } from './types'
+import { DEFAULT_CHAT_SETTINGS, type FormData as CourseFormData, type ValidationErrors } from './types'
 import { createCourseStructure, updateCourseStructure, fetchCourseStructureById } from '@/app/lms/pages/coursestructure/api/createCourseStucture'
 import type { ServiceMapping } from '@/app/lms/pages/servicemapping/api/serviceMappingService'
 import { batchPlacementLabel, placementLabel, type CourseGroup } from './mappingTree'
@@ -210,6 +210,7 @@ export default function CourseSetupPanel({
                     instructor: data.instructor || '',
                     image: data.courseImage || null,
                     aiChatGlobal: data.aiChatGlobal || false,
+                    chatSettings: { ...DEFAULT_CHAT_SETTINGS, ...(data.chatSettings || {}) },
                     iDo: data.I_Do || [],
                     weDo: data.We_Do || [],
                     youDo: data.You_Do || [],
@@ -416,6 +417,7 @@ export default function CourseSetupPanel({
                     ? { removeImage: 'true' }
                     : {}),
                 aiChatGlobal: formData.aiChatGlobal,
+                chatSettings: formData.chatSettings ?? DEFAULT_CHAT_SETTINGS,
                 institution: typeof window !== 'undefined' ? localStorage.getItem('smartcliff_institution') || '' : '',
                 createdBy: typeof window !== 'undefined' ? localStorage.getItem('smartcliff_user_email') || '' : '',
                 testConfiguration: transformTestConfigurationForBackend(formData.testConfiguration),
