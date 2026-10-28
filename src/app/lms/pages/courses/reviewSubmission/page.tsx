@@ -1595,7 +1595,10 @@ const isNonGraded = !!(
   _topicId: topicId,
   _subTopicId: subTopicId,
   exerciseType: ex.exerciseType || 'Programming',  // Add this line
-  isGraded: ex.isGraded !== undefined ? ex.isGraded : true  // ADD THIS LINE - default to true
+  isGraded: ex.isGraded !== undefined ? ex.isGraded : true,  // ADD THIS LINE - default to true
+  // Carried through so a We Do test-case / AI exercise is not read as manual
+  // (which hid its Test Result and its "Test-case graded" chip).
+  evaluationMethod: ex.evaluationMethod ?? null,
 };
         allExercises.push(exerciseWithMeta);
       });
