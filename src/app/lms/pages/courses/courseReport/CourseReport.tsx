@@ -736,7 +736,6 @@ export default function CourseReport() {
         <ExerciseResults
           exercise={currentExercise}
           roster={rosterFor(currentExercise)}
-          batches={batchesOf(currentExercise)}
           showSubcategory={showSubcategory}
           resultOf={resultOf}
           selected={selected}
@@ -1033,12 +1032,11 @@ function ExerciseList({
 
 // E2 ────────────────────────────────────────────────────────────────────────
 function ExerciseResults({
-  exercise, roster, batches, showSubcategory, resultOf, selected, setSelected, onView, onPrint,
+  exercise, roster, showSubcategory, resultOf, selected, setSelected, onView, onPrint,
 }: {
   exercise: ReportExercise;
   /** The students this exercise is set for (batch filter applied). */
   roster: ReportStudent[];
-  batches: string;
   showSubcategory: boolean;
   resultOf: (exId: string, stId: string) => StudentResult;
   selected: Set<string>;
@@ -1104,13 +1102,6 @@ function ExerciseResults({
           <TypeChip type={exercise.type} />
           {showSubcategory && exercise.subcategory && <span className="text-2xs text-subtle">{exercise.subcategory}</span>}
         </div>
-        <p className="mt-0.5 text-2xs text-faint">
-          {[exercise.location, `${exercise.questionCount} question${exercise.questionCount === 1 ? "" : "s"}`,
-            exercise.graded ? `${round1(exercise.totalMarks)} marks` : "Non-graded",
-            (exercise.startDate || exercise.endDate) ? `${formatDate(exercise.startDate)} – ${formatDate(exercise.endDate)}` : "",
-            batches && `Batch: ${batches}`]
-            .filter(Boolean).join(" · ")}
-        </p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
           <StatTile icon={UsersRound} color="#475467" bg="#F2F4F7" label="Students" value={roster.length} hint="set this exercise" />
           <StatTile icon={CheckCircle2} color="#067647" bg="#ECFDF3" label="Completed" value={counts.completed} hint={shareText(counts.completed)} />
@@ -1123,24 +1114,6 @@ function ExerciseResults({
             />
           )}
         </div>
-        {/* Where the class stands, at a glance. */}
-        {roster.length > 0 && (
-          <div className="mt-3">
-            <div
-              className="flex h-2 overflow-hidden rounded-full bg-[#EAECF0]"
-              role="img"
-              aria-label={`${counts.completed} completed, ${counts.inProgress} in progress, ${counts.notStarted} not started`}
-            >
-              <div style={{ width: `${share(counts.completed)}%`, background: "#12B76A" }} />
-              <div style={{ width: `${share(counts.inProgress)}%`, background: "#2E90FA" }} />
-            </div>
-            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-subtle">
-              <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#12B76A]" />Completed {counts.completed}</span>
-              <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#2E90FA]" />In progress {counts.inProgress}</span>
-              <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#D0D5DD]" />Not started {counts.notStarted}</span>
-            </div>
-          </div>
-        )}
       </div>
       <Card
         toolbar={(
