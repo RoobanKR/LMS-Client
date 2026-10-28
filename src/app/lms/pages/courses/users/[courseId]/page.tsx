@@ -154,6 +154,27 @@ const usePaged = <T,>(rows: T[], resetKey: string) => {
   return { page: safe, pages, setPage, rows: rows.slice((safe - 1) * PAGE_SIZE, safe * PAGE_SIZE) };
 };
 
+/** Student search — sits on the student list it filters. */
+function SearchBox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <span className="relative min-w-[200px] flex-1 sm:max-w-[300px]">
+      <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search student — name, email or reg no"
+        aria-label="Search students"
+        className={`${CONTROL} w-full pl-7 pr-7`}
+      />
+      {value && (
+        <button type="button" onClick={() => onChange("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-faint hover:text-heading">
+          <X size={13} />
+        </button>
+      )}
+    </span>
+  );
+}
+
 function Empty({ text }: { text: string }) {
   return <p className="px-4 py-10 text-center text-xs text-subtle">{text}</p>;
 }
@@ -286,7 +307,8 @@ export default function CourseInsightsPage() {
   );
   const exerciseAllCells = useMemo(() => exerciseCells.map((r) => r.cell), [exerciseCells]);
   const anyGraded = scopeExercises.some((ex) => ex.graded);
-  const filtered = Boolean(batch || activity || exerciseId || query);
+  // The search box clears itself (✕); Clear is for the filters above.
+  const filtered = Boolean(batch || activity || exerciseId);
   const clearFilters = () => { setBatch(""); setActivity(""); setExerciseId(""); setQuery(""); setStatusF(""); };
 
   // ── States ──
@@ -382,23 +404,6 @@ export default function CourseInsightsPage() {
           ))}
         </select>
       </label>
-      <label className="flex min-w-[200px] flex-1 flex-col gap-1">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Search student</span>
-        <span className="relative">
-          <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Name, email or reg no"
-            className={`${CONTROL} w-full pl-7 pr-7`}
-          />
-          {query && (
-            <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-faint hover:text-heading">
-              <X size={13} />
-            </button>
-          )}
-        </span>
-      </label>
       {filtered && (
         <button type="button" onClick={clearFilters} className="inline-flex h-9 items-center gap-1 rounded-control px-2 text-xs font-medium text-subtle hover:bg-row-hover hover:text-heading">
           <RotateCcw size={12} /> Clear
@@ -438,6 +443,8 @@ export default function CourseInsightsPage() {
           rows={ql ? exerciseCells.filter((r) => matchesQuery(r.student)) : exerciseCells}
           allCells={exerciseAllCells}
           tiles={tiles}
+          query={query}
+          setQuery={setQuery}
           tab={exTab}
           setTab={setExTab}
           statusF={statusF}
@@ -460,6 +467,8 @@ export default function CourseInsightsPage() {
           ) : (
             <StudentList
               students={scopedStudents.filter(matchesQuery)}
+              query={query}
+              setQuery={setQuery}
               exercises={scopeExercises}
               cells={cells}
               sort={sort}
@@ -569,8 +578,10 @@ function SortSelect({ sort, setSort, marks }: { sort: StudentSort; setSort: (s: 
   );
 }
 
-function StudentList({ students, exercises, cells, sort, setSort, openRow, setOpenRow, onOpenExercise }: {
+function StudentList({ students, query, setQuery, exercises, cells, sort, setSort, openRow, setOpenRow, onOpenExercise }: {
   students: ReportStudent[];
+  query: string;
+  setQuery: (q: string) => void;
   exercises: ReportExercise[];
   cells: Map<string, Cell>;
   sort: StudentSort;
@@ -592,7 +603,10 @@ function StudentList({ students, exercises, cells, sort, setSort, openRow, setOp
   return (
     <div className={`${CARD} overflow-hidden`}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2">
-        <span className="text-xs text-subtle">{rows.length} student{rows.length === 1 ? "" : "s"} · across {exercises.length} exercise{exercises.length === 1 ? "" : "s"}</span>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">
+          <SearchBox value={query} onChange={setQuery} />
+          <span className="text-xs text-subtle">{rows.length} student{rows.length === 1 ? "" : "s"} · across {exercises.length} exercise{exercises.length === 1 ? "" : "s"}</span>
+        </div>
         <SortSelect sort={sort} setSort={setSort} marks={showMarks} />
       </div>
       <div className="overflow-x-auto">
@@ -700,12 +714,14 @@ function StudentExercises({ rows, onOpenExercise }: { rows: { cell: Cell; exerci
 // ─── One exercise ────────────────────────────────────────────────────────────
 
 function ExerciseView({
-  exercise: ex, rows, allCells, tiles, tab, setTab, statusF, setStatusF, sort, setSort, openRow, setOpenRow,
+  exercise: ex, rows, allCells, tiles, query, setQuery, tab, setTab, statusF, setStatusF, sort, setSort, openRow, setOpenRow,
 }: {
   exercise: ReportExercise;
   rows: { cell: Cell; exercise: ReportExercise; student: ReportStudent }[];
   allCells: Cell[];
   tiles: React.ReactNode;
+  query: string;
+  setQuery: (q: string) => void;
   tab: "students" | "questions";
   setTab: (t: "students" | "questions") => void;
   statusF: StatusFilter;
@@ -761,7 +777,8 @@ function ExerciseView({
             ]}
           />
           {tab === "students" && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              <SearchBox value={query} onChange={setQuery} />
               <select value={statusF} onChange={(e) => setStatusF(e.target.value as StatusFilter)} aria-label="Filter by status" className={CONTROL}>
                 <option value="">All statuses</option>
                 <option value="completed">Completed</option>
