@@ -80,6 +80,27 @@ const withoutMarks = (set: { fields: FieldRow[]; defaults: Set<string> }) => ({
 export const exerciseSummaryFields = (graded: boolean) =>
   graded ? LAYOUT_FIELDS["exercise-summary"] : withoutMarks(LAYOUT_FIELDS["exercise-summary"]);
 
+/** Field key for an activity's "completed / set" column. */
+const activityFieldKey = (activityKey: string) => `act_${activityKey.replace(/[^a-z0-9]+/gi, "_")}`;
+
+/** "Totals only" fields: the student, one "completed / set" column per
+ *  activity — the course's own names (Practical, Practice…) — then marks. */
+export function studentTotalsFields(activities: { key: string; label: string }[]): { fields: FieldRow[]; defaults: Set<string> } {
+  const base = LAYOUT_FIELDS["student-totals"];
+  const perActivity: FieldRow[] = activities.map((a) => ({
+    key: activityFieldKey(a.key),
+    label: `${a.label} Completed`,
+    scope: "service",
+    column: a.label,
+    dataKey: activityFieldKey(a.key),
+  }));
+  const at = base.fields.findIndex((f) => f.key === "marks");
+  return {
+    fields: [...base.fields.slice(0, at), ...perActivity, ...base.fields.slice(at)],
+    defaults: new Set([...base.defaults, ...perActivity.map((f) => f.key)]),
+  };
+}
+
 export interface QuestionColumn { id: string; no: number; title: string; max: number }
 
 /** The questions of one exercise for these students, in question order —
@@ -121,8 +142,7 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
   "exercise-list": {
     fields: [
       { key: "exercise", label: "Exercise", required: true, scope: "client", column: "Exercise", dataKey: "client" },
-      { key: "type", label: "Type", scope: "client", column: "Type", dataKey: "business" },
-      { key: "subcategory", label: "Subcategory", scope: "client", column: "Subcategory", dataKey: "subcategory" },
+      { key: "type", label: "Activity", scope: "client", column: "Activity", dataKey: "business" },
       { key: "location", label: "Module › Topic", scope: "client", column: "Module › Topic", dataKey: "location" },
       { key: "dates", label: "Dates", scope: "client", column: "Dates", dataKey: "dates" },
       { key: "questions", label: "Questions", scope: "service", column: "Questions", dataKey: "questions" },
@@ -158,13 +178,12 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
       { key: "phase", label: "Phase", scope: "client", column: "Phase", dataKey: "client" },
       { key: "batch", label: "Batch", scope: "service", column: "Batch", dataKey: "batch", mergeGroup: true },
       { key: "email", label: "Email", scope: "service", column: "Email", dataKey: "email" },
-      { key: "assignments", label: "Assignments Completed", scope: "service", column: "Assignments", dataKey: "assignments" },
-      { key: "assessments", label: "Assessments Completed", scope: "service", column: "Assessments", dataKey: "assessments" },
+      // One "completed / set" column per activity comes from studentTotalsFields().
       { key: "marks", label: "Total Marks", scope: "service", column: "Total Marks", dataKey: "marks" },
       { key: "percent", label: "Overall Percentage", scope: "service", column: "Overall %", dataKey: "percent" },
       { key: "scale", label: "Performance Level", scope: "service", column: "Performance Level", dataKey: "scale" },
     ],
-    defaults: new Set(["phase", "batch", "student", "regNo", "assignments", "assessments", "marks", "percent", "scale"]),
+    defaults: new Set(["phase", "batch", "student", "regNo", "marks", "percent", "scale"]),
   },
   "student-exercises": {
     fields: [
@@ -172,8 +191,7 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
       { key: "overallMarks", label: "Overall Marks", scope: "client", column: "Overall Marks", dataKey: "overallMarks" },
       { key: "overallPercent", label: "Overall Percentage", scope: "client", column: "Overall %", dataKey: "overallPercent" },
       { key: "exercise", label: "Exercise", required: true, scope: "service", column: "Exercise", dataKey: "exercise" },
-      { key: "type", label: "Type", scope: "service", column: "Type", dataKey: "type" },
-      { key: "subcategory", label: "Subcategory", scope: "service", column: "Subcategory", dataKey: "subcategory" },
+      { key: "type", label: "Activity", scope: "service", column: "Activity", dataKey: "type" },
       { key: "location", label: "Module › Topic", scope: "service", column: "Module › Topic", dataKey: "location" },
       { key: "status", label: "Status", scope: "service", column: "Status", dataKey: "status" },
       { key: "marks", label: "Marks", scope: "service", column: "Marks", dataKey: "marks" },
@@ -188,7 +206,7 @@ export const LAYOUT_FIELDS: Record<PrintLayout, { fields: FieldRow[]; defaults: 
       // The block is one STUDENT (one S. No. each). The exercise columns
       // merge down that exercise's questions (`mergeGroup`).
       { key: "exercise", label: "Exercise", required: true, scope: "service", column: "Exercise", dataKey: "exercise", mergeGroup: true },
-      { key: "type", label: "Type", scope: "service", column: "Type", dataKey: "type", mergeGroup: true },
+      { key: "type", label: "Activity", scope: "service", column: "Activity", dataKey: "type", mergeGroup: true },
       { key: "exMarks", label: "Exercise Marks", scope: "service", column: "Exercise Marks", dataKey: "exMarks", mergeGroup: true },
       { key: "exPercent", label: "Marks (100)", scope: "service", column: "Marks (100)", dataKey: "exPercent", mergeGroup: true },
       ...QUESTION_FIELDS,
@@ -255,8 +273,8 @@ export function exerciseListBlocks(
     const t = tally(ex);
     return {
       client: ex.name,
-      business: ex.type,
-      clientExtras: { subcategory: ex.subcategory || "—", location: ex.location || "—", dates: dates(ex) },
+      business: ex.activity,
+      clientExtras: { location: ex.location || "—", dates: dates(ex) },
       services: [{
         questions: String(ex.questionCount),
         totalMarks: ex.graded ? String(round1(ex.totalMarks)) : "Non-graded",
@@ -351,8 +369,7 @@ export function studentTotalsBlocks(lines: StudentLine[], src: PrintSources, pha
       regNo: l.student.regNo || "—",
       student: l.student.name,
       email: l.student.email || "—",
-      assignments: `${t.assignmentsDone} / ${t.assignmentsTotal}`,
-      assessments: `${t.assessmentsDone} / ${t.assessmentsTotal}`,
+      ...Object.fromEntries(Object.entries(t.activities).map(([k, c]) => [activityFieldKey(k), `${c.done} / ${c.total}`])),
       marks: `${round1(t.scored)} / ${round1(t.total)}`,
       percent: formatPercent(t.percent),
       scale: t.scale || "—",
@@ -399,8 +416,7 @@ export function studentBlocks(
             const r = src.resultOf(ex.id, s.id);
             return {
               exercise: ex.name,
-              type: ex.type,
-              subcategory: ex.subcategory,
+              type: ex.activity,
               location: ex.location || "—",
               status: STATUS_LABEL[r.status],
               marks: marksText(ex, r),
@@ -419,7 +435,7 @@ export function studentBlocks(
       const r = src.resultOf(ex.id, s.id);
       const head = {
         exercise: ex.name,
-        type: ex.type,
+        type: ex.activity,
         exMarks: marksText(ex, r),
         exPercent: formatPercent(r.percent),
       };

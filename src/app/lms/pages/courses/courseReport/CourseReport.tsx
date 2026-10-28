@@ -17,14 +17,14 @@ import { PrintPreviewModal, type FieldRow } from "@/app/lms/pages/businessreport
 import type { ServiceMapping } from "@/app/lms/pages/servicemapping/api/serviceMappingService";
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
 import {
-  appliesTo, batchLabel, collectExercises, collectStudents, formatDate, formatMarks, formatPercent, questionsFor,
-  resultFor, round1, STATUS_LABEL, totalsFor,
-  type ActivityType, type QuestionRow, type ReportExercise, type ReportStudent, type StudentResult,
+  activityColumns, appliesTo, batchLabel, collectExercises, collectStudents, formatDate, formatMarks, formatPercent,
+  questionsFor, resultFor, round1, STATUS_LABEL, totalsFor,
+  type QuestionRow, type ReportExercise, type ReportStudent, type StudentResult,
 } from "./reportData";
 import { fetchReportPayload, liveBatches } from "./reportApi";
 import {
   exerciseBlocks, exerciseListBlocks, exerciseQuestionColumns, exerciseQuestionFields, exerciseSummaryFields, LAYOUT_FIELDS,
-  studentBlocks, studentTotalsBlocks,
+  studentBlocks, studentTotalsBlocks, studentTotalsFields,
   type PrintLayout, type PrintSources, type StudentLine,
 } from "./courseReportPrint";
 import { usePrintSetup } from "./usePrintSetup";
@@ -55,17 +55,12 @@ type Tab = "exercise" | "student";
 interface Draft {
   phases: string[];
   batches: string[];
+  /** Activity keys (`ReportExercise.activityKey`) — the course's own names. */
   activities: string[];
-  subcategories: string[];
   exerciseIds: string[];
 }
-const EMPTY_DRAFT: Draft = { phases: [], batches: [], activities: [], subcategories: [], exerciseIds: [] };
+const EMPTY_DRAFT: Draft = { phases: [], batches: [], activities: [], exerciseIds: [] };
 type ChipKey = keyof Draft;
-
-const ACTIVITY_LABEL: Record<ActivityType, string> = {
-  Assignment: "Assignment (We Do)",
-  Assessment: "Assessment (You Do)",
-};
 
 const EMPTY_RESULT: StudentResult = {
   status: "not-started", scored: 0, total: 0, percent: null, scale: "", attempted: 0, totalQuestions: 0,
@@ -296,53 +291,33 @@ export default function CourseReport() {
     () => (draft.phases.length ? batchOptions.filter((b) => draft.phases.includes(phaseOfBatch(b.value))) : batchOptions),
     [draft.phases, batchOptions, phaseOfBatch],
   );
-  const activityOptions = useMemo(() => {
-    const present = new Set(exercises
-      .filter((ex) => inScope(ex, draft) && (!draft.subcategories.length || draft.subcategories.includes(ex.subcategoryKey)))
-      .map((ex) => ex.type));
-    return (Object.keys(ACTIVITY_LABEL) as ActivityType[])
-      .filter((t) => present.has(t))
-      .map((t) => ({ value: t, label: ACTIVITY_LABEL[t] }));
-  }, [exercises, inScope, draft]);
-  const subcategoryOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const ex of exercises) {
-      if (!inScope(ex, draft) || (draft.activities.length && !draft.activities.includes(ex.type))) continue;
-      if (!seen.has(ex.subcategoryKey)) seen.set(ex.subcategoryKey, ex.subcategory);
-    }
-    return [...seen.entries()]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [exercises, inScope, draft]);
+  // Activities by the course's own names (Practical, Practice, Coding Test…).
+  const activityOptions = useMemo(
+    () => activityColumns(exercises.filter((ex) => inScope(ex, draft)))
+      .map((a) => ({ value: a.key, label: a.label })),
+    [exercises, inScope, draft],
+  );
+  const activityName = useCallback(
+    (key: string) => exercises.find((e) => e.activityKey === key)?.activity || key,
+    [exercises],
+  );
   const exerciseOptions = useMemo(
     () => exercises
-      .filter((ex) => inScope(ex, draft)
-        && (!draft.activities.length || draft.activities.includes(ex.type))
-        && (!draft.subcategories.length || draft.subcategories.includes(ex.subcategoryKey)))
+      .filter((ex) => inScope(ex, draft) && (!draft.activities.length || draft.activities.includes(ex.activityKey)))
       .map((ex) => ({ value: ex.id, label: ex.name })),
     [exercises, inScope, draft],
   );
-
-  // Subcategory only says something when an activity has more than one —
-  // otherwise it repeats Type, so its filter and columns stay hidden.
-  const showSubcategory = useMemo(() => {
-    const byType = new Map<string, Set<string>>();
-    for (const ex of exercises) {
-      if (!byType.has(ex.type)) byType.set(ex.type, new Set());
-      byType.get(ex.type)!.add(ex.subcategoryKey);
-    }
-    return [...byType.values()].some((keys) => keys.size > 1);
-  }, [exercises]);
 
   // ── What was generated ──
   const filteredExercises = useMemo(() => {
     if (!applied) return [];
     const d = applied.draft;
     return exercises.filter((ex) => inScope(ex, d)
-      && (!d.activities.length || d.activities.includes(ex.type))
-      && (!d.subcategories.length || d.subcategories.includes(ex.subcategoryKey))
+      && (!d.activities.length || d.activities.includes(ex.activityKey))
       && (!d.exerciseIds.length || d.exerciseIds.includes(ex.id)));
   }, [applied, exercises, inScope]);
+  // One Completed column per activity on the student list and its prints.
+  const activityCols = useMemo(() => activityColumns(filteredExercises), [filteredExercises]);
   const appliedBatches = useMemo(() => (applied ? batchesFor(applied.draft) : []), [applied, batchesFor]);
   const roster = useMemo(
     () => (!applied ? [] : appliedBatches.length ? students.filter((s) => s.batchIds.some((id) => appliedBatches.includes(id))) : students),
@@ -390,10 +365,9 @@ export default function CourseReport() {
   const printFields = useMemo(() => {
     if (!printJob) return undefined;
     const { fields } = printJob.fields ?? LAYOUT_FIELDS[printJob.layout];
-    // No subcategory column when it would only repeat Type; no Phase column
-    // for a course that does not run in phases.
-    return fields.filter((f) => (showSubcategory || f.key !== "subcategory") && (phaseNames.length > 0 || f.key !== "phase"));
-  }, [printJob, showSubcategory, phaseNames]);
+    // No Phase column for a course that does not run in phases.
+    return fields.filter((f) => phaseNames.length > 0 || f.key !== "phase");
+  }, [printJob, phaseNames]);
 
   const q = search.trim().toLowerCase();
   const currentExercise = tab === "exercise" && exerciseId ? exercises.find((e) => e.id === exerciseId) || null : null;
@@ -421,10 +395,7 @@ export default function CourseReport() {
     if (d?.batches.length) parts.push(`Batch: ${named(d.batches, batchText, "batches")}`);
     // One exercise's sheet: only who it covers (phase / batch) applies.
     if (d && !job.byExercise) {
-      if (d.activities.length) parts.push(`Activity: ${d.activities.map((a) => ACTIVITY_LABEL[a as ActivityType] || a).join(", ")}`);
-      if (d.subcategories.length) {
-        parts.push(`Subcategory: ${named(d.subcategories, (k) => exercises.find((e) => e.subcategoryKey === k)?.subcategory || k, "subcategories")}`);
-      }
+      if (d.activities.length) parts.push(`Activity: ${named(d.activities, activityName, "activities")}`);
       if (d.exerciseIds.length) {
         parts.push(`Exercises: ${named(d.exerciseIds, (id) => exercises.find((e) => e.id === id)?.name || "Exercise", "exercises")}`);
       }
@@ -486,7 +457,7 @@ export default function CourseReport() {
   });
   const linesOf = (list: ReportStudent[]) => studentLines(list, batchOptions, batchMeta);
 
-  const visibleExercises = filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.subcategory));
+  const visibleExercises = filteredExercises.filter((ex) => matches(q, ex.name, ex.location, ex.activity));
   const visibleStudents = roster.filter((s) => matches(q, s.name, s.regNo, s.email));
   /** Preview & Print of the generated list (the action row's button). */
   const printList = (layout: PrintLayout) => {
@@ -509,8 +480,12 @@ export default function CourseReport() {
       blocks: layout === "student-totals"
         ? studentTotalsBlocks(studentLines(chosen, batchOptions, batchMeta), printSources, phaseNames.length > 0)
         : studentBlocks(layout as "student-exercises" | "student-questions", chosen, filteredExercises, printSources),
+      // Totals: one "completed / set" column per activity.
+      fields: layout === "student-totals" ? studentTotalsFields(activityCols) : undefined,
       excel: layout === "student-totals"
-        ? (filename) => exportTotalsWorkbook({ ...excelBase(filename), lines: linesOf(chosen), totalsOf, exerciseCount: filteredExercises.length })
+        ? (filename) => exportTotalsWorkbook({
+          ...excelBase(filename), lines: linesOf(chosen), totalsOf, exerciseCount: filteredExercises.length, activities: activityCols,
+        })
         : (filename) => exportExerciseWorkbook({
           ...excelBase(filename),
           exercises: filteredExercises,
@@ -658,13 +633,14 @@ export default function CourseReport() {
               </BorderLabel>
             )}
             <BorderLabel label="Activity" className={`${REPORT_FIELD} flex-[1_1_150px] sm:max-w-[220px]`}>
-              <MappingMultiFilter label="Activities" options={activityOptions} value={draft.activities} onChange={(v) => setPick("activities", v)} placeholder="All activities" />
+              <MappingMultiFilter
+                label="Activities"
+                options={activityOptions}
+                value={draft.activities.filter((a) => activityOptions.some((o) => o.value === a))}
+                onChange={(v) => setPick("activities", v)}
+                placeholder="All activities"
+              />
             </BorderLabel>
-            {showSubcategory && (
-              <BorderLabel label="Subcategory" className={`${REPORT_FIELD} flex-[1_1_150px] sm:max-w-[220px]`}>
-                <MappingMultiFilter label="Subcategories" options={subcategoryOptions} value={draft.subcategories} onChange={(v) => setPick("subcategories", v)} placeholder="All subcategories" />
-              </BorderLabel>
-            )}
             <BorderLabel label="Exercises" className={`${REPORT_FIELD} flex-[1_1_160px] sm:max-w-[240px]`}>
               <MappingMultiFilter
                 label="Exercises"
@@ -729,14 +705,12 @@ export default function CourseReport() {
           rows={visibleExercises}
           tallies={tallies}
           batchesOf={batchesOf}
-          showSubcategory={showSubcategory}
           onView={(id) => setExerciseId(id)}
         />
       ) : tab === "exercise" && currentExercise ? (
         <ExerciseResults
           exercise={currentExercise}
           roster={rosterFor(currentExercise)}
-          showSubcategory={showSubcategory}
           resultOf={resultOf}
           selected={selected}
           setSelected={setSelected}
@@ -757,7 +731,7 @@ export default function CourseReport() {
                 resultOf,
                 questionsOf: layout === "exercise-questions" ? questionsOf : undefined,
               }),
-              title: `${currentExercise.type} Report`,
+              title: `${currentExercise.activity} Report`,
               subject: `Exercise: ${currentExercise.name}`,
               byExercise: true,
               fileBase: `${courseName}-${currentExercise.name}`,
@@ -772,6 +746,7 @@ export default function CourseReport() {
           batchMeta={batchMeta}
           showPhase={phaseNames.length > 0}
           totalsOf={totalsOf}
+          activityCols={activityCols}
           exerciseCount={filteredExercises.length}
           selected={selected}
           setSelected={setSelected}
@@ -780,9 +755,8 @@ export default function CourseReport() {
       ) : currentStudent ? (
         <StudentResults
           student={currentStudent}
-          rows={filteredExercises.filter((ex) => appliesTo(ex, currentStudent) && matches(q, ex.name, ex.location, ex.subcategory))}
+          rows={filteredExercises.filter((ex) => appliesTo(ex, currentStudent) && matches(q, ex.name, ex.location, ex.activity))}
           totals={totalsOf(currentStudent)}
-          showSubcategory={showSubcategory}
           resultOf={resultOf}
           questionsOf={questionsOf}
           expanded={expanded}
@@ -829,7 +803,7 @@ export default function CourseReport() {
               resultOf,
               questionsOf,
             }),
-            title: `${exercise.type} Report`,
+            title: `${exercise.activity} Report`,
             subject: `Exercise: ${exercise.name}   |   Student: ${student.name}`,
             byExercise: true,
             fileBase: `${courseName}-${exercise.name}-${student.name}`,
@@ -964,16 +938,15 @@ const THEAD = "sticky top-0 z-[1] bg-canvas";
 
 // E1 ────────────────────────────────────────────────────────────────────────
 function ExerciseList({
-  rows, tallies, batchesOf, showSubcategory, onView,
+  rows, tallies, batchesOf, onView,
 }: {
   rows: ReportExercise[];
   tallies: (ex: ReportExercise) => { students: number; attempted: number; completed: number; avg: number | null };
   /** "batch1" when the exercise is set for some batches only, else "". */
   batchesOf: (ex: ReportExercise) => string;
-  showSubcategory: boolean;
   onView: (id: string) => void;
 }) {
-  const cols = showSubcategory ? 11 : 10;
+  const cols = 10;
   return (
     <Card toolbar={(
       <>
@@ -986,8 +959,7 @@ function ExerciseList({
           <tr>
             <th className={`${TH} w-10 text-right`}>#</th>
             <th className={TH}>Name</th>
-            <th className={TH}>Type</th>
-            {showSubcategory && <th className={TH}>Subcategory</th>}
+            <th className={TH}>Activity</th>
             <th className={TH}>Module › Topic</th>
             <th className={`${TH} text-right`}>Questions</th>
             <th className={`${TH} text-right`}>Total Marks</th>
@@ -998,7 +970,7 @@ function ExerciseList({
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 && <EmptyRow colSpan={cols} text="No assignments or assessments match these filters." />}
+          {rows.length === 0 && <EmptyRow colSpan={cols} text="No exercises match these filters." />}
           {rows.map((ex, i) => {
             const t = tallies(ex);
             const batches = batchesOf(ex);
@@ -1012,8 +984,7 @@ function ExerciseList({
                   )}
                   {batches && <span className="block truncate text-2xs text-faint" title={batches}>Batch: {batches}</span>}
                 </td>
-                <td className={TD}><TypeChip type={ex.type} /></td>
-                {showSubcategory && <td className={TD}>{ex.subcategory || <Dash />}</td>}
+                <td className={TD}><TypeChip exercise={ex} /></td>
                 <td className={`${TD} max-w-[240px]`}><span className="block truncate" title={ex.location}>{ex.location || <Dash />}</span></td>
                 <td className={TD_NUM}>{ex.questionCount}</td>
                 <td className={TD_NUM}>{ex.graded ? round1(ex.totalMarks) : <span className="text-2xs text-faint">Non-graded</span>}</td>
@@ -1032,12 +1003,11 @@ function ExerciseList({
 
 // E2 ────────────────────────────────────────────────────────────────────────
 function ExerciseResults({
-  exercise, roster, showSubcategory, resultOf, selected, setSelected, onView, onPrint,
+  exercise, roster, resultOf, selected, setSelected, onView, onPrint,
 }: {
   exercise: ReportExercise;
   /** The students this exercise is set for (batch filter applied). */
   roster: ReportStudent[];
-  showSubcategory: boolean;
   resultOf: (exId: string, stId: string) => StudentResult;
   selected: Set<string>;
   setSelected: (s: Set<string>) => void;
@@ -1099,8 +1069,7 @@ function ExerciseResults({
       <div className="rounded-xl border border-hairline bg-surface px-4 py-3 shadow-xs">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="truncate text-sm font-semibold text-heading" title={exercise.name}>{exercise.name}</h2>
-          <TypeChip type={exercise.type} />
-          {showSubcategory && exercise.subcategory && <span className="text-2xs text-subtle">{exercise.subcategory}</span>}
+          <TypeChip exercise={exercise} />
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
           <StatTile icon={UsersRound} color="#475467" bg="#F2F4F7" label="Students" value={roster.length} hint="set this exercise" />
@@ -1224,7 +1193,7 @@ function ExerciseResults({
 
 // S1 ────────────────────────────────────────────────────────────────────────
 function StudentList({
-  rows, batchOptions, batchMeta, showPhase, totalsOf, exerciseCount, selected, setSelected, onView,
+  rows, batchOptions, batchMeta, showPhase, totalsOf, activityCols, exerciseCount, selected, setSelected, onView,
 }: {
   rows: ReportStudent[];
   batchOptions: { value: string; label: string }[];
@@ -1232,6 +1201,8 @@ function StudentList({
   /** The course runs in phases — show the Phase column. */
   showPhase: boolean;
   totalsOf: (s: ReportStudent) => ReturnType<typeof totalsFor>;
+  /** One "completed / set" column per activity, by the course's own names. */
+  activityCols: { key: string; label: string }[];
   exerciseCount: number;
   selected: Set<string>;
   setSelected: (s: Set<string>) => void;
@@ -1265,7 +1236,7 @@ function StudentList({
   }, [lines]);
 
   const batchCount = new Set(lines.map((l) => l.batchId)).size;
-  const COLS = showPhase ? 12 : 11;
+  const COLS = (showPhase ? 10 : 9) + activityCols.length;
   // A merged group cell: read as a label, not a row to open.
   const GROUP_TD = "border-x border-hairline bg-[#fbf8f4] px-3 py-2.5 align-top text-xs font-semibold text-heading dark:bg-white/[0.03]";
 
@@ -1294,8 +1265,10 @@ function StudentList({
             <th className={TH}>Student</th>
             {showPhase && <th className={TH}>Phase</th>}
             <th className={TH}>Batch</th>
-            <th className={`${TH} text-right`}>Assignments</th>
-            <th className={`${TH} text-right`}>Assessments</th>
+            {/* Completed / set, per activity — the course's own names. */}
+            {activityCols.map((a) => (
+              <th key={a.key} className={`${TH} text-right`} title={`${a.label}: completed / set`}>{a.label}</th>
+            ))}
             <th className={`${TH} text-right`}>Marks</th>
             <th className={`${TH} text-right`}>Overall %</th>
             <th className={TH}>Performance Level</th>
@@ -1335,8 +1308,10 @@ function StudentList({
                     </span>
                   </td>
                 )}
-                <td className={TD_NUM}>{t.assignmentsDone} / {t.assignmentsTotal}</td>
-                <td className={TD_NUM}>{t.assessmentsDone} / {t.assessmentsTotal}</td>
+                {activityCols.map((a) => {
+                  const c = t.activities[a.key];
+                  return <td key={a.key} className={TD_NUM}>{c ? `${c.done} / ${c.total}` : <Dash />}</td>;
+                })}
                 <td className={`${TD_NUM} font-semibold text-heading`}>{round1(t.scored)} / {round1(t.total)}</td>
                 <td className={TD_NUM}>{formatPercent(t.percent)}</td>
                 <td className={TD}>{t.scale || <Dash />}</td>
@@ -1352,12 +1327,11 @@ function StudentList({
 
 // S2 ────────────────────────────────────────────────────────────────────────
 function StudentResults({
-  student, rows, totals, showSubcategory, resultOf, questionsOf, expanded, setExpanded, onPrint,
+  student, rows, totals, resultOf, questionsOf, expanded, setExpanded, onPrint,
 }: {
   student: ReportStudent;
   rows: ReportExercise[];
   totals: ReturnType<typeof totalsFor>;
-  showSubcategory: boolean;
   resultOf: (exId: string, stId: string) => StudentResult;
   questionsOf: (ex: ReportExercise, s: ReportStudent) => QuestionRow[];
   expanded: Set<string>;
@@ -1370,6 +1344,7 @@ function StudentResults({
     setExpanded(next);
   };
   const allOpen = rows.length > 0 && rows.every((r) => expanded.has(r.id));
+  const activities = activityColumns(rows);
   return (
     <>
       <div className="rounded-xl border border-hairline bg-surface px-4 py-3 shadow-xs">
@@ -1378,8 +1353,11 @@ function StudentResults({
           {[student.regNo && `Reg No ${student.regNo}`, student.email, student.batch].filter(Boolean).join(" · ")}
         </p>
         <div className="mt-2.5 flex flex-wrap gap-2">
-          <Stat label="Assignments" value={`${totals.assignmentsDone} / ${totals.assignmentsTotal}`} />
-          <Stat label="Assessments" value={`${totals.assessmentsDone} / ${totals.assessmentsTotal}`} />
+          {/* Completed / set, per activity — the course's own names. */}
+          {activities.map((a) => {
+            const c = totals.activities[a.key];
+            return <Stat key={a.key} label={a.label} value={c ? `${c.done} / ${c.total}` : "—"} />;
+          })}
           <Stat label="Marks" value={`${round1(totals.scored)} / ${round1(totals.total)}`} />
           <Stat label="Overall" value={formatPercent(totals.percent)} tone="text-brand-strong" />
           <Stat label="Performance Level" value={totals.scale || "—"} />
@@ -1416,8 +1394,7 @@ function StudentResults({
               <th className={`${TH} w-8`} aria-label="Expand" />
               <th className={`${TH} w-10 text-right`}>#</th>
               <th className={TH}>Exercise</th>
-              <th className={TH}>Type</th>
-              {showSubcategory && <th className={TH}>Subcategory</th>}
+              <th className={TH}>Activity</th>
               <th className={TH}>Module › Topic</th>
               <th className={TH}>Status</th>
               <th className={`${TH} text-right`}>Attempted</th>
@@ -1427,7 +1404,7 @@ function StudentResults({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={showSubcategory ? 11 : 10} text="No assignments or assessments match these filters." />}
+            {rows.length === 0 && <EmptyRow colSpan={10} text="No exercises match these filters." />}
             {rows.map((ex, i) => {
               const r = resultOf(ex.id, student.id);
               const open = expanded.has(ex.id);
@@ -1439,8 +1416,7 @@ function StudentResults({
                     </td>
                     <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
                     <td className={`${TD} max-w-[240px]`}><span className="block truncate font-semibold text-heading" title={ex.name}>{ex.name}</span></td>
-                    <td className={TD}><TypeChip type={ex.type} /></td>
-                    {showSubcategory && <td className={TD}>{ex.subcategory || <Dash />}</td>}
+                    <td className={TD}><TypeChip exercise={ex} /></td>
                     <td className={`${TD} max-w-[220px]`}><span className="block truncate" title={ex.location}>{ex.location || <Dash />}</span></td>
                     <td className={TD}><StatusChip status={r.status} /></td>
                     <td className={TD_NUM}>{r.attempted} / {r.totalQuestions}</td>
@@ -1453,7 +1429,7 @@ function StudentResults({
                   </tr>
                   {open && (
                     <tr className="bg-canvas/60">
-                      <td colSpan={showSubcategory ? 11 : 10} className="px-3 pb-3 pt-1 sm:pl-12">
+                      <td colSpan={10} className="px-3 pb-3 pt-1 sm:pl-12">
                         <QuestionTable rows={questionsOf(ex, student)} graded={ex.graded} />
                       </td>
                     </tr>
@@ -1513,7 +1489,7 @@ function StudentDrawer({
           >
             <div className="flex items-start justify-between gap-3 border-b border-hairline px-4 py-4 sm:px-5">
               <div className="min-w-0">
-                <p className="break-words text-2xs font-semibold uppercase tracking-wider text-subtle">{exercise.type} · {exercise.name}</p>
+                <p className="break-words text-2xs font-semibold uppercase tracking-wider text-subtle">{exercise.activity} · {exercise.name}</p>
                 <h3 className="mt-0.5 truncate text-base font-semibold text-heading">{student.name}</h3>
                 <p className="break-words text-2xs text-faint">{[student.regNo && `Reg No ${student.regNo}`, student.email, student.batch].filter(Boolean).join(" · ")}</p>
               </div>

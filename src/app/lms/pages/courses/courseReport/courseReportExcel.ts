@@ -340,7 +340,7 @@ export async function exportExerciseWorkbook(input: CourseExcelBase & {
       detail: [
         `Course : ${input.courseName}`,
         ...batchLine(lines, input),
-        `${ex.type} : ${ex.name}`,
+        `${ex.activity} : ${ex.name}`,
         ex.location ? `Module : ${ex.location}` : "",
         graded ? `Total Marks : ${total}` : "Non-graded",
       ].filter(Boolean),
@@ -364,6 +364,8 @@ export async function exportTotalsWorkbook(input: CourseExcelBase & {
   lines: StudentLine[];
   totalsOf: (student: ReportStudent) => StudentTotals;
   exerciseCount: number;
+  /** One "<Activity> Completed" column each — the course's own names. */
+  activities: { key: string; label: string }[];
 }) {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
@@ -375,8 +377,7 @@ export async function exportTotalsWorkbook(input: CourseExcelBase & {
     { text: "Marks(100)", width: 12 },
     { text: "Marks Scored", width: 13 },
     { text: "Total Marks", width: 12 },
-    { text: "Assignments Completed", width: 16 },
-    { text: "Assessments Completed", width: 16 },
+    ...input.activities.map((a) => ({ text: `${a.label} Completed`, width: 16 })),
   ];
   const levelCol = baseHeaders(input).length;
 
@@ -393,8 +394,10 @@ export async function exportTotalsWorkbook(input: CourseExcelBase & {
         started ? round1(t.percent ?? 0) : "",
         round1(t.scored),
         round1(t.total),
-        `${t.assignmentsDone} / ${t.assignmentsTotal}`,
-        `${t.assessmentsDone} / ${t.assessmentsTotal}`,
+        ...input.activities.map((a) => {
+          const c = t.activities[a.key];
+          return c ? `${c.done} / ${c.total}` : "";
+        }),
       ],
     };
   });

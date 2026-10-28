@@ -30,11 +30,31 @@ export const ACTIVITY_OF: Record<Section, ActivityType> = {
   You_Do: "Assessment",
 };
 
+export const SECTION_LABEL: Record<Section, string> = { We_Do: "We Do", You_Do: "You Do" };
+
+/** The activities among some exercises — We Do ones first, then You Do,
+ *  each by name. One column / filter option each. */
+export function activityColumns(exercises: ReportExercise[]): { key: string; label: string; section: Section }[] {
+  const seen = new Map<string, { key: string; label: string; section: Section }>();
+  for (const ex of exercises) {
+    if (!seen.has(ex.activityKey)) seen.set(ex.activityKey, { key: ex.activityKey, label: ex.activity, section: ex.section });
+  }
+  return [...seen.values()].sort((a, b) =>
+    (a.section === b.section ? 0 : a.section === "We_Do" ? -1 : 1) || a.label.localeCompare(b.label));
+}
+
 export interface ReportExercise {
   id: string;
   name: string;
   section: Section;
   type: ActivityType;
+  /** The course's own name for the activity — its subcategory ("Practical",
+   *  "Practice", "Coding Test"), with "(We Do)" / "(You Do)" added only when
+   *  both sections use the same name. What the report shows and groups by. */
+  activity: string;
+  /** Section + activity name: the same activity spelt two ways (the stored
+   *  "assesment" and "assessment") is one activity. */
+  activityKey: string;
   /** The pedagogy map key ("coding_test"), which is what filters compare. */
   subcategoryKey: string;
   /** "Coding Test" — the key made readable. */
@@ -216,6 +236,16 @@ export function collectExercises(views: ExerciseView[]): ReportExercise[] {
   views.forEach((view, viewIdx) => collectView(view, viewIdx, byId));
   const out = [...byId.values()].sort((a, b) => a.order - b.order);
 
+  // A name both sections use ("Practice" in We Do and in You Do) says which.
+  const sectionsOf = new Map<string, Set<Section>>();
+  for (const ex of out) {
+    if (!sectionsOf.has(ex.activity)) sectionsOf.set(ex.activity, new Set());
+    sectionsOf.get(ex.activity)!.add(ex.section);
+  }
+  for (const ex of out) {
+    if (sectionsOf.get(ex.activity)!.size > 1) ex.activity = `${ex.activity} (${SECTION_LABEL[ex.section]})`;
+  }
+
   // The exercise's total, taken the way the marks function takes it (it
   // accounts for section-based and dynamic totals that a plain sum of
   // question marks would miss). A participant with no courses yields zero
@@ -264,11 +294,14 @@ function collectView(view: ExerciseView, viewIdx: number, byId: Map<string, Repo
             continue;
           }
           const mini = miniCourseFor(section, ex);
+          const activity = humanize(subKey) || ACTIVITY_OF[section];
           byId.set(id, {
             id,
             name,
             section,
             type: ACTIVITY_OF[section],
+            activity,
+            activityKey: `${section}|${activity.toLowerCase()}`,
             subcategoryKey: subKey,
             subcategory: humanize(subKey),
             ...place,
@@ -450,10 +483,8 @@ export function questionsFor(
  *  student is not marked down for work that is not due yet. Exercises the
  *  student's batch does not have (`results` gives undefined) are skipped. */
 export interface StudentTotals {
-  assignmentsDone: number;
-  assignmentsTotal: number;
-  assessmentsDone: number;
-  assessmentsTotal: number;
+  /** Exercises completed / set, per activity (keyed by `activityKey`). */
+  activities: Record<string, { done: number; total: number }>;
   scored: number;
   total: number;
   percent: number | null;
@@ -468,7 +499,7 @@ export function totalsFor(
   now: number = Date.now(),
 ): StudentTotals {
   const t: StudentTotals = {
-    assignmentsDone: 0, assignmentsTotal: 0, assessmentsDone: 0, assessmentsTotal: 0,
+    activities: {},
     scored: 0, total: 0, percent: null, scale: "", open: 0,
   };
   let attemptedAny = false;
@@ -479,8 +510,9 @@ export function totalsFor(
     const r = results(ex.id);
     if (!r) continue;
     const done = r.status === "completed";
-    if (ex.type === "Assignment") { t.assignmentsTotal += 1; if (done) t.assignmentsDone += 1; }
-    else { t.assessmentsTotal += 1; if (done) t.assessmentsDone += 1; }
+    const act = (t.activities[ex.activityKey] ??= { done: 0, total: 0 });
+    act.total += 1;
+    if (done) act.done += 1;
     // A non-graded exercise counts as done or not, but carries no marks.
     if (!ex.graded) continue;
     const started = r.status !== "not-started";

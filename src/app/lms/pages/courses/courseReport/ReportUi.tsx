@@ -9,7 +9,7 @@ import {
 import { LAYOUT_LABEL, type PrintLayout } from "./courseReportPrint";
 import {
   QUESTION_STATUS_LABEL, round1, STATUS_LABEL,
-  type ActivityType, type QuestionRow, type ResultStatus,
+  type QuestionRow, type ReportExercise, type ResultStatus,
 } from "./reportData";
 
 // Shared pieces of the Course Report screens. Styling follows the Course
@@ -34,13 +34,15 @@ export function StatusChip({ status }: { status: ResultStatus }) {
   );
 }
 
-export function TypeChip({ type }: { type: ActivityType }) {
-  const tone = type === "Assignment"
+/** The exercise's activity by the course's own name ("Practical"), tinted by
+ *  section: We Do blue, You Do brand. */
+export function TypeChip({ exercise }: { exercise: Pick<ReportExercise, "activity" | "section"> }) {
+  const tone = exercise.section === "We_Do"
     ? "bg-info-50 text-info-700 ring-info-500/20"
     : "bg-brand-wash text-brand-strong ring-brand-500/20";
   return (
     <span className={`inline-flex h-[22px] items-center rounded-chip px-2 text-2xs font-semibold ring-1 ring-inset whitespace-nowrap ${tone}`}>
-      {type}
+      {exercise.activity}
     </span>
   );
 }
