@@ -23,7 +23,7 @@ import {
 } from "./reportData";
 import { fetchReportPayload, liveBatches } from "./reportApi";
 import {
-  exerciseBlocks, exerciseListBlocks, exerciseQuestionColumns, exerciseQuestionFields, LAYOUT_FIELDS,
+  exerciseBlocks, exerciseListBlocks, exerciseQuestionColumns, exerciseQuestionFields, exerciseSummaryFields, LAYOUT_FIELDS,
   studentBlocks, studentTotalsBlocks,
   type PrintLayout, type PrintSources, type StudentLine,
 } from "./courseReportPrint";
@@ -747,9 +747,10 @@ export default function CourseReport() {
             setPrintJob({
               layout,
               blocks: exerciseBlocks(layout as "exercise-summary" | "exercise-questions", currentExercise, chosen, printSources),
+              // A non-graded exercise prints without its marks columns.
               fields: layout === "exercise-questions"
-                ? exerciseQuestionFields(exerciseQuestionColumns(currentExercise, chosen, printSources))
-                : undefined,
+                ? exerciseQuestionFields(exerciseQuestionColumns(currentExercise, chosen, printSources), currentExercise.graded)
+                : exerciseSummaryFields(currentExercise.graded),
               excel: (filename) => exportExerciseWorkbook({
                 ...excelBase(filename),
                 exercises: [currentExercise],
@@ -821,7 +822,7 @@ export default function CourseReport() {
           setPrintJob({
             layout: "exercise-questions",
             blocks: exerciseBlocks("exercise-questions", exercise, [student], printSources),
-            fields: exerciseQuestionFields(exerciseQuestionColumns(exercise, [student], printSources)),
+            fields: exerciseQuestionFields(exerciseQuestionColumns(exercise, [student], printSources), exercise.graded),
             excel: (filename) => exportExerciseWorkbook({
               ...excelBase(filename),
               exercises: [exercise],
@@ -1016,7 +1017,7 @@ function ExerciseList({
                 {showSubcategory && <td className={TD}>{ex.subcategory || <Dash />}</td>}
                 <td className={`${TD} max-w-[240px]`}><span className="block truncate" title={ex.location}>{ex.location || <Dash />}</span></td>
                 <td className={TD_NUM}>{ex.questionCount}</td>
-                <td className={TD_NUM}>{round1(ex.totalMarks)}</td>
+                <td className={TD_NUM}>{ex.graded ? round1(ex.totalMarks) : <span className="text-2xs text-faint">Non-graded</span>}</td>
                 <td className={TD_NUM}>{t.attempted} / {t.students}</td>
                 <td className={TD_NUM}>{t.completed} / {t.students}</td>
                 <td className={TD_NUM}>{t.avg == null ? <Dash /> : formatPercent(t.avg)}</td>
@@ -1104,7 +1105,8 @@ function ExerciseResults({
           {showSubcategory && exercise.subcategory && <span className="text-2xs text-subtle">{exercise.subcategory}</span>}
         </div>
         <p className="mt-0.5 text-2xs text-faint">
-          {[exercise.location, `${exercise.questionCount} question${exercise.questionCount === 1 ? "" : "s"}`, `${round1(exercise.totalMarks)} marks`,
+          {[exercise.location, `${exercise.questionCount} question${exercise.questionCount === 1 ? "" : "s"}`,
+            exercise.graded ? `${round1(exercise.totalMarks)} marks` : "Non-graded",
             (exercise.startDate || exercise.endDate) ? `${formatDate(exercise.startDate)} – ${formatDate(exercise.endDate)}` : "",
             batches && `Batch: ${batches}`]
             .filter(Boolean).join(" · ")}
@@ -1114,10 +1116,12 @@ function ExerciseResults({
           <StatTile icon={CheckCircle2} color="#067647" bg="#ECFDF3" label="Completed" value={counts.completed} hint={shareText(counts.completed)} />
           <StatTile icon={Clock} color="#175CD3" bg="#EFF8FF" label="In progress" value={counts.inProgress} hint={shareText(counts.inProgress)} />
           <StatTile icon={CircleDashed} color="#667085" bg="#F9FAFB" label="Not started" value={counts.notStarted} hint={shareText(counts.notStarted)} />
-          <StatTile
-            icon={TrendingUp} color="#C4320A" bg="#FFF4ED" label="Average score" value={formatPercent(counts.avg)}
-            hint={counts.completed ? `of ${counts.completed} completed attempt${counts.completed === 1 ? "" : "s"}` : "no completed attempt yet"}
-          />
+          {exercise.graded && (
+            <StatTile
+              icon={TrendingUp} color="#C4320A" bg="#FFF4ED" label="Average score" value={formatPercent(counts.avg)}
+              hint={counts.completed ? `of ${counts.completed} completed attempt${counts.completed === 1 ? "" : "s"}` : "no completed attempt yet"}
+            />
+          )}
         </div>
         {/* Where the class stands, at a glance. */}
         {roster.length > 0 && (
@@ -1203,14 +1207,17 @@ function ExerciseResults({
               <th className={TH}>Batch</th>
               <th className={TH}>Status</th>
               <th className={`${TH} text-right`}>Attempted</th>
-              <th className={`${TH} text-right`}>Marks</th>
-              <th className={`${TH} text-right`}>Marks (100)</th>
-              <th className={TH}>Performance Level</th>
+              {/* A non-graded exercise has no marks to show. */}
+              {exercise.graded && (<>
+                <th className={`${TH} text-right`}>Marks</th>
+                <th className={`${TH} text-right`}>Marks (100)</th>
+                <th className={TH}>Performance Level</th>
+              </>)}
               <th className={`${TH} text-right`}>Action</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={11} text={filtered ? "No students match these filters." : "No students."} />}
+            {rows.length === 0 && <EmptyRow colSpan={exercise.graded ? 11 : 8} text={filtered ? "No students match these filters." : "No students."} />}
             {rows.map((s, i) => {
               const r = results.get(s.id)!;
               const started = r.status !== "not-started";
@@ -1226,9 +1233,11 @@ function ExerciseResults({
                   <td className={`${TD} max-w-[160px]`}><span className="block truncate" title={s.batch}>{s.batch || <Dash />}</span></td>
                   <td className={TD}><StatusChip status={r.status} /></td>
                   <td className={TD_NUM}>{r.attempted} / {r.totalQuestions}</td>
-                  <td className={`${TD_NUM} font-semibold text-heading`}>{formatMarks(r.scored, r.total, started)}</td>
-                  <td className={TD_NUM}>{formatPercent(r.percent)}</td>
-                  <td className={TD}>{r.scale || <Dash />}</td>
+                  {exercise.graded && (<>
+                    <td className={`${TD_NUM} font-semibold text-heading`}>{formatMarks(r.scored, r.total, started)}</td>
+                    <td className={TD_NUM}>{formatPercent(r.percent)}</td>
+                    <td className={TD}>{r.scale || <Dash />}</td>
+                  </>)}
                   <td className={`${TD} text-right`}><ViewButton onClick={() => onView(s.id)} label={`View ${s.name}`} /></td>
                 </tr>
               );
@@ -1462,14 +1471,17 @@ function StudentResults({
                     <td className={`${TD} max-w-[220px]`}><span className="block truncate" title={ex.location}>{ex.location || <Dash />}</span></td>
                     <td className={TD}><StatusChip status={r.status} /></td>
                     <td className={TD_NUM}>{r.attempted} / {r.totalQuestions}</td>
-                    <td className={`${TD_NUM} font-semibold text-heading`}>{formatMarks(r.scored, r.total, r.status !== "not-started")}</td>
-                    <td className={TD_NUM}>{formatPercent(r.percent)}</td>
+                    {/* Non-graded: no marks — it still counts as done or not. */}
+                    <td className={`${TD_NUM} font-semibold text-heading`}>
+                      {ex.graded ? formatMarks(r.scored, r.total, r.status !== "not-started") : <span className="text-2xs font-normal text-faint">Non-graded</span>}
+                    </td>
+                    <td className={TD_NUM}>{ex.graded ? formatPercent(r.percent) : <Dash />}</td>
                     <td className={TD}>{r.scale || <Dash />}</td>
                   </tr>
                   {open && (
                     <tr className="bg-canvas/60">
                       <td colSpan={showSubcategory ? 11 : 10} className="px-3 pb-3 pt-1 sm:pl-12">
-                        <QuestionTable rows={questionsOf(ex, student)} />
+                        <QuestionTable rows={questionsOf(ex, student)} graded={ex.graded} />
                       </td>
                     </tr>
                   )}
@@ -1539,12 +1551,14 @@ function StudentDrawer({
             <div className="flex flex-wrap gap-2 px-4 py-3 sm:px-5">
               <Stat label="Status" value={<StatusChip status={r.status} />} />
               <Stat label="Attempted" value={`${r.attempted} / ${r.totalQuestions}`} />
-              <Stat label="Marks" value={formatMarks(r.scored, r.total, r.status !== "not-started")} />
-              <Stat label="Percentage" value={formatPercent(r.percent)} tone="text-brand-strong" />
-              <Stat label="Performance Level" value={r.scale || "—"} />
+              {exercise.graded && (<>
+                <Stat label="Marks" value={formatMarks(r.scored, r.total, r.status !== "not-started")} />
+                <Stat label="Percentage" value={formatPercent(r.percent)} tone="text-brand-strong" />
+                <Stat label="Performance Level" value={r.scale || "—"} />
+              </>)}
             </div>
             <div className="min-h-0 flex-1 overflow-auto px-4 pb-4 sm:px-5">
-              <QuestionTable rows={questionsOf(exercise, student)} />
+              <QuestionTable rows={questionsOf(exercise, student)} graded={exercise.graded} />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-hairline bg-canvas px-4 py-3 sm:px-5">
               <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-control border border-hairline-strong bg-surface px-3.5 text-xs font-medium text-body hover:bg-row-hover">

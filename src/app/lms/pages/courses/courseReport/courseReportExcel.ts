@@ -14,7 +14,10 @@
 // One sheet per exercise; the totals layout is one sheet of course totals.
 
 import { saveAs } from "file-saver";
-import type { QuestionRow, ReportExercise, ReportStudent, StudentResult, StudentTotals } from "./reportData";
+import {
+  QUESTION_STATUS_LABEL,
+  type QuestionRow, type ReportExercise, type ReportStudent, type StudentResult, type StudentTotals,
+} from "./reportData";
 import type { StudentLine } from "./courseReportPrint";
 
 type Cell = string | number | null;
@@ -106,6 +109,8 @@ interface SheetSpec {
   levelCol: number;
   /** What the count table's second column is headed. */
   summaryTitle: string;
+  /** What the count table counts — "Performance Level" unless given. */
+  levelTitle?: string;
 }
 
 /** Lays one sheet out in the workbook. */
@@ -202,7 +207,7 @@ function writeSheet(wb: any, spec: SheetSpec, base: CourseExcelBase, used: Set<s
         if (fill) cell.fill = solid(fill);
       }
     };
-    put(top, "Performance Level", spec.summaryTitle, true, FILL_HEAD);
+    put(top, spec.levelTitle || "Performance Level", spec.summaryTitle, true, FILL_HEAD);
     levels.forEach((lvl, i) => {
       put(top + 1 + i, lvl, counts.get(lvl) || 0, false);
       const tone = levelFill(lvl);
@@ -268,6 +273,10 @@ export async function exportExerciseWorkbook(input: CourseExcelBase & {
   for (const ex of input.exercises) {
     const lines = input.linesFor(ex);
     const total = round1(ex.totalMarks);
+    // A non-graded exercise has no marks: a Status column stands in for
+    // Performance Level / Marks, and each question column holds the answer's
+    // status instead of its marks.
+    const graded = ex.graded;
 
     // The question columns, in question order, from any student's rows.
     let questions: { id: string; head: string }[] = [];
@@ -278,7 +287,9 @@ export async function exportExerciseWorkbook(input: CourseExcelBase & {
         const rows = input.questionsOf(ex, l.student);
         qByStudent.set(l.student.id, rows);
         for (const q of rows) {
-          if (!seen.has(q.questionId)) seen.set(q.questionId, { no: q.no, head: `${q.no}. ${q.title} (${round1(q.max)} marks)` });
+          if (!seen.has(q.questionId)) {
+            seen.set(q.questionId, { no: q.no, head: graded ? `${q.no}. ${q.title} (${round1(q.max)} marks)` : `${q.no}. ${q.title}` });
+          }
         }
       }
       questions = [...seen.entries()].sort((a, b) => a[1].no - b[1].no).map(([id, v]) => ({ id, head: v.head }));
@@ -286,21 +297,26 @@ export async function exportExerciseWorkbook(input: CourseExcelBase & {
 
     const headers = [
       ...baseHeaders(input),
-      { text: "Performance Level", width: 20 },
-      { text: "Marks(100)", width: 12 },
-      { text: `Marks(${total})`, width: 12 },
+      ...(graded
+        ? [
+          { text: "Performance Level", width: 20 },
+          { text: "Marks(100)", width: 12 },
+          { text: `Marks(${total})`, width: 12 },
+        ]
+        : [{ text: "Status", width: 16 }]),
       ...questions.map((q) => ({ text: q.head, width: 24 })),
     ];
     const levelCol = baseHeaders(input).length;
 
     const rows = lines.map((l, i) => {
       const r = input.resultOf(ex.id, l.student.id);
-      const level = levelOf(r, ex, now);
+      const level = !graded && r.status === "completed" ? "Completed" : levelOf(r, ex, now);
       const started = r.status !== "not-started";
       const absent = level === "Absent";
       const qRows = qByStudent.get(l.student.id) || [];
       const qCells: Cell[] = questions.map((q) => {
         const row = qRows.find((x) => x.questionId === q.id);
+        if (!graded) return started && row ? QUESTION_STATUS_LABEL[row.status] : "";
         if (!started) return absent ? 0 : "";
         if (!row || row.status === "pending" || row.status === "not_answered") return row ? 0 : "";
         return round1(row.scored);
@@ -311,8 +327,9 @@ export async function exportExerciseWorkbook(input: CourseExcelBase & {
         cells: [
           ...baseCells(input, l, i),
           level,
-          started ? round1(r.percent ?? 0) : absent ? 0 : "",
-          started ? round1(r.scored) : absent ? 0 : "",
+          ...(graded
+            ? [started ? round1(r.percent ?? 0) : absent ? 0 : "", started ? round1(r.scored) : absent ? 0 : ""]
+            : []),
           ...qCells,
         ],
       };
@@ -325,7 +342,7 @@ export async function exportExerciseWorkbook(input: CourseExcelBase & {
         ...batchLine(lines, input),
         `${ex.type} : ${ex.name}`,
         ex.location ? `Module : ${ex.location}` : "",
-        `Total Marks : ${total}`,
+        graded ? `Total Marks : ${total}` : "Non-graded",
       ].filter(Boolean),
       headers,
       rows,
@@ -333,6 +350,7 @@ export async function exportExerciseWorkbook(input: CourseExcelBase & {
       batchCol: input.showPhase ? 4 : 3,
       levelCol,
       summaryTitle: ex.name,
+      levelTitle: graded ? undefined : "Status",
     }, input, used);
   }
 

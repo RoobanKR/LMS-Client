@@ -149,7 +149,8 @@ const Q_STATUS_TONE: Record<QuestionRow["status"], string> = {
 };
 
 /** One student's questions in one exercise. */
-export function QuestionTable({ rows }: { rows: QuestionRow[] }) {
+/** `graded={false}`: a non-graded exercise — no Max / Scored columns. */
+export function QuestionTable({ rows, graded = true }: { rows: QuestionRow[]; graded?: boolean }) {
   if (!rows.length) {
     return <p className="px-3 py-4 text-center text-xs text-subtle">This exercise has no questions.</p>;
   }
@@ -165,8 +166,8 @@ export function QuestionTable({ rows }: { rows: QuestionRow[] }) {
             {showSection && <th className={TH}>Section</th>}
             <th className={TH}>Type</th>
             <th className={TH}>Difficulty</th>
-            <th className={`${TH} text-right`}>Max</th>
-            <th className={`${TH} text-right`}>Scored</th>
+            {graded && <th className={`${TH} text-right`}>Max</th>}
+            {graded && <th className={`${TH} text-right`}>Scored</th>}
             <th className={TH}>Status</th>
           </tr>
         </thead>
@@ -178,8 +179,8 @@ export function QuestionTable({ rows }: { rows: QuestionRow[] }) {
               {showSection && <td className={TD}>{r.section || <Dash />}</td>}
               <td className={TD}>{r.type}</td>
               <td className={TD}>{r.difficulty || <Dash />}</td>
-              <td className={TD_NUM}>{round1(r.max)}</td>
-              <td className={`${TD_NUM} font-semibold text-heading`}>{answered(r) ? round1(r.scored) : <Dash />}</td>
+              {graded && <td className={TD_NUM}>{round1(r.max)}</td>}
+              {graded && <td className={`${TD_NUM} font-semibold text-heading`}>{answered(r) ? round1(r.scored) : <Dash />}</td>}
               <td className={`${TD} font-medium ${Q_STATUS_TONE[r.status]}`}>{QUESTION_STATUS_LABEL[r.status]}</td>
             </tr>
           ))}

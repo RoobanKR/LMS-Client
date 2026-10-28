@@ -60,6 +60,9 @@ export interface ReportExercise {
   bands: GradeBand[];
   /** The batches this exercise is set for; null when every batch has it. */
   batchIds: Set<string> | null;
+  /** False for a non-graded exercise: it records no marks, so the report
+   *  leaves out its Marks, Marks (100) and Performance Level. */
+  graded: boolean;
 }
 
 export interface ReportStudent {
@@ -278,6 +281,7 @@ function collectView(view: ExerciseView, viewIdx: number, byId: Map<string, Repo
             mini,
             bands: bandsOf(ex),
             batchIds: view.batchIds ? new Set(view.batchIds) : null,
+            graded: ex?.isGraded !== false,
             order: nodeSeq * 1e6 + sectionIdx * 1e5 + viewIdx * 1e3 + pos,
           });
         }
@@ -384,7 +388,8 @@ export function resultFor(
     : marks.hasSubmitted
       ? "in-progress"
       : "not-started";
-  const percent = marks.hasSubmitted && marks.totalMarks > 0
+  // A non-graded exercise has no percentage or level to report.
+  const percent = exercise.graded && marks.hasSubmitted && marks.totalMarks > 0
     ? (marks.scoredMarks / marks.totalMarks) * 100
     : null;
   return {
@@ -393,7 +398,7 @@ export function resultFor(
     total: marks.totalMarks,
     percent,
     // A grade describes a finished attempt; a partial one has no grade yet.
-    scale: status === "completed" ? scaleForPercent(percent, exercise.bands) : "",
+    scale: exercise.graded && status === "completed" ? scaleForPercent(percent, exercise.bands) : "",
     attempted: marks.completedQuestions,
     totalQuestions: marks.totalQuestions,
   };
@@ -468,6 +473,8 @@ export function totalsFor(
     const done = r.status === "completed";
     if (ex.type === "Assignment") { t.assignmentsTotal += 1; if (done) t.assignmentsDone += 1; }
     else { t.assessmentsTotal += 1; if (done) t.assessmentsDone += 1; }
+    // A non-graded exercise counts as done or not, but carries no marks.
+    if (!ex.graded) continue;
     const started = r.status !== "not-started";
     const end = ex.endDate ? Date.parse(ex.endDate) : NaN;
     const due = Number.isNaN(end) || end <= now;

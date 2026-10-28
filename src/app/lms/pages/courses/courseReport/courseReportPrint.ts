@@ -69,6 +69,17 @@ const QUESTION_SHEET_TOTALS: FieldRow[] = [
 
 const questionKey = (questionId: string) => `q_${questionId}`;
 
+// A non-graded exercise records no marks: its own sheets leave these out.
+const MARK_KEYS = new Set(["marks", "percent", "scale", "stPercent", "stMarks"]);
+const withoutMarks = (set: { fields: FieldRow[]; defaults: Set<string> }) => ({
+  fields: set.fields.filter((f) => !MARK_KEYS.has(f.key)),
+  defaults: new Set([...set.defaults].filter((k) => !MARK_KEYS.has(k))),
+});
+
+/** "Summary" fields for one exercise — without the marks for a non-graded one. */
+export const exerciseSummaryFields = (graded: boolean) =>
+  graded ? LAYOUT_FIELDS["exercise-summary"] : withoutMarks(LAYOUT_FIELDS["exercise-summary"]);
+
 export interface QuestionColumn { id: string; no: number; title: string; max: number }
 
 /** The questions of one exercise for these students, in question order —
@@ -88,19 +99,21 @@ export function exerciseQuestionColumns(
 }
 
 /** "With question details" fields: the student, the exercise figures, then
- *  one column per question — "1. Title (10)" holding the marks scored. */
-export function exerciseQuestionFields(questions: QuestionColumn[]): { fields: FieldRow[]; defaults: Set<string> } {
+ *  one column per question — "1. Title (10)" holding the marks scored. A
+ *  non-graded exercise has no marks: its question columns ("1. Title") hold
+ *  each question's status, and the Test Status shows instead of the marks. */
+export function exerciseQuestionFields(questions: QuestionColumn[], graded = true): { fields: FieldRow[]; defaults: Set<string> } {
   const perQuestion: FieldRow[] = questions.map((q) => ({
     key: questionKey(q.id),
     label: `${q.no}. ${q.title}`,
     scope: "service",
-    column: `${q.no}. ${q.title} (${round1(q.max)})`,
+    column: graded ? `${q.no}. ${q.title} (${round1(q.max)})` : `${q.no}. ${q.title}`,
     dataKey: questionKey(q.id),
   }));
-  const base = LAYOUT_FIELDS["exercise-questions"];
+  const base = graded ? LAYOUT_FIELDS["exercise-questions"] : withoutMarks(LAYOUT_FIELDS["exercise-questions"]);
   return {
     fields: [...base.fields, ...perQuestion],
-    defaults: new Set([...base.defaults, ...perQuestion.map((f) => f.key)]),
+    defaults: new Set([...base.defaults, ...(graded ? [] : ["stStatus"]), ...perQuestion.map((f) => f.key)]),
   };
 }
 
@@ -197,14 +210,15 @@ const studentCells = (s: ReportStudent, src: PrintSources) => {
 
 const answered = (r: StudentResult) => r.status !== "not-started";
 
-const questionService = (q: QuestionRow): Record<string, string> => ({
+// `graded` false: a non-graded exercise's question — no Max / Scored.
+const questionService = (q: QuestionRow, graded = true): Record<string, string> => ({
   qNo: String(q.no),
   question: q.title,
   qType: q.type,
   difficulty: q.difficulty || "—",
   qSection: q.section || "—",
-  qMax: String(round1(q.max)),
-  qScored: q.status === "pending" || q.status === "not_answered" ? "—" : String(round1(q.scored)),
+  qMax: graded ? String(round1(q.max)) : "—",
+  qScored: !graded || q.status === "pending" || q.status === "not_answered" ? "—" : String(round1(q.scored)),
   qStatus: QUESTION_STATUS_LABEL[q.status],
 });
 
@@ -214,8 +228,12 @@ const questionService = (q: QuestionRow): Record<string, string> => ({
 const NOT_STARTED: Record<string, string> = { qNo: "—", question: "Not started", qStatus: STATUS_LABEL["not-started"] };
 const NO_QUESTIONS: Record<string, string> = { qNo: "—", question: "No questions in this exercise" };
 
-const questionRows = (r: StudentResult, questions: QuestionRow[]) =>
-  !answered(r) ? [NOT_STARTED] : questions.length ? questions.map(questionService) : [NO_QUESTIONS];
+const questionRows = (r: StudentResult, questions: QuestionRow[], graded: boolean) =>
+  !answered(r) ? [NOT_STARTED] : questions.length ? questions.map((q) => questionService(q, graded)) : [NO_QUESTIONS];
+
+/** An exercise's marks as a mixed sheet prints them: "Non-graded" when it has none. */
+const marksText = (ex: ReportExercise, r: StudentResult) =>
+  ex.graded ? formatMarks(r.scored, r.total, answered(r)) : "Non-graded";
 
 export interface PrintSources {
   /** The student's phase(s) and batch name(s), each on its own. */
@@ -241,7 +259,7 @@ export function exerciseListBlocks(
       clientExtras: { subcategory: ex.subcategory || "—", location: ex.location || "—", dates: dates(ex) },
       services: [{
         questions: String(ex.questionCount),
-        totalMarks: String(round1(ex.totalMarks)),
+        totalMarks: ex.graded ? String(round1(ex.totalMarks)) : "Non-graded",
         attempted: `${t.attempted} / ${t.students}`,
         completed: `${t.completed} / ${t.students}`,
         avg: formatPercent(t.avg),
@@ -277,12 +295,14 @@ export function exerciseBlocks(
     // With question details: ONE row per student, each question's marks in
     // its own column (exerciseQuestionFields). An answer not given — or not
     // evaluated yet — reads 0, as on the Excel sheet; a student who never
-    // started has the question columns empty.
+    // started has the question columns empty. A non-graded exercise prints
+    // each question's status instead.
     const perQuestion: Record<string, string> = {};
     if (answered(r)) {
       for (const q of src.questionsOf(exercise, s)) {
-        perQuestion[questionKey(q.questionId)] =
-          q.status === "pending" || q.status === "not_answered" ? "0" : String(round1(q.scored));
+        perQuestion[questionKey(q.questionId)] = !exercise.graded
+          ? QUESTION_STATUS_LABEL[q.status]
+          : q.status === "pending" || q.status === "not_answered" ? "0" : String(round1(q.scored));
       }
     }
     return {
@@ -383,7 +403,7 @@ export function studentBlocks(
               subcategory: ex.subcategory,
               location: ex.location || "—",
               status: STATUS_LABEL[r.status],
-              marks: formatMarks(r.scored, r.total, answered(r)),
+              marks: marksText(ex, r),
               percent: formatPercent(r.percent),
               scale: r.scale || "—",
             };
@@ -400,10 +420,10 @@ export function studentBlocks(
       const head = {
         exercise: ex.name,
         type: ex.type,
-        exMarks: formatMarks(r.scored, r.total, answered(r)),
+        exMarks: marksText(ex, r),
         exPercent: formatPercent(r.percent),
       };
-      const rows = questionRows(r, answered(r) ? src.questionsOf(ex, s) : []);
+      const rows = questionRows(r, answered(r) ? src.questionsOf(ex, s) : [], ex.graded);
       rows.forEach((row, i) => services.push({
         ...head,
         ...row,
