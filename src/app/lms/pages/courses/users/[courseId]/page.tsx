@@ -4,8 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft, CheckCircle2, ChevronRight, ClipboardList, FlaskConical, ListChecks,
-  RotateCcw, Search, Trophy, UsersRound, X, XCircle,
+  ArrowLeft, CheckCircle2, ChevronRight, ClipboardList, ListChecks, Search, UsersRound, X, XCircle,
 } from "lucide-react";
 import { getUserId, SESSION_KEYS } from "@/lib/session";
 import DashboardLayout from "@/app/lms/component/layout";
@@ -16,7 +15,7 @@ import {
   collectExercises, collectStudents, formatDate, formatPercent, QUESTION_STATUS_LABEL, round1, totalsFor,
   type ReportExercise, type ReportStudent, type Section,
 } from "@/app/lms/pages/courses/courseReport/reportData";
-import { Dash, StatusChip, TD, TD_NUM, TH } from "@/app/lms/pages/courses/courseReport/ReportUi";
+import { Dash, StatusChip } from "@/app/lms/pages/courses/courseReport/ReportUi";
 import { buildCells, cellKey, pct, questionInsights, sumCells, type Cell } from "./insightsData";
 
 // ─── Course Insights ─────────────────────────────────────────────────────────
@@ -25,11 +24,10 @@ import { buildCells, cellKey, pct, questionInsights, sumCells, type Cell } from 
 // stored: how many questions they solved, how many were fully right, how many
 // test cases passed, and — for graded exercises only — the marks.
 //
-//   [header]   course · batches · students · exercises
-//   [filters]  Batch · Activity · Exercise · Search
-//   [tiles]    the figures for whatever the filters select
-//   [lists]    All exercises: Exercises | Students
-//              One exercise:  Students (per question on expand) | Questions
+//   Course:    Exercises | Students, activity chips, one line of figures,
+//              the list. Open an exercise (or a student's exercise) to go in.
+//   Exercise:  Students — status chips, per question on expand — | Questions,
+//              one line of figures; back (or the crumb) returns.
 //
 // Built on the Course Report's payload and marks functions, so a figure here
 // is the figure the report prints.
@@ -39,6 +37,10 @@ const SECTION_LABEL: Record<Section, string> = { We_Do: "We Do", You_Do: "You Do
 const CARD = "rounded-xl border border-hairline bg-surface shadow-xs";
 const CONTROL = "h-9 rounded-control border border-hairline-strong bg-surface px-2.5 text-xs text-body focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15";
 const PAGE_SIZE = 50;
+// A size up from the Course Report's print-minded table type: read on screen.
+const TH = "px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-subtle whitespace-nowrap";
+const TD = "px-3 py-2.5 text-[13.5px] text-body align-middle";
+const TD_NUM = `${TD} text-right tabular-nums`;
 
 type StudentSort = "name" | "correct-desc" | "correct-asc" | "tests-desc" | "marks-desc";
 type StatusFilter = "" | "completed" | "in-progress" | "not-started";
@@ -70,18 +72,74 @@ const matchesActivity = (ex: ReportExercise, activity: string) => {
 
 // ─── Small pieces ────────────────────────────────────────────────────────────
 
-function Tile({ icon: Icon, label, value, hint, color, bg }: {
-  icon: typeof UsersRound; label: string; value: React.ReactNode; hint?: string; color: string; bg: string;
+/** One slim line of figures for what is on screen — no cards. */
+function Figures({ items }: { items: { label: string; value: string; detail?: string; tone?: string }[] }) {
+  return (
+    <div className="grid grid-cols-2 border-b border-hairline sm:flex sm:flex-wrap sm:divide-x sm:divide-hairline">
+      {items.map((it) => (
+        <div key={it.label} className="min-w-0 px-4 py-2.5 sm:min-w-[150px] sm:flex-1">
+          <div className="text-xs font-medium text-subtle">{it.label}</div>
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <span className="text-lg font-bold tabular-nums leading-tight" style={{ color: it.tone || "var(--color-heading, #101828)" }}>{it.value}</span>
+            {it.detail && <span className="truncate text-xs text-faint tabular-nums" title={it.detail}>{it.detail}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Pick-one chips with counts — filters that sit right on the list they filter. */
+function Chips({ value, onChange, items, label }: {
+  value: string; onChange: (v: string) => void; label: string;
+  items: { key: string; label: string; count?: number }[];
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-hairline bg-surface px-3.5 py-3 shadow-xs">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: bg, color }}>
-        <Icon size={17} />
-      </span>
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={label}>
+      {items.map((it) => {
+        const on = value === it.key;
+        return (
+          <button
+            key={it.key || "all"}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(it.key)}
+            className={`inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[13px] transition-colors ${
+              on ? "border-heading bg-heading font-semibold text-white" : "border-hairline-strong bg-surface text-body hover:bg-row-hover"
+            }`}
+          >
+            {it.label}
+            {it.count != null && <span className={`tabular-nums text-xs ${on ? "text-white/80" : "text-faint"}`}>{it.count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Back, where you are, and what it is — one row, no card. */
+function TopBar({ onBack, backLabel, crumb, onCrumb, title, subtitle }: {
+  onBack: () => void; backLabel: string; crumb?: string; onCrumb?: () => void; title: string; subtitle: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <button
+        type="button"
+        onClick={onBack}
+        title={backLabel}
+        aria-label={backLabel}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-control border border-hairline-strong bg-surface text-subtle transition-colors hover:bg-row-hover hover:text-heading"
+      >
+        <ArrowLeft size={16} />
+      </button>
       <div className="min-w-0">
-        <div className="text-2xs font-semibold uppercase tracking-wide text-subtle">{label}</div>
-        <div className="mt-0.5 text-lg font-bold leading-tight text-heading tabular-nums">{value}</div>
-        {hint && <div className="mt-0.5 truncate text-2xs text-faint" title={hint}>{hint}</div>}
+        {crumb && (
+          <button type="button" onClick={onCrumb} className="text-xs font-medium text-subtle hover:text-brand-strong hover:underline">
+            {crumb} ›
+          </button>
+        )}
+        <h1 className="truncate text-lg font-semibold leading-tight tracking-[-0.01em] text-heading" title={title}>{title}</h1>
+        <p className="truncate text-[13px] text-subtle" title={subtitle}>{subtitle}</p>
       </div>
     </div>
   );
@@ -93,7 +151,7 @@ function Meter({ part, whole, tone = "#12B76A" }: { part: number; whole: number;
   const p = Math.round((part / whole) * 100);
   return (
     <div className="ml-auto w-[88px]">
-      <div className="text-right text-xs font-semibold tabular-nums text-heading">{p}%</div>
+      <div className="text-right text-[13px] font-semibold tabular-nums text-heading">{p}%</div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#EAECF0]">
         <div className="h-full rounded-full" style={{ width: `${p}%`, background: tone }} />
       </div>
@@ -106,8 +164,8 @@ function Count({ part, whole }: { part: number; whole: number }) {
   if (whole <= 0) return <Dash />;
   return (
     <div className="text-right tabular-nums">
-      <div className="text-xs font-semibold text-heading">{part} / {whole}</div>
-      <div className="text-2xs text-faint">{pct(part, whole)}</div>
+      <div className="text-[13.5px] font-semibold text-heading">{part} / {whole}</div>
+      <div className="text-xs text-faint">{pct(part, whole)}</div>
     </div>
   );
 }
@@ -124,7 +182,7 @@ function Tabs<T extends string>({ value, onChange, tabs }: {
           role="tab"
           aria-selected={value === t.key}
           onClick={() => onChange(t.key)}
-          className={`inline-flex h-9 items-center gap-1.5 px-3.5 text-xs font-medium transition-colors ${
+          className={`inline-flex h-9 items-center gap-1.5 px-3 text-[13px] font-medium transition-colors ${
             value === t.key ? "bg-brand-strong text-white" : "text-body hover:bg-row-hover"
           }`}
         >
@@ -160,12 +218,12 @@ const usePaged = <T,>(rows: T[], resetKey: string) => {
 /** Student search — sits on the student list it filters. */
 function SearchBox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <span className="relative min-w-[200px] flex-1 sm:max-w-[300px]">
+    <span className="relative min-w-[170px] flex-1 sm:max-w-[210px]">
       <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search student — name, email or reg no"
+        placeholder="Search name, email, reg no"
         aria-label="Search students"
         className={`${CONTROL} w-full pl-7 pr-7`}
       />
@@ -288,6 +346,17 @@ function CourseInsightsPage() {
     }));
   }, [exercises]);
 
+  // One chip per activity ("We Do · Practical"), counting its exercises.
+  const activityChips = useMemo(() => {
+    const inView = exercises.filter((ex) => scopedStudents.some((s) => cells.has(cellKey(ex.id, s.id))));
+    const items = activityGroups.flatMap((g) => g.subs.map(([key, label]) => ({
+      key: `${g.section}|${key}`,
+      label: `${SECTION_LABEL[g.section]} · ${label}`,
+      count: inView.filter((ex) => matchesActivity(ex, `${g.section}|${key}`)).length,
+    }))).filter((c) => c.count > 0);
+    return [{ key: "", label: "All", count: inView.length }, ...items];
+  }, [exercises, scopedStudents, cells, activityGroups]);
+
   // Exercises set for at least one student in view, in the chosen activity.
   const activityExercises = useMemo(
     () => exercises.filter((ex) => matchesActivity(ex, activity)
@@ -322,7 +391,7 @@ function CourseInsightsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [scopeExercises, scopedStudents, cells],
   );
-  // The chosen exercise's students — every one (tiles, question insight) and
+  // The chosen exercise's students — every one (figures, status counts, question insight) and
   // those the search leaves.
   const exerciseCells = useMemo(
     () => (exercise ? cellsOf([exercise], scopedStudents) : []),
@@ -331,19 +400,14 @@ function CourseInsightsPage() {
   );
   const exerciseAllCells = useMemo(() => exerciseCells.map((r) => r.cell), [exerciseCells]);
   const anyGraded = scopeExercises.some((ex) => ex.graded);
-  // The search box clears itself (✕); Clear is for the filters above.
-  const filtered = Boolean(batch || activity || exerciseId);
-  const clearFilters = () => { setBatch(""); setActivity(""); setExerciseId(""); setQuery(""); setStatusF(""); };
 
   // ── States ──
   if (!courseId) return <Shell><Empty text="No course selected." /></Shell>;
   if (isLoading || !viewer) {
     return (
       <Shell>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-          {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-[74px] animate-pulse rounded-xl bg-canvas" />)}
-        </div>
-        <div className="h-72 animate-pulse rounded-xl bg-canvas" />
+        <div className="h-12 w-72 animate-pulse rounded-lg bg-canvas" />
+        <div className="h-96 animate-pulse rounded-xl bg-canvas" />
       </Shell>
     );
   }
@@ -359,114 +423,43 @@ function CourseInsightsPage() {
     );
   }
 
-  const header = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <button
-          type="button"
-          onClick={() => (exercise ? setExerciseId("") : router.back())}
-          title={exercise ? "Back to all exercises" : "Back"}
-          aria-label={exercise ? "Back to all exercises" : "Back"}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-control border border-hairline-strong bg-surface text-subtle transition-colors hover:bg-row-hover hover:text-heading"
-        >
-          <ArrowLeft size={15} />
-        </button>
-        <div className="min-w-0">
-          <h1 className="text-base font-semibold leading-tight tracking-[-0.01em] text-heading">Course Insights</h1>
-          <p className="truncate text-xs text-subtle" title={courseName}>
-            {[
-              courseName,
-              viewer.trainer && batchOptions.length ? batchOptions.join(", ") : "",
-              `${students.length} student${students.length === 1 ? "" : "s"}`,
-              `${exercises.length} exercise${exercises.length === 1 ? "" : "s"}`,
-            ].filter(Boolean).join(" · ")}
-          </p>
-        </div>
-      </div>
-      {!exercise && (
-        <Tabs
-          value={tab}
-          onChange={(t) => { setTab(t); setOpenRow(null); }}
-          tabs={[
-            { key: "exercises", label: "Exercises", icon: <ClipboardList size={13} />, count: activityExercises.length },
-            { key: "students", label: "Students", icon: <UsersRound size={13} />, count: scopedStudents.length },
-          ]}
-        />
-      )}
-    </div>
-  );
-
-  const filters = (
-    <div className={`${CARD} flex flex-wrap items-end gap-3 px-3 py-2.5`}>
-      {batchOptions.length > 1 && (
-        <label className="flex min-w-[150px] flex-1 flex-col gap-1 sm:max-w-[220px]">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Batch</span>
-          <select value={batch} onChange={(e) => setBatch(e.target.value)} className={CONTROL}>
-            <option value="">All batches</option>
-            {batchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </label>
-      )}
-      <label className="flex min-w-[170px] flex-1 flex-col gap-1 sm:max-w-[240px]">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Activity</span>
-        <select value={activity} onChange={(e) => setActivity(e.target.value)} className={CONTROL}>
-          <option value="">All activities</option>
-          {activityGroups.map((g) => (
-            <optgroup key={g.section} label={SECTION_LABEL[g.section]}>
-              <option value={g.section}>All {SECTION_LABEL[g.section]}</option>
-              {g.subs.map(([key, label]) => <option key={key} value={`${g.section}|${key}`}>{label}</option>)}
-            </optgroup>
-          ))}
-        </select>
-      </label>
-      <label className="flex min-w-[220px] flex-[2_1_260px] flex-col gap-1">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-subtle">Exercise</span>
-        <select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)} className={CONTROL}>
-          <option value="">All exercises ({activityExercises.length})</option>
-          {activityExercises.map((ex) => (
-            <option key={ex.id} value={ex.id}>{ex.name}{activity ? "" : ` — ${activityOf(ex)}`}</option>
-          ))}
-        </select>
-      </label>
-      {filtered && (
-        <button type="button" onClick={clearFilters} className="inline-flex h-9 items-center gap-1 rounded-control px-2 text-xs font-medium text-subtle hover:bg-row-hover hover:text-heading">
-          <RotateCcw size={12} /> Clear
-        </button>
-      )}
-    </div>
-  );
-
-  // The figures for the current selection.
+  // The figures for what is on screen: the whole course, or one exercise.
   const t = scopeTotals;
-  const tiles = (
-    <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${anyGraded ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
-      <Tile icon={UsersRound} color="#475467" bg="#F2F4F7" label="Students" value={scopedStudents.length}
-        hint={exercise ? `${t.completed} completed · ${t.inProgress} in progress` : `${scopeExercises.length} exercise${scopeExercises.length === 1 ? "" : "s"}`} />
-      <Tile icon={ClipboardList} color="#175CD3" bg="#EFF8FF" label="Completed" value={pct(t.completed, t.cells)}
-        hint={`${t.completed} of ${t.cells} ${exercise ? "students" : "attempts"}`} />
-      <Tile icon={ListChecks} color="#6941C6" bg="#F4F3FF" label="Questions solved" value={pct(t.solved, t.possible)}
-        hint={`${t.solved} of ${t.possible} answers`} />
-      <Tile icon={CheckCircle2} color="#067647" bg="#ECFDF3" label="Correct" value={pct(t.correct, t.solved)}
-        hint={`${t.correct} fully correct of ${t.solved} solved`} />
-      <Tile icon={FlaskConical} color="#B54708" bg="#FFFAEB" label="Test cases passed" value={pct(t.testsPassed, t.testsTotal)}
-        hint={t.testsTotal ? `${t.testsPassed} of ${t.testsTotal} tests` : "no test cases"} />
-      {anyGraded && (
-        <Tile icon={Trophy} color="#C4320A" bg="#FFF4ED" label="Average marks" value={formatPercent(t.avgPercent)}
-          hint="over completed, graded attempts" />
-      )}
-    </div>
+  const figures = (
+    <Figures items={[
+      ...(exercise ? [] : [{ label: "Completed", value: pct(t.completed, t.cells), detail: `${t.completed} / ${t.cells} attempts`, tone: "#175CD3" }]),
+      { label: "Questions solved", value: pct(t.solved, t.possible), detail: `${t.solved} / ${t.possible}`, tone: "#6941C6" },
+      { label: "Fully correct", value: pct(t.correct, t.solved), detail: `${t.correct} of ${t.solved} solved`, tone: "#067647" },
+      { label: "Test cases passed", value: pct(t.testsPassed, t.testsTotal), detail: t.testsTotal ? `${t.testsPassed} / ${t.testsTotal}` : "no test cases", tone: "#B54708" },
+      ...(anyGraded ? [{ label: "Average marks", value: formatPercent(t.avgPercent), detail: "completed, graded", tone: "#C4320A" }] : []),
+    ]} />
   );
 
-  return (
-    <Shell>
-      {header}
-      {filters}
-      {exercise ? (
+  const studentsLabel = `${scopedStudents.length} student${scopedStudents.length === 1 ? "" : "s"}`;
+
+  // ── One exercise: its students (or its questions) ──
+  if (exercise) {
+    return (
+      <Shell>
+        <TopBar
+          onBack={() => setExerciseId("")}
+          backLabel="Back to all exercises"
+          crumb="Course Insights"
+          onCrumb={() => setExerciseId("")}
+          title={exercise.name}
+          subtitle={[
+            activityOf(exercise),
+            exercise.graded ? `Graded · ${round1(exercise.totalMarks)} marks` : "Non-graded",
+            `${exercise.questionCount} question${exercise.questionCount === 1 ? "" : "s"}`,
+            (exercise.startDate || exercise.endDate) ? `${formatDate(exercise.startDate)} – ${formatDate(exercise.endDate)}` : "",
+            courseName,
+          ].filter(Boolean).join(" · ")}
+        />
         <ExerciseView
           exercise={exercise}
           rows={ql ? exerciseCells.filter((r) => matchesQuery(r.student)) : exerciseCells}
           allCells={exerciseAllCells}
-          tiles={tiles}
+          figures={figures}
           query={query}
           setQuery={setQuery}
           tab={exTab}
@@ -478,30 +471,70 @@ function CourseInsightsPage() {
           openRow={openRow}
           setOpenRow={setOpenRow}
         />
+      </Shell>
+    );
+  }
+
+  // ── The whole course: exercises, or students ──
+  return (
+    <Shell>
+      <TopBar
+        onBack={() => router.back()}
+        backLabel="Back"
+        title="Course Insights"
+        subtitle={[
+          courseName,
+          viewer.trainer && batchOptions.length ? batchOptions.join(", ") : "",
+          studentsLabel,
+          `${exercises.length} exercise${exercises.length === 1 ? "" : "s"}`,
+        ].filter(Boolean).join(" · ")}
+      />
+      {exercises.length === 0 ? (
+        <div className={CARD}><Empty text="This course has no We Do or You Do exercises with questions yet." /></div>
       ) : (
-        <>
-          {tiles}
-          {exercises.length === 0 ? (
-            <div className={CARD}><Empty text="This course has no We Do or You Do exercises with questions yet." /></div>
-          ) : tab === "exercises" ? (
+        <div className={`${CARD} overflow-hidden`}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-hairline px-4 py-3">
+            <Tabs
+              value={tab}
+              onChange={(v) => { setTab(v); setOpenRow(null); }}
+              tabs={[
+                { key: "exercises", label: "Exercises", icon: <ClipboardList size={14} />, count: activityExercises.length },
+                { key: "students", label: "Students", icon: <UsersRound size={14} />, count: scopedStudents.length },
+              ]}
+            />
+            {batchOptions.length > 1 && (
+              <select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Batch" className={CONTROL}>
+                <option value="">All batches</option>
+                {batchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            )}
+            {activityChips.length > 2 && (
+              <Chips label="Activity" value={activity} onChange={setActivity} items={activityChips} />
+            )}
+            {tab === "students" && (
+              <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
+                <SearchBox value={query} onChange={setQuery} />
+                <SortSelect sort={sort} setSort={setSort} marks={anyGraded} />
+              </div>
+            )}
+          </div>
+          {figures}
+          {tab === "exercises" ? (
             <ExerciseList
               rows={scopeExercises.map((ex) => ({ exercise: ex, totals: sumCells(cellsOf([ex], scopedStudents)) }))}
-              onOpen={(id) => { setExerciseId(id); setExTab("students"); }}
+              onOpen={(id) => { setExerciseId(id); setExTab("students"); setStatusF(""); }}
             />
           ) : (
             <StudentList
               students={scopedStudents.filter(matchesQuery)}
-              query={query}
-              setQuery={setQuery}
               exercises={scopeExercises}
               cells={cells}
               sort={sort}
-              setSort={setSort}
               openRow={openRow}
               setOpenRow={setOpenRow}
             />
           )}
-        </>
+        </div>
       )}
     </Shell>
   );
@@ -519,55 +552,50 @@ function ExerciseList({ rows, onOpen }: {
 }) {
   const showMarks = rows.some((r) => r.exercise.graded);
   return (
-    <div className={`${CARD} overflow-hidden`}>
-      <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
-        <span className="text-xs text-subtle">{rows.length} exercise{rows.length === 1 ? "" : "s"} · open one to see each student</span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] border-collapse">
-          <thead className="bg-canvas">
-            <tr>
-              <th className={`${TH} w-10 text-right`}>#</th>
-              <th className={TH}>Exercise</th>
-              <th className={TH}>Activity</th>
-              <th className={`${TH} text-right`}>Questions</th>
-              <th className={`${TH} text-right`}>Completed</th>
-              <th className={`${TH} text-right`}>Solved</th>
-              <th className={`${TH} text-right`}>Correct</th>
-              <th className={`${TH} text-right`}>Tests passed</th>
-              {showMarks && <th className={`${TH} text-right`}>Avg marks</th>}
-              <th className={`${TH} w-10`} aria-label="Open" />
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[980px] border-collapse">
+        <thead className="bg-canvas">
+          <tr>
+            <th className={`${TH} w-10 text-right`}>#</th>
+            <th className={TH}>Exercise</th>
+            <th className={TH}>Activity</th>
+            <th className={`${TH} text-right`}>Questions</th>
+            <th className={`${TH} text-right`}>Completed</th>
+            <th className={`${TH} text-right`}>Solved</th>
+            <th className={`${TH} text-right`}>Correct</th>
+            <th className={`${TH} text-right`}>Tests passed</th>
+            {showMarks && <th className={`${TH} text-right`}>Avg marks</th>}
+            <th className={`${TH} w-10`} aria-label="Open" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr><td colSpan={showMarks ? 10 : 9}><Empty text="No exercises in this activity." /></td></tr>
+          )}
+          {rows.map(({ exercise: ex, totals: t }, i) => (
+            <tr key={ex.id} onClick={() => onOpen(ex.id)} title="Open to see each student" className="cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover">
+              <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
+              <td className={`${TD} max-w-[340px]`}>
+                <span className="block truncate font-semibold text-heading" title={ex.name}>{ex.name}</span>
+                <span className="block truncate text-xs text-faint" title={ex.location}>
+                  {[ex.location, (ex.startDate || ex.endDate) ? `${formatDate(ex.startDate)} – ${formatDate(ex.endDate)}` : ""].filter(Boolean).join(" · ")}
+                </span>
+              </td>
+              <td className={TD}>
+                <span className="whitespace-nowrap">{activityOf(ex)}</span>
+                <span className="block text-xs text-faint">{ex.graded ? `${round1(ex.totalMarks)} marks` : "Non-graded"}</span>
+              </td>
+              <td className={TD_NUM}>{ex.questionCount}</td>
+              <td className={TD_NUM}><Count part={t.completed} whole={t.cells} /></td>
+              <td className={TD}><Meter part={t.solved} whole={t.possible} tone="#7A5AF8" /></td>
+              <td className={TD}><Meter part={t.correct} whole={t.solved} /></td>
+              <td className={TD}><Meter part={t.testsPassed} whole={t.testsTotal} tone="#F79009" /></td>
+              {showMarks && <td className={TD_NUM}>{ex.graded ? formatPercent(t.avgPercent) : <Dash />}</td>}
+              <td className={TD}><ChevronRight size={16} className="text-faint" /></td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={showMarks ? 10 : 9}><Empty text="No exercises match these filters." /></td></tr>
-            )}
-            {rows.map(({ exercise: ex, totals: t }, i) => (
-              <tr key={ex.id} onClick={() => onOpen(ex.id)} className="cursor-pointer border-t border-hairline transition-colors hover:bg-row-hover">
-                <td className={`${TD_NUM} text-faint`}>{i + 1}</td>
-                <td className={`${TD} max-w-[320px]`}>
-                  <span className="block truncate font-semibold text-heading" title={ex.name}>{ex.name}</span>
-                  <span className="block truncate text-2xs text-faint" title={ex.location}>
-                    {[ex.location, (ex.startDate || ex.endDate) ? `${formatDate(ex.startDate)} – ${formatDate(ex.endDate)}` : ""].filter(Boolean).join(" · ")}
-                  </span>
-                </td>
-                <td className={TD}>
-                  <span className="whitespace-nowrap">{activityOf(ex)}</span>
-                  <span className="block text-2xs text-faint">{ex.graded ? `${round1(ex.totalMarks)} marks` : "Non-graded"}</span>
-                </td>
-                <td className={TD_NUM}>{ex.questionCount}</td>
-                <td className={TD_NUM}><Count part={t.completed} whole={t.cells} /></td>
-                <td className={TD}><Meter part={t.solved} whole={t.possible} tone="#7A5AF8" /></td>
-                <td className={TD}><Meter part={t.correct} whole={t.solved} /></td>
-                <td className={TD}><Meter part={t.testsPassed} whole={t.testsTotal} tone="#F79009" /></td>
-                {showMarks && <td className={TD_NUM}>{ex.graded ? formatPercent(t.avgPercent) : <span className="text-2xs text-faint">—</span>}</td>}
-                <td className={TD}><ChevronRight size={15} className="text-faint" /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -592,23 +620,20 @@ function sortStudents<T extends { student: ReportStudent; correct: number; solve
 function SortSelect({ sort, setSort, marks }: { sort: StudentSort; setSort: (s: StudentSort) => void; marks: boolean }) {
   return (
     <select value={sort} onChange={(e) => setSort(e.target.value as StudentSort)} aria-label="Sort students" className={CONTROL}>
-      <option value="name">Sort: Name A–Z</option>
-      <option value="correct-desc">Sort: Most correct</option>
-      <option value="correct-asc">Sort: Fewest correct</option>
-      <option value="tests-desc">Sort: Most tests passed</option>
-      {marks && <option value="marks-desc">Sort: Highest marks</option>}
+      <option value="name">Name A–Z</option>
+      <option value="correct-desc">Most correct</option>
+      <option value="correct-asc">Fewest correct</option>
+      <option value="tests-desc">Most tests passed</option>
+      {marks && <option value="marks-desc">Highest marks</option>}
     </select>
   );
 }
 
-function StudentList({ students, query, setQuery, exercises, cells, sort, setSort, openRow, setOpenRow }: {
+function StudentList({ students, exercises, cells, sort, openRow, setOpenRow }: {
   students: ReportStudent[];
-  query: string;
-  setQuery: (q: string) => void;
   exercises: ReportExercise[];
   cells: Map<string, Cell>;
   sort: StudentSort;
-  setSort: (s: StudentSort) => void;
   openRow: string | null;
   setOpenRow: (id: string | null) => void;
 }) {
@@ -623,14 +648,7 @@ function StudentList({ students, query, setQuery, exercises, cells, sort, setSor
   const paged = usePaged(rows, `${students.length}|${exercises.length}|${sort}`);
 
   return (
-    <div className={`${CARD} overflow-hidden`}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">
-          <SearchBox value={query} onChange={setQuery} />
-          <span className="text-xs text-subtle">{rows.length} student{rows.length === 1 ? "" : "s"} · across {exercises.length} exercise{exercises.length === 1 ? "" : "s"}</span>
-        </div>
-        <SortSelect sort={sort} setSort={setSort} marks={showMarks} />
-      </div>
+    <>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] border-collapse">
           <thead className="bg-canvas">
@@ -660,7 +678,7 @@ function StudentList({ students, query, setQuery, exercises, cells, sort, setSor
                     <td className={`${TD} whitespace-nowrap`}>{r.student.regNo || <Dash />}</td>
                     <td className={`${TD} max-w-[240px]`}>
                       <span className="block truncate font-semibold text-heading" title={r.student.name}>{r.student.name}</span>
-                      {r.student.email && <span className="block truncate text-2xs text-faint">{r.student.email}</span>}
+                      {r.student.email && <span className="block truncate text-xs text-faint">{r.student.email}</span>}
                     </td>
                     <td className={`${TD} max-w-[160px]`}><span className="block truncate" title={r.student.batch}>{r.student.batch || <Dash />}</span></td>
                     <td className={TD_NUM}><Count part={r.completed} whole={r.cells} /></td>
@@ -684,7 +702,7 @@ function StudentList({ students, query, setQuery, exercises, cells, sort, setSor
         </table>
       </div>
       <Pager page={paged.page} pages={paged.pages} total={rows.length} onPage={paged.setPage} />
-    </div>
+    </>
   );
 }
 
@@ -723,7 +741,7 @@ function StudentExercises({ rows }: { rows: { cell: Cell; exercise: ReportExerci
                   <td className={TD}><ChevronRight size={15} className={`text-brand-500 transition-transform ${open ? "rotate-90" : ""}`} /></td>
                   <td className={`${TD} max-w-[280px]`}>
                     <span className="block truncate font-semibold text-heading" title={ex.name}>{ex.name}</span>
-                    <span className="block text-2xs text-faint">{activityOf(ex)}</span>
+                    <span className="block text-xs text-faint">{activityOf(ex)}</span>
                   </td>
                   <td className={TD}><StatusChip status={cell.result.status} /></td>
                   <td className={TD_NUM}>{cell.solved} / {cell.result.totalQuestions || ex.questionCount}</td>
@@ -731,7 +749,7 @@ function StudentExercises({ rows }: { rows: { cell: Cell; exercise: ReportExerci
                   <td className={TD_NUM}>{cell.testsTotal ? `${cell.testsPassed} / ${cell.testsTotal}` : <Dash />}</td>
                   {showMarks && (
                     <td className={TD_NUM}>
-                      {!ex.graded ? <span className="text-2xs text-faint">Non-graded</span>
+                      {!ex.graded ? <span className="text-xs text-faint">Non-graded</span>
                         : cell.result.status === "not-started" ? <Dash />
                           : `${round1(cell.result.scored)} / ${round1(cell.result.total)}`}
                     </td>
@@ -756,12 +774,12 @@ function StudentExercises({ rows }: { rows: { cell: Cell; exercise: ReportExerci
 // ─── One exercise ────────────────────────────────────────────────────────────
 
 function ExerciseView({
-  exercise: ex, rows, allCells, tiles, query, setQuery, tab, setTab, statusF, setStatusF, sort, setSort, openRow, setOpenRow,
+  exercise: ex, rows, allCells, figures, query, setQuery, tab, setTab, statusF, setStatusF, sort, setSort, openRow, setOpenRow,
 }: {
   exercise: ReportExercise;
   rows: { cell: Cell; exercise: ReportExercise; student: ReportStudent }[];
   allCells: Cell[];
-  tiles: React.ReactNode;
+  figures: React.ReactNode;
   query: string;
   setQuery: (q: string) => void;
   tab: "students" | "questions";
@@ -792,45 +810,45 @@ function ExerciseView({
   const paged = usePaged(list, `${ex.id}|${statusF}|${sort}|${rows.length}`);
   const cols = graded ? 12 : 9;
 
+  const counts = useMemo(() => {
+    const c = { completed: 0, "in-progress": 0, "not-started": 0 } as Record<Exclude<StatusFilter, "">, number>;
+    allCells.forEach((cell) => { c[cell.result.status] += 1; });
+    return c;
+  }, [allCells]);
+
   return (
     <>
-      <div className={`${CARD} px-4 py-3`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="truncate text-sm font-semibold text-heading" title={ex.name}>{ex.name}</h2>
-          <span className="rounded-full bg-canvas px-2 py-0.5 text-2xs font-medium text-subtle">{activityOf(ex)}</span>
-          <span className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${graded ? "bg-[#FFF4ED] text-[#C4320A]" : "bg-[#F2F4F7] text-[#475467]"}`}>
-            {graded ? `Graded · ${round1(ex.totalMarks)} marks` : "Non-graded"}
-          </span>
-        </div>
-        <p className="mt-0.5 text-2xs text-faint">
-          {[ex.location, `${total} question${total === 1 ? "" : "s"}`,
-            (ex.startDate || ex.endDate) ? `${formatDate(ex.startDate)} – ${formatDate(ex.endDate)}` : ""].filter(Boolean).join(" · ")}
-        </p>
-      </div>
-      {tiles}
       <div className={`${CARD} overflow-hidden`}>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-3 py-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-hairline px-4 py-3">
           <Tabs
             value={tab}
             onChange={setTab}
             tabs={[
-              { key: "students", label: "Students", icon: <UsersRound size={13} />, count: rows.length },
-              { key: "questions", label: "Questions", icon: <ListChecks size={13} />, count: questions.length },
+              { key: "students", label: "Students", icon: <UsersRound size={14} />, count: allCells.length },
+              { key: "questions", label: "Questions", icon: <ListChecks size={14} />, count: questions.length },
             ]}
           />
           {tab === "students" && (
-            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-              <SearchBox value={query} onChange={setQuery} />
-              <select value={statusF} onChange={(e) => setStatusF(e.target.value as StatusFilter)} aria-label="Filter by status" className={CONTROL}>
-                <option value="">All statuses</option>
-                <option value="completed">Completed</option>
-                <option value="in-progress">In progress</option>
-                <option value="not-started">Not started</option>
-              </select>
-              <SortSelect sort={sort} setSort={setSort} marks={graded} />
-            </div>
+            <>
+              <Chips
+                label="Status"
+                value={statusF}
+                onChange={(v) => setStatusF(v as StatusFilter)}
+                items={[
+                  { key: "", label: "All", count: allCells.length },
+                  { key: "completed", label: "Completed", count: counts.completed },
+                  { key: "in-progress", label: "In progress", count: counts["in-progress"] },
+                  { key: "not-started", label: "Not started", count: counts["not-started"] },
+                ]}
+              />
+              <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
+                <SearchBox value={query} onChange={setQuery} />
+                <SortSelect sort={sort} setSort={setSort} marks={graded} />
+              </div>
+            </>
           )}
         </div>
+        {figures}
 
         {tab === "students" ? (
           <>
@@ -867,7 +885,7 @@ function ExerciseView({
                           <td className={`${TD} whitespace-nowrap`}>{r.student.regNo || <Dash />}</td>
                           <td className={`${TD} max-w-[240px]`}>
                             <span className="block truncate font-semibold text-heading" title={r.student.name}>{r.student.name}</span>
-                            {r.student.email && <span className="block truncate text-2xs text-faint">{r.student.email}</span>}
+                            {r.student.email && <span className="block truncate text-xs text-faint">{r.student.email}</span>}
                           </td>
                           <td className={`${TD} max-w-[160px]`}><span className="block truncate" title={r.student.batch}>{r.student.batch || <Dash />}</span></td>
                           <td className={TD}><StatusChip status={res.status} /></td>
