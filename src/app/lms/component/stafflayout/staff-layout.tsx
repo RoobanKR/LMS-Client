@@ -22,7 +22,7 @@
  */
 
 import type React from "react"
-import { useEffect, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Poppins } from "next/font/google"
 import { ArrowLeft, BookOpen, Menu } from "lucide-react"
@@ -196,13 +196,48 @@ function PanelStrip({
   )
 }
 
-export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle, breadcrumb, hideCornerBell = false, noBuiltInPadding = false }: StaffLayoutProps) {
+/* Set while the shared layout hosts the staff shell (StaffShellHost, mounted
+   by app/lms/pages/layout.tsx for a trainer). The rail then stays mounted as
+   the trainer moves between pages — a page's own <StaffLayout> renders only
+   its panel content, and the route's loading skeleton fills the panel instead
+   of the whole screen. */
+const StaffShellContext = createContext<{ openDrawer: () => void } | null>(null)
+
+export function StaffLayout(props: StaffLayoutProps) {
+  const host = useContext(StaffShellContext)
+  // Hosted: the rail and the white panel are already on screen. A page that
+  // brings its own rail (`sidebar`) is never hosted — see isTrainerShellRoute.
+  if (host && !props.sidebar) return <StaffPanel {...props} onBurger={host.openDrawer} />
+  return (
+    <StaffFrame sidebar={props.sidebar}>
+      {(openDrawer) => <StaffPanel {...props} onBurger={openDrawer} />}
+    </StaffFrame>
+  )
+}
+
+/** One staff shell for every trainer page under it (app/lms/pages/layout.tsx). */
+export function StaffShellHost({ children }: { children: React.ReactNode }) {
+  return (
+    <StaffFrame>
+      {(openDrawer) => <StaffShellProvider openDrawer={openDrawer}>{children}</StaffShellProvider>}
+    </StaffFrame>
+  )
+}
+
+function StaffShellProvider({ openDrawer, children }: { openDrawer: () => void; children: React.ReactNode }) {
+  const value = useMemo(() => ({ openDrawer }), [openDrawer])
+  return <StaffShellContext.Provider value={value}>{children}</StaffShellContext.Provider>
+}
+
+/** The canvas, the rail and the white panel; the panel's content comes from `children`. */
+function StaffFrame({ sidebar, children }: { sidebar?: React.ReactNode; children: (openDrawer: () => void) => React.ReactNode }) {
   // Expanded by default on desktop; collapsed on mobile (admin shell behavior).
   const [isCollapsed, setIsCollapsed] = useState(false)
   // Below lg the rail (trainer menu or page-supplied override) is an
   // off-canvas drawer, closed by default. Desktop keeps isCollapsed as before.
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
+  const openDrawer = useCallback(() => setMobileOpen(true), [])
 
   // Re-fetch this session's permissions on every staff-shell mount so a
   // just-issued grant (from an admin) shows up without a re-login.
@@ -236,11 +271,6 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
       mq.removeEventListener?.("change", onMq)
     }
   }, [mobileOpen])
-
-  const isLogsPage = pathname === "/lms/pages/logs"
-  const isReportPage = pathname === "/lms/pages/logs/report"
-  const hasStrip =
-    isLogsPage || isReportPage || !!breadcrumb || (!!sidebar && !!onMenuToggle)
 
   return (
     <div
@@ -282,10 +312,29 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
           off-canvas, so the gutter wraps all four sides. */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-3.5 pl-0 max-lg:pl-3.5 max-md:p-2.5 max-md:pl-2.5">
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-hairline bg-surface shadow-xs">
+          {children(openDrawer)}
+        </div>
+      </div>
+    </div>
+  )
+}
 
+/** What sits inside the white panel: the contextual strip (or the small-screen
+ *  top bar) and the page's scroll area. */
+function StaffPanel({
+  children, fullBleed = false, sidebar, onMenuToggle, breadcrumb, hideCornerBell = false, noBuiltInPadding = false, onBurger,
+}: StaffLayoutProps & { onBurger: () => void }) {
+  const pathname = usePathname()
+  const isLogsPage = pathname === "/lms/pages/logs"
+  const isReportPage = pathname === "/lms/pages/logs/report"
+  const hasStrip =
+    isLogsPage || isReportPage || !!breadcrumb || (!!sidebar && !!onMenuToggle)
+
+  return (
+    <>
           {hasStrip ? (
             <PanelStrip
-              onBurger={() => setMobileOpen(true)}
+              onBurger={onBurger}
               breadcrumb={breadcrumb}
               isLogsPage={isLogsPage}
               isReportPage={isReportPage}
@@ -298,9 +347,8 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
               <div className="flex h-12 flex-shrink-0 items-center gap-2.5 border-b border-hairline px-3 lg:hidden">
                 <button
                   type="button"
-                  onClick={() => setMobileOpen(true)}
+                  onClick={onBurger}
                   aria-label="Open navigation"
-                  aria-expanded={mobileOpen}
                   className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-hairline bg-surface text-body shadow-xs"
                 >
                   <Menu className="h-[18px] w-[18px]" strokeWidth={2} />
@@ -346,8 +394,6 @@ export function StaffLayout({ children, fullBleed = false, sidebar, onMenuToggle
               )}
             </main>
           )}
-        </div>
-      </div>
-    </div>
+    </>
   )
 }

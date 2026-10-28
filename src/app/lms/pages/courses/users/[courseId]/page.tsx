@@ -8,6 +8,9 @@ import {
   RotateCcw, Search, Trophy, UsersRound, X, XCircle,
 } from "lucide-react";
 import { getUserId, SESSION_KEYS } from "@/lib/session";
+import DashboardLayout from "@/app/lms/component/layout";
+import { StaffLayout } from "@/app/lms/component/stafflayout/staff-layout";
+import { StudentLayout } from "@/app/lms/component/student/student-layout";
 import { fetchReportPayload } from "@/app/lms/pages/courses/courseReport/reportApi";
 import {
   collectExercises, collectStudents, formatDate, formatPercent, QUESTION_STATUS_LABEL, round1, totalsFor,
@@ -187,7 +190,28 @@ function Correctness({ ok }: { ok: boolean }) {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function CourseInsightsPage() {
+// The shell by role, as this page has always picked it: the admin sidebar for
+// admin / L&D / programme roles, the student's for a student, the trainer's
+// otherwise. A trainer's StaffLayout is hosted by app/lms/pages/layout.tsx, so
+// it stays mounted between their pages.
+const ADMIN_SHELL_ROLES = ["admin", "ldhead", "subhead", "programcoordinator"];
+
+export default function CourseInsightsRoute() {
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setRole((localStorage.getItem(SESSION_KEYS.roleValue) || localStorage.getItem(SESSION_KEYS.userRole) || "student").toLowerCase());
+    } catch {
+      setRole("student");
+    }
+  }, []);
+  if (role === null) return null;
+  if (ADMIN_SHELL_ROLES.includes(role)) return <DashboardLayout><CourseInsightsPage /></DashboardLayout>;
+  if (role === "student") return <StudentLayout><CourseInsightsPage /></StudentLayout>;
+  return <StaffLayout><CourseInsightsPage /></StaffLayout>;
+}
+
+function CourseInsightsPage() {
   const params = useParams();
   const router = useRouter();
   const courseId = String(params?.courseId || "");

@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import DashboardLayout from '../component/layout';
 import ClientWorkspaceSkeleton from '@/features/businessmanagement/ClientWorkspaceSkeleton';
 import BusinessWorkspaceChrome, { isBusinessWorkspaceRoute } from '@/features/businessmanagement/BusinessWorkspaceChrome';
-import { isLdApprovalsRoute, isLdBusinessRoute, isLdCourseRoute, isLdNotificationsRoute, isPersistentDashboardRoute, isTrainerCourseRoute, usesLdShellRole, usesPersistentDashboardRole, usesTrainerShellRole } from '@/lib/dashboardRoutes';
-import { StaffLayout } from '../component/stafflayout/staff-layout';
+import { isLdApprovalsRoute, isLdBusinessRoute, isLdCourseRoute, isLdNotificationsRoute, isPersistentDashboardRoute, isTrainerCourseRoute, isTrainerShellRoute, usesLdShellRole, usesPersistentDashboardRole, usesTrainerShellRole } from '@/lib/dashboardRoutes';
+import { StaffLayout, StaffShellHost } from '../component/stafflayout/staff-layout';
 import { SESSION_KEYS } from '@/lib/session';
 import { useNavigationLoader } from '@/components/navigation-loader/NavigationLoaderProvider';
 import LDLayout from '../component/ldshell/LDLayout';
@@ -95,19 +95,26 @@ export default function LmsPagesLayout({ children }: { children: ReactNode }) {
       </LDLayout>
     );
   }
-  // Trainers reach the same Course Management screens from their own rail —
-  // keep the staff sidebar (StaffLayout) rather than the admin one. The pages
-  // fetch with scope=enrolled for this role, so only the clients of the
-  // trainer's enrolled courses are listed.
-  if (role !== null && usesTrainerShellRole(role) && isTrainerCourseRoute(pathname)) {
+  // A trainer keeps ONE staff shell across their pages: the sidebar stays
+  // mounted, and only the panel content changes (or shows its loading
+  // skeleton) on a click. Pages that draw <StaffLayout> themselves render just
+  // their content inside it. Course Management screens — admin pages the
+  // trainer reaches from their own rail, fetched with scope=enrolled — get
+  // the panel from this layout instead, and the SidebarContext keeps their
+  // DashboardLayout content-only.
+  const trainerCourse = role !== null && usesTrainerShellRole(role) && isTrainerCourseRoute(pathname);
+  if (trainerCourse || (role !== null && usesTrainerShellRole(role) && isTrainerShellRoute(pathname))) {
+    const content = (
+      <Suspense fallback={<ClientWorkspaceSkeleton showTabs={false} />}>
+        {children}
+      </Suspense>
+    );
     return (
-      <StaffLayout noBuiltInPadding>
+      <StaffShellHost>
         <SidebarContext.Provider value={LD_HOSTED_SIDEBAR}>
-          <Suspense fallback={<ClientWorkspaceSkeleton showTabs={false} />}>
-            {children}
-          </Suspense>
+          {trainerCourse ? <StaffLayout noBuiltInPadding>{content}</StaffLayout> : content}
         </SidebarContext.Provider>
-      </StaffLayout>
+      </StaffShellHost>
     );
   }
   // Roles outside the persistent shell still need the workspace chrome, since

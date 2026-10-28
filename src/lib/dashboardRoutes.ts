@@ -100,6 +100,26 @@ export function isTrainerCourseRoute(pathname: string): boolean {
   return isCourseManagementRoute(pathname) && !isCourseSubRoute(pathname, 'feedback');
 }
 
+// Trainer pages that draw the staff shell (StaffLayout) themselves. For a
+// trainer the shared layout hosts ONE staff shell over them (StaffShellHost),
+// so moving between them swaps only the content: the sidebar stays mounted and
+// the loading skeleton fills the panel, not the whole screen. Pages that bring
+// their own rail — the course content editor, one course's Grades — stay out.
+const TRAINER_SHELL_PAGES = [
+  '/lms/pages/dashboard', '/lms/pages/courses', '/lms/pages/coursemanagement', '/lms/pages/grades',
+  '/lms/pages/notifications', '/lms/pages/questionbanks', '/lms/pages/reports/performance',
+  '/lms/pages/usermanagement', '/lms/pages/profile',
+];
+const TRAINER_SHELL_SECTIONS = ['logs', 'attendancemanagement', 'coursestructure/feedback', 'courses/users'];
+
+export function isTrainerShellRoute(pathname: string): boolean {
+  const path = cleanPath(pathname);
+  return TRAINER_SHELL_PAGES.includes(path) || TRAINER_SHELL_SECTIONS.some((section) => {
+    const prefix = `/lms/pages/${section}`;
+    return path === prefix || path.startsWith(prefix + '/');
+  });
+}
+
 export function usesPersistentDashboardRole(role: string): boolean {
   // Match the canonical role values used by pages that select this shell.
   return ['admin', 'programcoordinator'].includes(
