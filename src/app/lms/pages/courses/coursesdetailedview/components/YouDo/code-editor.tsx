@@ -21,6 +21,7 @@ import {
     FileCode,
     NotebookPen
 } from "lucide-react"
+import ProblemNavigator from "../ProblemNavigator";
 import dynamic from 'next/dynamic'
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'
@@ -936,9 +937,6 @@ export default function CodeEditor({
     const [pyodideReady, setPyodideReady] = useState(false);
     const pyodideRef = useRef<any>(null);
     // Search / difficulty filter / sort are open by default; the search icon hides them.
-    const [showSearch, setShowSearch] = useState(true);
-    const problemSearchRef = useRef<HTMLInputElement>(null);
-    const [selectedDifficulty, setSelectedDifficulty] = useState('all');
     // --- Core State ---
     const [code, setCode] = useState("")
     const [selectedLanguage, setSelectedLanguage] = useState("javascript")
@@ -969,20 +967,7 @@ export default function CodeEditor({
       durationMinutesHint: (exercise as any)?.exerciseInformation?.totalDuration || undefined,
       enabled: !embedded && !!((exercise as any)?._id) && !!courseId,
     });
-    const [showSidebar, setShowSidebar] = useState(false)
-    // Problems list — the toolbar's Hide / Show problems toggles it. Wide screens
-    // open with it showing; crossing below 1280px folds it (and crossing back
-    // restores it) so the editor keeps a usable width.
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const wide = window.matchMedia('(min-width: 1280px)');
-        if (wide.matches) setShowSidebar(true);
-        const onWide = (e: MediaQueryListEvent) => setShowSidebar(e.matches);
-        wide.addEventListener('change', onWide);
-        return () => wide.removeEventListener('change', onWide);
-    }, []);
     const [leftPanelWidth, setLeftPanelWidth] = useState(32)
-    const [searchQuery, setSearchQuery] = useState("")
     const editorRef = useRef<HTMLDivElement>(null)
     const descriptionRef = useRef<HTMLDivElement>(null)
     const [editorReady, setEditorReady] = useState(false)
@@ -1088,8 +1073,6 @@ export default function CodeEditor({
 
     // Add these with your existing state variables
     // Add these with your existing state variables
-    const [sortBy, setSortBy] = useState<'default' | 'difficulty' | 'title'>('default');
-    const [filterDifficulty, setFilterDifficulty] = useState<'all' | 'Easy' | 'Medium' | 'Hard'>('all');
     const problems = useMemo(() => {
         return exercise
             ? convertExerciseToProblems(exercise)
@@ -1221,16 +1204,6 @@ export default function CodeEditor({
         return map;
     }, [problems, exercise?.questions]);
 
-    // Ordered list of difficulties that actually have questions
-    const availableDifficulties = useMemo(
-        () => (['easy', 'medium', 'hard'] as const).filter(d => !!difficultyMap[d]),
-        [difficultyMap]
-    );
-
-    const jumpToDifficulty = (diff: string) => {
-        const entry = difficultyMap[diff];
-        if (entry) setCurrentProblemIndex(entry.firstIndex);
-    };
 
 
     useEffect(() => {
@@ -2466,41 +2439,6 @@ export default function CodeEditor({
         setShowSecurityAgreement(false);
         startAssessment();
     };
-    const getFilteredAndSortedProblems = useCallback(() => {
-        let filtered = [...problems];
-
-        // Apply difficulty filter
-        if (filterDifficulty !== 'all') {
-            filtered = filtered.filter(p => p.difficulty === filterDifficulty);
-        }
-
-        // Apply search filter
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase().trim();
-            filtered = filtered.filter(p =>
-                p.title.toLowerCase().includes(query) ||
-                (p.description?.toLowerCase().includes(query) || false)
-            );
-        }
-
-        // Apply sorting
-        switch (sortBy) {
-            case 'difficulty':
-                const difficultyOrder = { 'Easy': 1, 'Medium': 2, 'Hard': 3 };
-                filtered.sort((a, b) => difficultyOrder[a.difficulty] - difficultyOrder[b.difficulty]);
-                break;
-            case 'title':
-                filtered.sort((a, b) => a.title.localeCompare(b.title));
-                break;
-            case 'default':
-            default:
-                // Keep original order (by id/index)
-                filtered.sort((a, b) => a.id - b.id);
-                break;
-        }
-
-        return filtered;
-    }, [problems, filterDifficulty, searchQuery, sortBy]);
     const startAssessment = async () => {
         if (!isAssessmentMode) return;
 
@@ -3951,24 +3889,6 @@ else:
             setIsRunning(false);
         }
     };
-    const cycleSortOption = () => {
-        const sortOptions: Array<'default' | 'difficulty' | 'title'> = ['default', 'difficulty', 'title'];
-        const currentIndex = sortOptions.indexOf(sortBy);
-        const nextIndex = (currentIndex + 1) % sortOptions.length;
-        setSortBy(sortOptions[nextIndex]);
-    };
-
-    const getSortIcon = () => {
-        switch (sortBy) {
-            case 'difficulty':
-                return '🟢🟡🔴'; // Representing Easy, Medium, Hard
-            case 'title':
-                return 'A-Z';
-            case 'default':
-            default:
-                return '123';
-        }
-    };
     // --- Helper Functions ---
     const isCopyPasteDetected = (code: string): boolean => {
         // If disableClipboard is false, allow copy-paste
@@ -4186,9 +4106,6 @@ else:
     const selectProblem = (index: number) => {
         if (index >= 0 && index < problems.length) {
             setCurrentProblemIndex(index)
-            // The list stays docked on desktop; below lg it is an overlay, so
-            // picking a problem closes it.
-            if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) setShowSidebar(false)
         }
     }
 
@@ -4404,7 +4321,6 @@ else:
     const wsMonoPre: React.CSSProperties = { margin: 0, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5, color: WS.navy, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' };
     const wsLiveQ: any = exercise?.questions?.[currentProblemIndex] ?? currentQuestion;
     const wsIsLinkQ = !!(wsLiveQ?.isLinkQuestion && wsLiveQ?.questionLink);
-    const wsListed = getFilteredAndSortedProblems();
 
     // Finish → the attempt-limit and all-questions gates, then the
     // review-and-finish confirmation.
@@ -4931,19 +4847,40 @@ else:
                     )}
                 </div>
 
-                {/* Second row: Hide / Show description on its own, at the start. */}
-                {!wsIsLinkQ && (
-                    <div style={{ flexBasis: '100%', display: 'flex' }}>
-                        <button
-                            type="button"
-                            onClick={() => setShowQuestionPanel(v => !v)}
-                            aria-pressed={showQuestionPanel}
-                            title={showQuestionPanel ? 'Hide the problem description' : 'Show the problem description'}
-                            style={wsToolBtn}
-                        >
-                            <FileText size={14} />
-                            {showQuestionPanel ? 'Hide description' : 'Show description'}
-                        </button>
+                {/* Second row: Hide / Show description, then the problems — the list,
+                    previous / next and skip (ProblemNavigator). */}
+                {(!wsIsLinkQ || problems.length > 1 || !!onCrossPrev || !!onCrossNext) && (
+                    <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {!wsIsLinkQ && (
+                            <button
+                                type="button"
+                                onClick={() => setShowQuestionPanel(v => !v)}
+                                aria-pressed={showQuestionPanel}
+                                title={showQuestionPanel ? 'Hide the problem description' : 'Show the problem description'}
+                                style={wsToolBtn}
+                            >
+                                <FileText size={14} />
+                                {showQuestionPanel ? 'Hide description' : 'Show description'}
+                            </button>
+                        )}
+                        <ProblemNavigator
+                            title={exercise?.exerciseInformation?.exerciseName || 'Problems'}
+                            problems={problems.map((p, i) => ({ id: p.id ?? i, title: p.title, difficulty: p.difficulty || exercise?.questions?.[i]?.difficulty }))}
+                            currentIndex={currentProblemIndex}
+                            solved={solvedQuestions}
+                            skipped={skippedQuestions}
+                            freeFlow={isFreeFlow}
+                            onSelect={(i) => { void saveCurrentQuestionProgress().then(() => { live.questionChanged(exercise?.questions?.[currentProblemIndex]?._id || null, exercise?.questions?.[i]?._id || null); selectProblem(i); }); }}
+                            onPrev={() => { void prevProblem(); }}
+                            onNext={() => { void nextProblem(); }}
+                            onSkip={exercise?.questionBehavior?.allowSkip ? () => { void skipCurrentQuestion(); } : undefined}
+                            prevDisabled={currentProblemIndex === 0 && !onCrossPrev}
+                            nextDisabled={(currentProblemIndex === problems.length - 1 && !onCrossNext) || (!isFreeFlow && !isQuestionSolved(currentProblemIndex))}
+                            nextTitle={currentProblemIndex === problems.length - 1 && onCrossNext ? (crossNextLabel || 'Next Section') : undefined}
+                            showWhenSingle={!!onCrossPrev || !!onCrossNext}
+                            theme={theme}
+                            font={FONT}
+                        />
                     </div>
                 )}
             </div>
@@ -5012,141 +4949,6 @@ else:
                     </div>
                 )}
 
-                {/* PROBLEMS LIST — numbered, difficulty badges, the current problem
-                    on a mint card. Search / difficulty filter / sort fold into
-                    the search button in its header. */}
-                {showSidebar && problems.length > 1 && (
-                    <div
-                        className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(18rem,85vw)]! max-lg:shadow-2xl"
-                        style={{ width: 270, background: WS.panel, borderColor: WS.border }}
-                    >
-                        <div style={{ padding: '14px 14px 8px', flexShrink: 0 }}>
-                            <div className="flex items-center justify-between gap-2">
-                                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: WS.navy, fontFamily: FONT }}>
-                                    Problems ({problems.length})
-                                    {wsListed.length !== problems.length && (
-                                        <span style={{ fontSize: 12, fontWeight: 500, color: WS.muted }}> · {wsListed.length} shown</span>
-                                    )}
-                                </h3>
-                                <button
-                                    type="button"
-                                    onClick={() => { const open = !showSearch; setShowSearch(open); if (open) requestAnimationFrame(() => problemSearchRef.current?.focus()); }}
-                                    aria-pressed={showSearch}
-                                    aria-label="Search, filter and sort problems"
-                                    title="Search, filter and sort"
-                                    style={{ ...wsToolIconBtn(showSearch || filterDifficulty !== 'all' || sortBy !== 'default' || !!searchQuery.trim()), width: 30, height: 30 }}
-                                >
-                                    <Search size={14} />
-                                </button>
-                            </div>
-                            {showSearch && (
-                                <div className="flex flex-col gap-2" style={{ marginTop: 10 }}>
-                                    <div className="relative">
-                                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search problems…"
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            aria-label="Search problems"
-                                            className="w-full pl-7 pr-7 py-1.5 text-xs rounded-md outline-none"
-                                            style={{ border: `1px solid ${WS.border}`, background: WS.soft, color: WS.navy }}
-                                            ref={problemSearchRef}
-                                        />
-                                        {searchQuery && (
-                                            <button onClick={() => setSearchQuery("")} aria-label="Clear search" className="absolute right-1.5 top-1/2 -translate-y-1/2">
-                                                <XIcon className="w-3.5 h-3.5 text-gray-400" />
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <select
-                                            value={filterDifficulty}
-                                            onChange={(e) => setFilterDifficulty(e.target.value as any)}
-                                            aria-label="Filter by difficulty"
-                                            className="flex-1 text-xs rounded-md px-2 py-1.5"
-                                            style={{ border: `1px solid ${WS.border}`, background: WS.panel, color: WS.navy }}
-                                        >
-                                            <option value="all">All difficulties</option>
-                                            <option value="Easy">Easy</option>
-                                            <option value="Medium">Medium</option>
-                                            <option value="Hard">Hard</option>
-                                        </select>
-                                        <button
-                                            type="button"
-                                            onClick={cycleSortOption}
-                                            aria-label={`Sort: ${sortBy === 'default' ? 'default order' : sortBy}`}
-                                            title={`Sort by: ${sortBy === 'default' ? 'Default Order' : sortBy === 'difficulty' ? 'Difficulty' : 'Title'}. Click to change.`}
-                                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md"
-                                            style={{ border: `1px solid ${WS.border}`, background: WS.panel, color: WS.text }}
-                                        >
-                                            <ArrowUpDown className="w-3.5 h-3.5" /><span className="font-medium">{getSortIcon()}</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex-1 overflow-y-auto" style={{ padding: '0 8px 10px' }}>
-                            {wsListed.length === 0 ? (
-                                <div style={{ padding: '20px 8px', textAlign: 'center', fontSize: 12, color: WS.muted }}>
-                                    No problems found
-                                    {filterDifficulty !== 'all' && ` for "${filterDifficulty}" difficulty`}
-                                    {searchQuery && ` matching "${searchQuery}"`}
-                                </div>
-                            ) : wsListed.map((p) => {
-                                const originalIndex = problems.findIndex(prob => prob.id === p.id);
-                                const isActive = currentProblemIndex === originalIndex;
-                                const badge = WS_DIFF[String(p.difficulty || '').toLowerCase()];
-                                const solved = solvedQuestions.has(originalIndex);
-                                return (
-                                    <button
-                                        key={p.id}
-                                        type="button"
-                                        onClick={() => selectProblem(originalIndex)}
-                                        aria-current={isActive ? 'true' : undefined}
-                                        className={isActive ? '' : (theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-[#F7F6F3]')}
-                                        style={{
-                                            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                                            padding: '9px 10px', textAlign: 'left', cursor: 'pointer', fontFamily: FONT,
-                                            borderRadius: isActive ? 8 : 0,
-                                            // Per-side colours (no shorthand mixing): a hairline
-                                            // under each row, a full teal border on the current one.
-                                            borderWidth: 1, borderStyle: 'solid',
-                                            borderTopColor: isActive ? WS.tealBorder : 'transparent',
-                                            borderRightColor: isActive ? WS.tealBorder : 'transparent',
-                                            borderLeftColor: isActive ? WS.tealBorder : 'transparent',
-                                            borderBottomColor: isActive ? WS.tealBorder : WS.hairline,
-                                            background: isActive ? WS.mint : undefined,
-                                        }}
-                                    >
-                                        <span style={{
-                                            width: 24, height: 24, borderRadius: 999, flexShrink: 0,
-                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                            fontSize: 11.5, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
-                                            border: `1px solid ${isActive ? WS.tealBorder : solved ? '#A6E9C3' : WS.border}`,
-                                            background: isActive ? WS.panel : solved ? (theme === 'dark' ? 'rgba(22,163,74,0.18)' : '#ECFDF3') : WS.soft,
-                                            color: isActive ? WS.tealDark : solved ? (theme === 'dark' ? '#86EFAC' : '#067647') : WS.text,
-                                        }}>
-                                            {originalIndex + 1}
-                                        </span>
-                                        <span className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: WS.navy }}>
-                                            {p.title}
-                                        </span>
-                                        {solved && <CheckCircle size={14} aria-label="Submitted" style={{ color: '#12A765', flexShrink: 0 }} />}
-                                        {skippedQuestions.has(originalIndex) && (
-                                            <span style={{ fontSize: 10.5, fontWeight: 600, color: WS.muted, flexShrink: 0 }}>Skipped</span>
-                                        )}
-                                        {badge && (
-                                            <span style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: badge.bg, color: badge.fg, flexShrink: 0 }}>
-                                                {badge.label}
-                                            </span>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
                 {/* ── Link questions: the external page IS the question — one
                     iframe replaces the question panel + compiler. Submits go
                     straight to submitProgressToBackend (no test-case run —
@@ -5674,90 +5476,18 @@ else:
 
             </div>
 
-            {/* BOTTOM BAR — Hide / Show problems, Previous / Problem N of M / Next
-                (+ Skip and the difficulty jump) on the left; Submit Answer (this problem) and
-                Finish (the whole assessment) on the right. */}
+            {/* BOTTOM BAR — Problem N of M on the left (the list, previous / next
+                and skip sit beside Hide description); Submit Answer (this
+                problem) and Finish (the whole assessment) on the right. */}
             {exercise && (() => {
-                const prevDisabled = currentProblemIndex === 0 && !onCrossPrev;
-                const nextDisabled = (currentProblemIndex === problems.length - 1 && !onCrossNext) || (!isFreeFlow && !isQuestionSolved(currentProblemIndex));
-                const nextLabel = currentProblemIndex === problems.length - 1 && onCrossNext ? (crossNextLabel || 'Next Section') : 'Next';
                 // Finish only on the last question.
                 const showFinish = currentProblemIndex >= problems.length - 1 && (!embedded || !!onSubmitTest);
-                const showNav = problems.length > 1 || !!onCrossPrev || !!onCrossNext;
                 return (
                     <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: WS.panel, borderTop: `1px solid ${WS.border}`, padding: '10px 20px' }}>
-                        {showNav && (
-                            <div className="flex items-center gap-3 flex-wrap">
-                                {problems.length > 1 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowSidebar(v => !v)}
-                                        aria-pressed={showSidebar}
-                                        title={showSidebar ? 'Hide the problems list' : 'Show the problems list'}
-                                        style={wsPagerBtn(false)}
-                                    >
-                                        {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
-                                        {showSidebar ? 'Hide problems' : 'Show problems'}
-                                    </button>
-                                )}
-                                <button
-                                    type="button"
-                                    onClick={prevProblem}
-                                    disabled={prevDisabled}
-                                    aria-label="Previous problem"
-                                    style={wsPagerBtn(prevDisabled)}
-                                >
-                                    <ChevronLeft style={{ width: 15, height: 15 }} /> Previous
-                                </button>
-                                <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: WS.navy, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                                    Problem {currentProblemIndex + 1} of {problems.length}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={nextProblem}
-                                    disabled={nextDisabled}
-                                    aria-label={nextLabel === 'Next' ? 'Next problem' : nextLabel}
-                                    title={!isFreeFlow && !isQuestionSolved(currentProblemIndex) ? 'Submit this problem before moving on' : undefined}
-                                    style={wsPagerBtn(nextDisabled)}
-                                >
-                                    {nextLabel} <ChevronRight style={{ width: 15, height: 15 }} />
-                                </button>
-                                {exercise?.questionBehavior?.allowSkip && (
-                                    <button
-                                        type="button"
-                                        onClick={skipCurrentQuestion}
-                                        disabled={currentProblemIndex === problems.length - 1}
-                                        title="Skip Question"
-                                        aria-label="Skip current question"
-                                        style={{ ...wsPagerBtn(currentProblemIndex === problems.length - 1), width: 36, padding: 0, justifyContent: 'center' }}
-                                    >
-                                        <SkipForward style={{ width: 15, height: 15 }} />
-                                    </button>
-                                )}
-                                {availableDifficulties.length > 0 && (
-                                    <select
-                                        value={selectedDifficulty}
-                                        onChange={(e) => {
-                                            setSelectedDifficulty(e.target.value);
-                                            if (e.target.value !== 'all') jumpToDifficulty(e.target.value);
-                                        }}
-                                        aria-label="Jump to a difficulty"
-                                        title="Jump to the first problem of a difficulty"
-                                        style={{
-                                            height: 36, padding: '0 8px', borderRadius: 6,
-                                            border: `1px solid ${WS.border}`, background: WS.panel, color: WS.text,
-                                            fontFamily: FONT, fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
-                                        }}
-                                    >
-                                        <option value="all">All difficulties</option>
-                                        {availableDifficulties.map((diff) => (
-                                            <option key={diff} value={diff}>
-                                                {diff.charAt(0).toUpperCase() + diff.slice(1)} ({difficultyMap[diff].count})
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                            </div>
+                        {problems.length > 1 && (
+                            <span style={{ fontFamily: FONT, fontSize: 13.5, fontWeight: 700, color: WS.navy, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                                Problem {currentProblemIndex + 1} of {problems.length}
+                            </span>
                         )}
                         {/* Phones: the two actions share one row, half each. */}
                         <div className="ml-auto flex items-start gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">

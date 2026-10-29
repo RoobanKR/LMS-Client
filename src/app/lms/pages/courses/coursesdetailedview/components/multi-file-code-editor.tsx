@@ -45,6 +45,7 @@ import {
   AlertTriangle, MinusCircle, CloudUpload, Check,
   NotebookPen,
 } from "lucide-react"
+import ProblemNavigator from "./ProblemNavigator"
 import {
   LANGUAGE_CONFIG, STARTER_CODE,
   normalizeLanguage, detectLanguageFromFilename,
@@ -454,29 +455,16 @@ export default function MultiFileCodeEditor({
   // The description panel beside the editor — the toolbar's Hide / Show
   // description toggles it for more editor room.
   const [showQuestionPanel, setShowQuestionPanel] = useState(true)
-  // Problems list — the bottom bar's Hide / Show problems toggles it. It opens
-  // hidden on every screen: the description and the editor come first.
-  const [showSidebar, setShowSidebar] = useState(false)
   useEffect(() => {
     if (typeof window === "undefined") return
-    const wide = window.matchMedia("(min-width: 1280px)")
     const lg = window.matchMedia("(min-width: 1024px)")
-    // Crossing below 1280px folds the list (below 1024px the Explorer too)
-    // so the editor keeps a usable width. Nothing opens by itself on the
-    // way back up — a panel the student opened stays their choice.
-    const onWide = (e: MediaQueryListEvent) => { if (!e.matches) setShowSidebar(false) }
+    // Crossing below 1024px folds the Explorer so the editor keeps a usable
+    // width. Nothing opens by itself on the way back up — a panel the student
+    // opened stays their choice.
     const onLg = (e: MediaQueryListEvent) => { if (!e.matches) setSideView(null) }
-    wide.addEventListener("change", onWide)
     lg.addEventListener("change", onLg)
-    return () => { wide.removeEventListener("change", onWide); lg.removeEventListener("change", onLg) }
+    return () => lg.removeEventListener("change", onLg)
   }, [])
-  // Search / difficulty filter / sort are open by default; the search icon hides them.
-  const [showSearch, setShowSearch] = useState(true)
-  const problemSearchRef = useRef<HTMLInputElement>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [filterDifficulty, setFilterDifficulty] = useState<"all" | "easy" | "medium" | "hard">("all")
-  const [sortBy, setSortBy] = useState<"default" | "difficulty" | "title">("default")
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all")
   const [solvedQuestions, setSolvedQuestions] = useState<Set<number>>(new Set())
   // Track which questions the student has started (typed real content into
   // any file). Drives the Finish modal's Completed / Incomplete / Not
@@ -2262,93 +2250,9 @@ export default function MultiFileCodeEditor({
   }, [])
 
   // ─── Question filtering / nav (unchanged behaviour) ─────────────────────────
-  const difficultyMap = useMemo<Record<string, { firstIndex: number; count: number }>>(() => {
-    const map: Record<string, { firstIndex: number; count: number }> = {}
-    questions.forEach((q: any, i: number) => {
-      const d = (q?.difficulty || "").toLowerCase()
-      if (!d) return
-      if (!map[d]) map[d] = { firstIndex: i, count: 0 }
-      map[d].count += 1
-    })
-    return map
-  }, [questions])
-  const availableDifficulties = useMemo(() => (["easy", "medium", "hard"] as const).filter((d) => !!difficultyMap[d]), [difficultyMap])
-  const jumpToDifficulty = (diff: string) => { const e = difficultyMap[diff]; if (e) setCurrentQuestionIndex(e.firstIndex) }
-  const getFilteredAndSortedQuestions = useCallback(() => {
-    let filtered = questions.map((q: any, i: number) => ({ ...q, _originalIndex: i }))
-    if (filterDifficulty !== "all") filtered = filtered.filter((q: any) => (q.difficulty || "").toLowerCase() === filterDifficulty)
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      filtered = filtered.filter((q: any) => (q.title || "").toLowerCase().includes(query) || (typeof q.description === "string" && q.description.toLowerCase().includes(query)))
-    }
-    if (sortBy === "difficulty") {
-      const order: Record<string, number> = { easy: 1, medium: 2, hard: 3 }
-      filtered.sort((a: any, b: any) => (order[(a.difficulty || "").toLowerCase()] || 4) - (order[(b.difficulty || "").toLowerCase()] || 4))
-    } else if (sortBy === "title") filtered.sort((a: any, b: any) => (a.title || "").localeCompare(b.title || ""))
-    else filtered.sort((a: any, b: any) => a._originalIndex - b._originalIndex)
-    return filtered
-  }, [questions, filterDifficulty, searchQuery, sortBy])
-  const cycleSortOption = () => { const opts: Array<"default" | "difficulty" | "title"> = ["default", "difficulty", "title"]; setSortBy(opts[(opts.indexOf(sortBy) + 1) % opts.length]) }
-  const getSortIcon = () => (sortBy === "difficulty" ? "🟢🟡🔴" : sortBy === "title" ? "A-Z" : "123")
   const goPrev = () => { if (currentQuestionIndex > 0) setCurrentQuestionIndex((i) => i - 1) }
   const goNext = () => { if (currentQuestionIndex < questions.length - 1) setCurrentQuestionIndex((i) => i + 1) }
   const selectQuestion = (idx: number) => setCurrentQuestionIndex(idx)
-
-  // ─── Reusable question UI ───────────────────────────────────────────────────
-  // Bottom-bar navigation: Hide / Show problems on the left, then Previous /
-  // "Problem N of M" / Next in the centre of the bar; nothing to navigate with
-  // a single question, so it is left out then.
-  const pagerBtnStyle = (disabled: boolean): React.CSSProperties => ({
-    display: "inline-flex", alignItems: "center", gap: 6,
-    height: 36, padding: "0 16px", borderRadius: 6,
-    border: `1px solid ${disabled ? UI.hairline : UI.border}`,
-    background: disabled ? "#F4F3EF" : UI.panel,
-    color: disabled ? "#A3A9B5" : UI.navy,
-    fontSize: 13.5, fontWeight: 600, fontFamily: FONT,
-    cursor: disabled ? "not-allowed" : "pointer",
-    flexShrink: 0,
-  })
-  // The problems list docks beside the description — not in full screen.
-  const problemsToggle = questions.length > 1 && !isFull ? (
-    <button
-      type="button"
-      onClick={() => setShowSidebar((v) => !v)}
-      aria-pressed={showSidebar}
-      title={showSidebar ? "Hide the problems list" : "Show the problems list"}
-      style={pagerBtnStyle(false)}
-    >
-      {showSidebar ? <ChevronLeft style={{ width: 15, height: 15 }} /> : <ChevronRight style={{ width: 15, height: 15 }} />}
-      {showSidebar ? "Hide problems" : "Show problems"}
-    </button>
-  ) : null
-  const questionNav = questions.length > 1 ? (
-    <div className="flex items-center justify-center gap-3 flex-shrink-0 flex-wrap">
-      <button
-        type="button"
-        onClick={goPrev}
-        disabled={currentQuestionIndex === 0}
-        aria-label="Previous problem"
-        style={pagerBtnStyle(currentQuestionIndex === 0)}
-      >
-        <ChevronLeft style={{ width: 15, height: 15 }} /> Previous
-      </button>
-      <span style={{
-        fontFamily: FONT, fontSize: 14, fontWeight: 700, color: UI.navy,
-        fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
-      }}>
-        Problem {currentQuestionIndex + 1} of {questions.length}
-      </span>
-      <button
-        type="button"
-        onClick={goNext}
-        disabled={currentQuestionIndex === questions.length - 1}
-        aria-label="Next problem"
-        style={pagerBtnStyle(currentQuestionIndex === questions.length - 1)}
-      >
-        Next <ChevronRight style={{ width: 15, height: 15 }} />
-      </button>
-    </div>
-  ) : null
 
   // Examples = ALL non-hidden testCases (matches code-editor.tsx logic — the
   // forms only flag the first case isSample, so preferring flagged samples
@@ -2632,7 +2536,6 @@ export default function MultiFileCodeEditor({
   // full screen (where the side panels are folded away).
   const descriptionShown = isFull ? showQDrawer : showQuestionPanel
   const toggleDescription = () => (isFull ? setShowQDrawer((v) => !v) : setShowQuestionPanel((v) => !v))
-  const listedQuestions = getFilteredAndSortedQuestions()
   const toolBtn: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px",
     borderRadius: 6, border: `1px solid ${UI.border}`, background: UI.panel, color: UI.navy,
@@ -2747,19 +2650,33 @@ export default function MultiFileCodeEditor({
             </div>
           )}
 
-          {/* Second row: Hide / Show description on its own, at the start. */}
-          {!isLinkQ && (
-            <div className="lg:col-span-3" style={{ flexBasis: "100%", display: "flex" }}>
-              <button
-                type="button"
-                onClick={toggleDescription}
-                aria-pressed={descriptionShown}
-                title={descriptionShown ? "Hide the problem description" : "Show the problem description"}
-                style={toolBtn}
-              >
-                <FileText size={14} />
-                {descriptionShown ? "Hide description" : "Show description"}
-              </button>
+          {/* Second row: Hide / Show description, then the problems — the list
+              and previous / next (ProblemNavigator). */}
+          {(!isLinkQ || questions.length > 1) && (
+            <div className="lg:col-span-3" style={{ flexBasis: "100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {!isLinkQ && (
+                <button
+                  type="button"
+                  onClick={toggleDescription}
+                  aria-pressed={descriptionShown}
+                  title={descriptionShown ? "Hide the problem description" : "Show the problem description"}
+                  style={toolBtn}
+                >
+                  <FileText size={14} />
+                  {descriptionShown ? "Hide description" : "Show description"}
+                </button>
+              )}
+              <ProblemNavigator
+                title={exerciseName}
+                problems={questions.map((q: any, i: number) => ({ id: q?._id ?? i, title: q?.title || `Problem ${i + 1}`, difficulty: q?.difficulty }))}
+                currentIndex={currentQuestionIndex}
+                solved={solvedQuestions}
+                freeFlow
+                onSelect={selectQuestion}
+                onPrev={goPrev}
+                onNext={goNext}
+                font={FONT}
+              />
             </div>
           )}
         </div>
@@ -2821,128 +2738,6 @@ export default function MultiFileCodeEditor({
               onFocus={(e) => { e.currentTarget.style.borderColor = "#0F5B5D" }}
               onBlur={(e)  => { e.currentTarget.style.borderColor = UI.border }}
             />
-          </div>
-        )}
-
-        {/* PROBLEMS LIST — numbered, difficulty badges, the current problem
-            on a mint card. Search / difficulty filter / sort fold into the
-            search button in its header. */}
-        {showSidebar && !isFull && questions.length > 1 && (
-          <div
-            className="flex flex-col flex-shrink-0 overflow-hidden border-r max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(18rem,85vw)]! max-lg:shadow-2xl"
-            style={{ width: 270, background: UI.panel, borderColor: UI.border }}
-          >
-            <div style={{ padding: "14px 14px 8px", flexShrink: 0 }}>
-              <div className="flex items-center justify-between gap-2">
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: UI.navy, fontFamily: FONT }}>
-                  Problems ({questions.length})
-                  {listedQuestions.length !== questions.length && (
-                    <span style={{ fontSize: 12, fontWeight: 500, color: UI.muted }}> · {listedQuestions.length} shown</span>
-                  )}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => { const open = !showSearch; setShowSearch(open); if (open) requestAnimationFrame(() => problemSearchRef.current?.focus()) }}
-                  aria-pressed={showSearch}
-                  aria-label="Search, filter and sort problems"
-                  title="Search, filter and sort"
-                  style={{ ...toolIconBtn(showSearch || filterDifficulty !== "all" || sortBy !== "default" || !!searchQuery.trim()), width: 30, height: 30 }}
-                >
-                  <Search size={14} />
-                </button>
-              </div>
-              {showSearch && (
-                <div className="flex flex-col gap-2" style={{ marginTop: 10 }}>
-                  <div className="relative">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search problems…"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      aria-label="Search problems"
-                      className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md outline-none"
-                      style={{ border: `1px solid ${UI.border}`, background: UI.soft, color: UI.navy }}
-                      ref={problemSearchRef}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={filterDifficulty}
-                      onChange={(e) => setFilterDifficulty(e.target.value as any)}
-                      aria-label="Filter by difficulty"
-                      className="flex-1 text-xs rounded-md px-2 py-1.5"
-                      style={{ border: `1px solid ${UI.border}`, background: UI.panel, color: UI.navy }}
-                    >
-                      <option value="all">All difficulties</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={cycleSortOption}
-                      aria-label={`Sort: ${sortBy === "default" ? "default order" : sortBy}`}
-                      title="Change the sort order"
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md"
-                      style={{ border: `1px solid ${UI.border}`, background: UI.panel, color: UI.text }}
-                    >
-                      <ArrowUpDown className="w-3.5 h-3.5" /><span className="font-medium">{getSortIcon()}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto" style={{ padding: "0 8px 10px" }}>
-              {listedQuestions.length === 0 ? (
-                <div style={{ padding: "20px 8px", textAlign: "center", fontSize: 12, color: UI.muted }}>No problems match.</div>
-              ) : listedQuestions.map((q: any) => {
-                const originalIndex = q._originalIndex
-                const isActive = currentQuestionIndex === originalIndex
-                const badge = DIFF_BADGE[String(q.difficulty || "").toLowerCase()]
-                const solved = solvedQuestions.has(originalIndex)
-                return (
-                  <button
-                    key={originalIndex}
-                    type="button"
-                    onClick={() => selectQuestion(originalIndex)}
-                    aria-current={isActive ? "true" : undefined}
-                    className={isActive ? "" : "hover:bg-[#F7F6F3]"}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center", gap: 10,
-                      padding: "9px 10px", textAlign: "left", cursor: "pointer", fontFamily: FONT,
-                      borderRadius: isActive ? 8 : 0,
-                      // Per-side colours (no shorthand mixing): a hairline
-                      // separator under each row, a full teal border on the
-                      // current one.
-                      borderWidth: 1, borderStyle: "solid",
-                      borderTopColor: isActive ? UI.tealBorder : "transparent",
-                      borderRightColor: isActive ? UI.tealBorder : "transparent",
-                      borderLeftColor: isActive ? UI.tealBorder : "transparent",
-                      borderBottomColor: isActive ? UI.tealBorder : UI.hairline,
-                      background: isActive ? UI.mint : undefined,
-                    }}
-                  >
-                    <span style={{
-                      width: 24, height: 24, borderRadius: 999, flexShrink: 0,
-                      display: "inline-flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11.5, fontWeight: 600, fontVariantNumeric: "tabular-nums",
-                      border: `1px solid ${isActive ? UI.tealBorder : solved ? "#A6E9C3" : UI.border}`,
-                      background: isActive ? UI.panel : solved ? "#ECFDF3" : UI.soft,
-                      color: isActive ? UI.tealDark : solved ? "#067647" : UI.text,
-                    }}>
-                      {originalIndex + 1}
-                    </span>
-                    <span className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: UI.navy }}>
-                      {q.title || `Problem ${originalIndex + 1}`}
-                    </span>
-                    {solved && <CheckCircle size={14} aria-label="Submitted" style={{ color: "#12A765", flexShrink: 0 }} />}
-                    {badge && (
-                      <span style={{ fontSize: 11.5, fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: badge.bg, color: badge.fg, flexShrink: 0 }}>
-                        {badge.label}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
           </div>
         )}
 
@@ -3239,13 +3034,16 @@ export default function MultiFileCodeEditor({
         </div>)}{/* end non-link description + editor */}
       </div>
 
-      {/* BOTTOM BAR — Hide / Show problems on the left, Previous / Problem N
-          of M / Next in the centre, Submit Answer (this problem) and Finish
-          (the whole assignment) on the right. */}
+      {/* BOTTOM BAR — Problem N of M on the left (the list and previous /
+          next sit beside Hide description), Submit Answer (this problem) and
+          Finish (the whole assignment) on the right. */}
       {exercise && (
-        <div className={`flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3! ${questionNav ? "sm:grid sm:grid-cols-[1fr_auto_1fr]" : ""}`} style={{ background: UI.panel, borderTop: `1px solid ${UI.border}`, padding: "10px 20px" }}>
-          {questionNav && <div className="flex items-center min-w-0">{problemsToggle}</div>}
-          {questionNav}
+        <div className="flex items-center gap-x-4 gap-y-2 flex-wrap flex-shrink-0 max-sm:px-3!" style={{ background: UI.panel, borderTop: `1px solid ${UI.border}`, padding: "10px 20px" }}>
+          {questions.length > 1 && (
+            <span style={{ fontFamily: FONT, fontSize: 13.5, fontWeight: 700, color: UI.navy, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+              Problem {currentQuestionIndex + 1} of {questions.length}
+            </span>
+          )}
           {/* Phones: the two actions share one row, half each. */}
           <div className="ml-auto sm:justify-self-end flex items-start gap-4 flex-wrap max-sm:w-full max-sm:flex-nowrap max-sm:gap-3">
             <div className="flex flex-col items-center gap-1 max-sm:flex-1 max-sm:min-w-0 text-center">
