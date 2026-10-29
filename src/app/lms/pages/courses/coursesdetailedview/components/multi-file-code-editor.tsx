@@ -905,6 +905,61 @@ export default function MultiFileCodeEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise?._id, currentQuestion?._id])
 
+  // ══════════════════════════════════════════════════════════════════════════════════════════════
+  // Rehydrate the solved set across the WHOLE exercise on load
+  // ══════════════════════════════════════════════════════════════════════════════════════════════
+  // The Finish modal's Completed / Incomplete split is driven by
+  // `solvedQuestions`, which otherwise only fills as the student submits during
+  // THIS session (submitQuestion / submitExercise). After a reload the earlier
+  // submissions are still stored server-side — the code even hydrates back into
+  // the editor — but the solved set started empty, so every already-submitted
+  // question wrongly showed up under Incomplete (and the count read "0 of N").
+  // Here we ask the submission store which questions already carry a real submit
+  // (status submitted/solved — not an 'attempted'/'skipped' nav-save, matching
+  // answer.js's own `realSubmit` rule) and seed the set, so the modal is correct
+  // immediately after a refresh. Runs once per exercise; it only ADDS, never
+  // clearing anything submitted live this session.
+  useEffect(() => {
+    if (preview) return
+    const exerciseId = exercise?._id
+    if (!exerciseId || !courseId || !category || questions.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      const marks = await Promise.all(
+        questions.map(async (q: any, idx: number) => {
+          const questionId = q?._id ? String(q._id) : ""
+          if (!questionId) return null
+          try {
+            const r = await fetch(
+              `${API}/courses/answers/previous-submission?courseId=${courseId}&exerciseId=${exerciseId}&questionId=${questionId}&category=${category}`,
+              { headers: authHeaders() },
+            )
+            if (!r.ok) return null
+            const data = await r.json()
+            if (!data?.success) return null
+            const status = String(data?.data?.status || "")
+            // A genuine submit — exclude pure navigation / skip autosaves.
+            const submitted = status !== "" && !["attempted", "skipped"].includes(status)
+            return submitted ? idx : null
+          } catch {
+            return null
+          }
+        }),
+      )
+      if (cancelled) return
+      const solved = marks.filter((i): i is number => i !== null)
+      if (solved.length) {
+        setSolvedQuestions((prev) => {
+          const next = new Set(prev)
+          solved.forEach((i) => next.add(i))
+          return next
+        })
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercise?._id, questions.length])
+
   const currentCodeSig = useMemo(() => codeSignature(files), [files])
   // The code a Run started from - a later submit sends that run's output
   // with the answer, flagged stale when the code changed afterwards.
