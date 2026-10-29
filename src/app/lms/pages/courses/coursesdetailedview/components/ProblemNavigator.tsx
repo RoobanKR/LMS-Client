@@ -128,6 +128,10 @@ export default function ProblemNavigator({
         border: `1px solid ${C.border}`, background: C.panel, color: disabled ? C.disabled : C.navy,
         cursor: disabled ? "not-allowed" : "pointer", flexShrink: 0, opacity: disabled ? 0.7 : 1,
     });
+    const textBtn = (disabled: boolean): React.CSSProperties => ({
+        ...iconBtn(disabled), width: "auto", gap: 4, padding: "0 12px",
+        fontSize: 12.5, fontWeight: 600, fontFamily: font, whiteSpace: "nowrap",
+    });
     const chip = (active: boolean): React.CSSProperties => ({
         height: 30, padding: "0 12px", borderRadius: 999, fontSize: 12.5, fontWeight: active ? 700 : 500, fontFamily: font,
         border: `1px solid ${active ? C.navy : C.border}`, background: active ? C.navy : "transparent",
@@ -320,18 +324,17 @@ export default function ProblemNavigator({
                         {currentIndex + 1}/{problems.length}
                     </span>
                 </button>}
-                <button type="button" onClick={onPrev} disabled={prevDisabled} aria-label="Previous problem" title="Previous problem" style={iconBtn(prevDisabled)}>
-                    <ChevronLeft size={16} />
+                <button type="button" onClick={onPrev} disabled={prevDisabled} title="Previous problem" style={textBtn(prevDisabled)}>
+                    <ChevronLeft size={16} /> Previous
                 </button>
                 <button
                     type="button"
                     onClick={onNext}
                     disabled={nextDisabled}
-                    aria-label="Next problem"
                     title={!freeFlow && !solved.has(currentIndex) ? "Submit this problem before moving on" : nextTitle || "Next problem"}
-                    style={iconBtn(nextDisabled)}
+                    style={textBtn(nextDisabled)}
                 >
-                    <ChevronRight size={16} />
+                    {nextTitle || "Next"} <ChevronRight size={16} />
                 </button>
                 {onSkip && (
                     <button
