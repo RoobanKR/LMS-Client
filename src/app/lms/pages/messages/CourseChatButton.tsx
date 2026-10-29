@@ -48,6 +48,11 @@ export default function CourseChatButton({ courseId }: { courseId: string }) {
                 <DialogContent
                     showCloseButton={false}
                     aria-describedby={undefined}
+                    // A field with its own Escape (cancel reply, mention list,
+                    // edit, search) handles it instead of closing the chat.
+                    onEscapeKeyDown={(e) => {
+                        if ((e.target as HTMLElement | null)?.closest?.('[data-esc-local="true"]')) e.preventDefault();
+                    }}
                     className="h-[88dvh] max-w-[1180px] grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-[1180px] max-lg:overflow-hidden"
                 >
                     <DialogTitle className="sr-only">Course chat</DialogTitle>
