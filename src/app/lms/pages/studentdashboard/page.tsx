@@ -11,7 +11,7 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, GraduationCap, Trophy } from 'lucide-react';
+import { GraduationCap } from 'lucide-react';
 
 import { StudentLayout } from '../../component/student/student-layout';
 import { useCurrentUserQuery } from '@/queries/auth';
@@ -23,12 +23,8 @@ import {
     getUserSpecificAnalytics,
 } from '@/queries/studentDashboard';
 
-import { buildDashboard, idStr, type DashboardModel } from './_lib/metrics';
-import { C } from './_components/ui';
-import { KpiRow, LearningJourney, TodayFocus, StreakCard, MotivationCard } from './_components/overview';
-import { CourseProgressTable, AssignmentAnalytics, UpcomingSchedule } from './_components/courses';
-import { PerformanceTrend, AttendanceAnalytics } from './_components/analytics';
-import { RecentActivity, LearningInsights, SubjectMastery, Achievements } from './_components/insights';
+import { buildDashboard, idStr } from './_lib/metrics';
+import { StudentHome } from './_components/home';
 
 /* ── loading skeleton ────────────────────────────────────────────────────── */
 
@@ -39,82 +35,23 @@ const Shimmer = ({ className = '' }: { className?: string }) => (
 );
 
 const DashboardSkeleton = () => (
-    <div className="mx-auto max-w-[1440px] space-y-4 sm:space-y-6">
+    <div className="mx-auto max-w-[1440px] space-y-5">
         <Shimmer className="h-[76px]" />
-        <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-3 xl:grid-cols-6">
-            {Array.from({ length: 6 }).map((_, i) => <Shimmer key={i} className="h-[152px]" />)}
+        <Shimmer className="h-[206px] rounded-[17px]" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => <Shimmer key={i} className="h-[112px]" />)}
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-3">
-            <Shimmer className="h-[420px] xl:col-span-2" />
-            <Shimmer className="h-[420px]" />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.56fr_0.9fr]">
+            <Shimmer className="h-[260px]" />
+            <Shimmer className="h-[260px]" />
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => <Shimmer key={i} className="h-[320px]" />)}
+        <Shimmer className="h-[240px]" />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.24fr_0.76fr]">
+            <Shimmer className="h-[220px]" />
+            <Shimmer className="h-[220px]" />
         </div>
     </div>
 );
-
-/* ── header ──────────────────────────────────────────────────────────────── */
-
-const Header =({ m, onGrades, onCalendar, showGrades }: { m: DashboardModel; onGrades: () => void; onCalendar: () => void; showGrades: boolean }) => {
-    // Academic metadata is optional on the user record — render only what exists
-    // rather than a row of "not set" placeholders.
-    const meta = [
-        m.student.department,
-        m.student.semester && `Semester ${m.student.semester}`,
-        m.student.section && `Section ${m.student.section}`,
-        m.student.batch && `Batch ${m.student.batch}`,
-        m.student.rollNumber && `Roll ${m.student.rollNumber}`,
-    ].filter(Boolean) as string[];
-
-    return (
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-                <h1 className="flex flex-wrap items-center gap-2 break-words text-xl font-bold tracking-[-0.03em] text-slate-900 sm:text-2xl lg:text-[26px] dark:text-white">
-                    Welcome back, {m.student.firstName}
-                    <span className="text-[22px]">👋</span>
-                </h1>
-                {(m.student.degree || meta.length > 0) && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        {m.student.degree && (
-                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                                {m.student.degree}
-                            </span>
-                        )}
-                        {meta.map((x, i) => (
-                            <span key={x} className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-                                {(i > 0 || m.student.degree) && <span className="h-1 w-1 rounded-full bg-slate-300" />}
-                                {x}
-                            </span>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* mr-12 clears the shell's corner-pinned notification bell so the
-                My Grades button never slides underneath it. */}
-            <div className="flex shrink-0 flex-wrap items-center gap-2.5 lg:mr-12">
-                <button
-                    onClick={onCalendar}
-                    className="flex h-10 items-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white px-3.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-gray-800 dark:bg-gray-900 dark:text-slate-300 dark:hover:bg-gray-800"
-                >
-                    <CalendarDays size={15} strokeWidth={2.2} />
-                    Calendar
-                </button>
-                {showGrades && (
-                    <button
-                        onClick={onGrades}
-                        className="flex h-10 items-center gap-2 rounded-[14px] px-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                        style={{ backgroundColor: C.primary }}
-                    >
-                        <Trophy size={15} strokeWidth={2.2} />
-                        My Grades
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-};
 
 /* ── page ────────────────────────────────────────────────────────────────── */
 
@@ -187,7 +124,7 @@ export default function StudentDashboardPage() {
                     <button
                         onClick={() => window.location.reload()}
                         className="mt-1 h-10 rounded-[14px] px-4 text-sm font-semibold text-white"
-                        style={{ backgroundColor: C.primary }}
+                        style={{ backgroundColor: '#C2540F' }}
                     >
                         Retry
                     </button>
@@ -198,55 +135,14 @@ export default function StudentDashboardPage() {
 
     return (
         <StudentLayout>
-            <div className="mx-auto max-w-[1440px] space-y-4 sm:space-y-6">
-                <Header m={model} onGrades={goGrades} onCalendar={goCalendar} showGrades />
-
-                {/* Row 1 — KPI strip */}
-                <KpiRow m={model} />
-
-                {/* Row 2 — Learning Journey · Focus · Streak */}
-                <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-3">
-                    <div className="min-w-0 xl:col-span-2">
-                        <LearningJourney m={model} onDetails={goCourses} />
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
-                        <TodayFocus items={model.focus} onViewPlan={goCalendar} />
-                        <StreakCard m={model} />
-                        <MotivationCard name={model.student.firstName} />
-                    </div>
-                </div>
-
-                {/* Row 3 — Courses · Assignments · Schedule */}
-                <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-12">
-                    <div className="min-w-0 xl:col-span-5">
-                        <CourseProgressTable courses={model.courses} onOpen={goCourse} onViewAll={goCourses} />
-                    </div>
-                    <div className="min-w-0 xl:col-span-3">
-                        <AssignmentAnalytics m={model} onViewAll={goGrades} />
-                    </div>
-                    <div className="min-w-0 lg:col-span-2 xl:col-span-4">
-                        <UpcomingSchedule deadlines={model.deadlines} onCalendar={goCalendar} />
-                    </div>
-                </div>
-
-                {/* Row 4 — Performance · Attendance */}
-                <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2 [&>*]:min-w-0">
-                    <PerformanceTrend trend={model.trend} />
-                    <AttendanceAnalytics a={model.attendance} />
-                </div>
-
-                {/* Row 5 — Activity · Insights */}
-                <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2 [&>*]:min-w-0">
-                    <RecentActivity events={model.activity} onViewAll={goNotifications} />
-                    <LearningInsights insights={model.insights} scorePct={model.scorePct} />
-                </div>
-
-                {/* Row 6 — Mastery · Achievements */}
-                <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2 [&>*]:min-w-0">
-                    <SubjectMastery courses={model.courses} />
-                    <Achievements achievements={model.achievements} completedCourses={model.completed} />
-                </div>
-            </div>
+            <StudentHome
+                m={model}
+                onCourse={goCourse}
+                onCourses={goCourses}
+                onCalendar={goCalendar}
+                onGrades={goGrades}
+                onNotifications={goNotifications}
+            />
         </StudentLayout>
     );
 }
