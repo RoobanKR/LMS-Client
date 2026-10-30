@@ -23,6 +23,8 @@ import {
     getUserSpecificAnalytics,
 } from '@/queries/studentDashboard';
 
+import { useQuery } from '@tanstack/react-query';
+import { notificationsService, notificationKeys } from '@/app/lms/pages/notifications/api/notifications';
 import { buildDashboard, idStr } from './_lib/metrics';
 import { StudentHome } from './_components/home';
 
@@ -89,6 +91,16 @@ export default function StudentDashboardPage() {
     const { records: attendance } = useMyAttendanceQuery(courseIds, studentId || null, window180);
     const { data: learningTime = null } = useMyLearningTimeQuery(studentId || null);
 
+    // Unread notifications for the topbar bell — the SAME cached read the rail
+    // already makes, so this adds no extra network cost.
+    const { data: notif } = useQuery({
+        queryKey: notificationKeys.all,
+        queryFn: () => notificationsService.fetchNotifications(),
+        staleTime: 30 * 1000,
+        refetchOnWindowFocus: true,
+    });
+    const unreadCount = notif?.unreadCount || 0;
+
     const loading = userLoading || (!!studentId && analyticsLoading);
     const error = userError || analyticsError
         ? ((userError || analyticsError) as Error)?.message || 'Could not load your dashboard right now.'
@@ -107,6 +119,7 @@ export default function StudentDashboardPage() {
     const goCalendar = useCallback(() => router.push('/lms/pages/studentcalendar'), [router]);
     const goGrades = useCallback(() => router.push('/lms/pages/grades'), [router]);
     const goNotifications = useCallback(() => router.push('/lms/pages/notifications'), [router]);
+    const goProfile = useCallback(() => router.push('/lms/pages/profile'), [router]);
 
     if (loading) {
         return <StudentLayout><DashboardSkeleton /></StudentLayout>;
@@ -142,6 +155,8 @@ export default function StudentDashboardPage() {
                 onCalendar={goCalendar}
                 onGrades={goGrades}
                 onNotifications={goNotifications}
+                onProfile={goProfile}
+                unreadCount={unreadCount}
             />
         </StudentLayout>
     );

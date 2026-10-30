@@ -579,10 +579,54 @@ export const StreakPanel = ({ m }: { m: DashboardModel }) => {
     );
 };
 
+/* ── topbar: breadcrumb · notifications · profile ────────────────────────── */
+
+const DashboardTopbar = ({
+    m, unreadCount, onNotifications, onProfile,
+}: {
+    m: DashboardModel; unreadCount: number; onNotifications: () => void; onProfile: () => void;
+}) => {
+    const initials = ((m.student.firstName?.[0] || 'S') + (m.student.lastName?.[0] || '')).toUpperCase();
+    return (
+        <div className="flex items-center justify-between gap-3 border-b border-[#EEF0F4] pb-3 dark:border-[#2A2D34]">
+            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-xs text-[#98A3B1]">
+                <span className="truncate">Learning space</span>
+                <ChevronRight size={13} className="shrink-0 text-[#C1C8D1]" />
+                <span className="truncate font-medium text-[#526277] dark:text-slate-300">Dashboard</span>
+            </nav>
+            <div className="flex shrink-0 items-center gap-2">
+                <button
+                    onClick={onNotifications}
+                    aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#E8EBF0] bg-white text-[#617188] transition-colors hover:bg-slate-50 dark:border-[#2A2D34] dark:bg-[#1C1E23] dark:text-slate-300"
+                >
+                    <Bell size={16} strokeWidth={1.9} />
+                    {unreadCount > 0 && (
+                        <span
+                            className="absolute -right-1 -top-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full border-2 border-white px-0.5 text-[9px] font-bold leading-none text-white dark:border-[#1C1E23]"
+                            style={{ background: T.orange }}
+                        >
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                    )}
+                </button>
+                <button
+                    onClick={onProfile}
+                    aria-label="Your profile"
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm transition-transform hover:scale-105"
+                    style={{ background: 'linear-gradient(135deg,#F59E5B,#F47721)' }}
+                >
+                    {initials}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 /* ── composed home ───────────────────────────────────────────────────────── */
 
 export const StudentHome = ({
-    m, onCourse, onCourses, onCalendar, onGrades, onNotifications,
+    m, onCourse, onCourses, onCalendar, onGrades, onNotifications, onProfile, unreadCount = 0,
 }: {
     m: DashboardModel;
     onCourse: (id: string) => void;
@@ -590,8 +634,11 @@ export const StudentHome = ({
     onCalendar: () => void;
     onGrades: () => void;
     onNotifications: () => void;
+    onProfile: () => void;
+    unreadCount?: number;
 }) => (
     <div className="mx-auto max-w-[1440px] space-y-5">
+        <DashboardTopbar m={m} unreadCount={unreadCount} onNotifications={onNotifications} onProfile={onProfile} />
         <PageHead m={m} onCourses={onCourses} />
         <ContinueHero m={m} onCourse={onCourse} onCourses={onCourses} />
         <StatsRow m={m} onGrades={onGrades} />
