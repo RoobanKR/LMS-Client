@@ -37,7 +37,7 @@ import {
   ShieldCheck, Home, User, Bell, BookOpen, FileText, Trophy,
   GraduationCap, Calendar, MessageSquare, MessageCircle, BarChart3, Settings2,
   Clock, Users, Bookmark, Target, Zap, Layers, Award,
-  LayoutDashboard, FolderOpen, ClipboardCheck, Video,
+  LayoutDashboard, FolderOpen, ClipboardCheck, ClipboardList, Video,
   Activity, TrendingUp, Brain, Sparkles, Flame, X, ChevronDown,
   Search, LogOut, Code2,
 } from "lucide-react"
@@ -132,6 +132,28 @@ const getIconByName = (iconName: string): any => {
     "trending-up": TrendingUp, "brain": Brain, "sparkles": Sparkles, "flame": Flame,
   }
   return iconMappings[iconName.toLowerCase()] || ShieldCheck
+}
+
+// The student rail's own icon set — one consistent Lucide family keyed by
+// route, so the rail never shows whatever (often mismatched) icon string an
+// admin happened to seed on the permission. This is what made the live rail's
+// icons look inconsistent; here every known student route gets the same clean
+// family as the approved design: Dashboard = grid, My Courses = open book,
+// Assignments = clipboard list, Notifications = bell, Profile = user, etc.
+const RAIL_ICON: Record<string, React.ElementType> = {
+  dashboard: LayoutDashboard,
+  courses: BookOpen,
+  assignments: ClipboardList,
+  grades: Trophy,
+  codinganalytics: Code2,
+  progress: TrendingUp,
+  resources: FolderOpen,
+  studentcalendar: Calendar,
+  notifications: Bell,
+  profile: User,
+  feedback: MessageCircle,
+  messages: MessageSquare,
+  settings: Settings2,
 }
 
 const BASE_PATH = "/lms/pages/"
@@ -413,7 +435,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
   // form for the sidebar — the student's shell doesn't need to see
   // "Student" prefixed on every item.
   const STUDENT_LABEL_OVERRIDES: Record<string, string> = {
-    courses: "Courses",
+    courses: "My Courses",
     notifications: "Notification",
     profile: "My Profile",
     codinganalytics: "Coding Analytics",
@@ -443,7 +465,10 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
         const isDashboard = routeKeyOf(route) === 'dashboard'
         const keyLower = permission.permissionKey?.toLowerCase() || ''
         return {
-          icon: getIconByName(permission.icon || "ShieldCheck"),
+          // Curated, route-based icon first (consistent rail, matches the
+          // design); the admin-seeded permission.icon is only a fallback for
+          // a route the map doesn't know.
+          icon: RAIL_ICON[routeKeyOf(route)] ?? getIconByName(permission.icon || "ShieldCheck"),
           label: isDashboard
             ? "Dashboard"
             : STUDENT_LABEL_OVERRIDES[keyLower] || permission.permissionName,
@@ -542,7 +567,7 @@ export function StudentSidebar({ isOpen = true, onClose, activeRoute, embedded =
     { icon: LayoutDashboard, label: "Dashboard", href: `${BASE_PATH}studentdashboard`, count: 0, progress: analytics.overallProgress },
     { icon: BookOpen, label: "My Courses", href: `${BASE_PATH}courses`, progress: analytics.overallProgress },
     { icon: Code2, label: "Coding Analytics", href: `${BASE_PATH}codinganalytics`, count: 0, progress: 0 },
-    { icon: ClipboardCheck, label: "Assignments", href: `${BASE_PATH}assignments`, count: analytics.attemptedExercises, progress: 0 },
+    { icon: ClipboardList, label: "Assignments", href: `${BASE_PATH}assignments`, count: analytics.attemptedExercises, progress: 0 },
     // The student's own grades: courses → exercises → their questions and answers.
     { icon: Trophy, label: "Grades", href: `${BASE_PATH}grades`, count: 0, progress: 0 },
     // Student feedback list — every open feedback form on the student's
