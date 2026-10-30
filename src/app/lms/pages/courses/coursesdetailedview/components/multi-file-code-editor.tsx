@@ -905,9 +905,9 @@ export default function MultiFileCodeEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise?._id, currentQuestion?._id])
 
-  // ══════════════════════════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════════
   // Rehydrate the solved set across the WHOLE exercise on load
-  // ══════════════════════════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════════
   // The Finish modal's Completed / Incomplete split is driven by
   // `solvedQuestions`, which otherwise only fills as the student submits during
   // THIS session (submitQuestion / submitExercise). After a reload the earlier

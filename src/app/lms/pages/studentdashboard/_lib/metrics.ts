@@ -357,6 +357,7 @@ export type DeadlineState = 'overdue' | 'due-today' | 'due-soon' | 'upcoming' | 
 export interface DeadlineItem {
     id: string;
     title: string;
+    courseId: string;
     courseName: string;
     stage: 'We Do' | 'You Do';
     kind: 'Assignment' | 'Assessment';
@@ -399,6 +400,7 @@ const buildDeadlines = (contentCourses: any[], rawCourses: any[]): DeadlineItem[
                     const base = {
                         id,
                         title: ex?.exerciseInformation?.exerciseName || ex?.subcategory || 'Exercise',
+                        courseId: idStr(course?._id),
                         courseName: course?.courseName || 'Course',
                         stage: (bucket === 'We_Do' ? 'We Do' : 'You Do') as 'We Do' | 'You Do',
                         kind: (bucket === 'We_Do' ? 'Assignment' : 'Assessment') as 'Assignment' | 'Assessment',
