@@ -786,30 +786,11 @@ export interface FocusItem {
     courseId?: string;
 }
 
-const buildFocus = (
-    deadlines: DeadlineItem[],
-    courses: CourseModel[],
-    subs: Submission[],
-): FocusItem[] => {
+const buildFocus = (deadlines: DeadlineItem[], courses: CourseModel[]): FocusItem[] => {
+    // Only what is still to do — finished work doesn't belong on a to-do list.
     const items: FocusItem[] = [];
-    const todayKey = dayKey(new Date());
-    const doneToday = subs.filter((s) => dayKey(s.at) === todayKey);
 
-    // What's already been achieved today reads as a completed line.
-    if (doneToday.length) {
-        const stages = new Set(doneToday.map((s) => s.stage));
-        items.push({
-            id: 'done-submissions',
-            label: `Submit ${[...stages].join(' / ')} work`,
-            meta: `${doneToday.length} submitted today`,
-            done: true,
-        });
-    }
-    const openedToday = courses.filter((c) => c.lastAccessed && dayKey(c.lastAccessed) === todayKey);
-    openedToday.slice(0, 2).forEach((c) =>
-        items.push({ id: `visited-${c.id}`, label: `Open ${c.name}`, meta: 'Visited today', done: true, courseId: c.id }));
-
-    // Then the live actions, most urgent first.
+    // Live deadlines first, most urgent first.
     deadlines
         // Closed overdue items can no longer be finished — not a live action.
         .filter((d) => d.state !== 'opens' && !d.attempted && (d.state !== 'overdue' || d.inGrace))
@@ -1089,7 +1070,7 @@ export const buildDashboard = (
         trend,
         deadlines,
         pendingThisWeek,
-        focus: buildFocus(deadlines, courses, subs),
+        focus: buildFocus(deadlines, courses),
         insights: buildInsights({ learn, practice, assess }, courses, attendance, deadlines, momentum, scorePct),
         achievements: buildAchievements(courses, { learn, practice, assess }, momentum, attendance, scorePct),
         activity,

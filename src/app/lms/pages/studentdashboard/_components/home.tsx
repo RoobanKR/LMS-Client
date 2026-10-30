@@ -272,18 +272,14 @@ const Dartboard = () => (
 
 const FocusCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse: (id: string) => void; onCalendar: () => void }) => {
     const items = m.focus.slice(0, 3);
-    const done = items.filter((f) => f.done).length;
     // Deadline items carry their course on the deadline itself.
     const courseOf = (id: string, courseId?: string) =>
         courseId || m.deadlines.find((d) => `deadline-${d.id}` === id)?.courseId || '';
     return (
         <section className={`${CARD} flex flex-col px-4 py-3 [grid-area:focus]`}>
-            <div className="mb-1 flex items-center justify-between gap-2.5">
-                <p className={`flex items-center gap-2 text-sm font-semibold ${INK}`}>
-                    <Trophy size={19} className="text-[#f59e0b]" fill="#fcd34d" />Today&apos;s Focus
-                </p>
-                {items.length > 0 && <span className={`text-[11px] ${MUTED}`}>{done} of {items.length} done</span>}
-            </div>
+            <p className={`mb-1 flex items-center gap-2 text-sm font-semibold ${INK}`}>
+                <Trophy size={19} className="text-[#f59e0b]" fill="#fcd34d" />Today&apos;s Focus
+            </p>
             <div className="grid flex-1 grid-cols-[minmax(0,1fr)_78px] items-center gap-2">
                 {items.length ? (
                     <ul>
@@ -297,13 +293,11 @@ const FocusCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse: (
                                         type="button"
                                         disabled={!target}
                                         onClick={() => target && onCourse(target)}
-                                        className="grid w-full grid-cols-[16px_minmax(0,1fr)] gap-[9px] py-0.5 text-left enabled:hover:opacity-80"
+                                        className="grid w-full grid-cols-[6px_minmax(0,1fr)] gap-[9px] py-1 text-left enabled:hover:opacity-80"
                                     >
-                                        {f.done
-                                            ? <span className="mt-px grid h-4 w-4 place-items-center rounded-full bg-[#1fb866] text-white"><Check size={10} strokeWidth={3.5} /></span>
-                                            : <span className="mt-px h-4 w-4 rounded-full border-2 border-[#f97316]" />}
+                                        <span className="mt-[5px] h-1.5 w-1.5 rounded-full bg-[#f97316]" />
                                         <span className="min-w-0">
-                                            <b className={`block text-xs font-semibold leading-[1.35] ${f.done ? 'text-[#767d98] line-through' : INK}`}>{f.label}</b>
+                                            <b className={`block text-xs font-semibold leading-[1.35] ${INK}`}>{f.label}</b>
                                             <span className={`mt-[3px] flex flex-wrap items-center gap-2 text-[10.5px] ${MUTED}`}>
                                                 {tag && <Tag tone="pink">{tag}</Tag>}
                                                 <span className="inline-flex items-center gap-1">{tag && <Clock size={12} />}{rest}</span>
