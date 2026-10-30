@@ -23,7 +23,7 @@ import {
     Hourglass, Layers, ListTodo, Presentation, Send, SignalMedium, Star, TriangleAlert, Trophy,
 } from 'lucide-react';
 import { calendarDaysUntil, dueLabel, shortDuration, timeAgo } from '../_lib/metrics';
-import type { CourseModel, DashboardModel, DeadlineItem } from '../_lib/metrics';
+import type { CourseModel, DashboardModel, DeadlineItem, ResourceKind } from '../_lib/metrics';
 
 /* ── tokens ──────────────────────────────────────────────────────────────── */
 
@@ -328,9 +328,10 @@ const FocusCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse: (
 
 /* ── learning journey ────────────────────────────────────────────────────── */
 
-const JourneyPanel = ({ k, title, name, pct, rows }: {
-    k: keyof typeof JOURNEY; title: string; name: string; pct: number;
-    rows: { Icon: React.ElementType; label: string; value: string }[];
+type JourneyRow = { Icon: React.ElementType; label: string; value: string };
+
+const JourneyPanel = ({ k, title, name, pct, rows, empty }: {
+    k: keyof typeof JOURNEY; title: string; name: string; pct: number; rows: JourneyRow[]; empty?: string;
 }) => {
     const t = JOURNEY[k];
     return (
@@ -344,15 +345,19 @@ const JourneyPanel = ({ k, title, name, pct, rows }: {
                     <p className={`text-[12.5px] font-semibold ${INK}`}>{name}</p>
                 </div>
             </div>
-            <ul className="flex flex-1 flex-col justify-between gap-[7px]">
-                {rows.map(({ Icon, label, value }) => (
-                    <li key={label} className="flex items-center gap-[9px] text-xs text-[#394061]">
-                        <Icon size={15} style={{ color: t.c }} />
-                        {label}
-                        <b className={`ml-auto font-semibold ${INK}`}>{value}</b>
-                    </li>
-                ))}
-            </ul>
+            {empty ? (
+                <p className={`text-xs ${MUTED}`}>{empty}</p>
+            ) : (
+                <ul className="flex flex-col gap-2">
+                    {rows.map(({ Icon, label, value }) => (
+                        <li key={label} className="flex items-center gap-[9px] text-xs text-[#394061]">
+                            <Icon size={15} style={{ color: t.c }} />
+                            {label}
+                            <b className={`ml-auto font-semibold ${INK}`}>{value}</b>
+                        </li>
+                    ))}
+                </ul>
+            )}
         </div>
     );
 };
@@ -363,10 +368,51 @@ const JourneyArrow = () => (
     </span>
 );
 
+const RESOURCE_ROWS: { kind: ResourceKind; Icon: React.ElementType; label: string }[] = [
+    { kind: 'video', Icon: CirclePlay, label: 'Videos' },
+    { kind: 'pdf', Icon: FileText, label: 'PDFs' },
+    { kind: 'ppt', Icon: Presentation, label: 'Slides' },
+    { kind: 'doc', Icon: BookOpen, label: 'Documents' },
+    { kind: 'other', Icon: Layers, label: 'Other resources' },
+];
+
 const JourneyCard = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void }) => {
     const { learn, practice, assess } = m.totals;
-    const k = learn.byKind;
-    const of = (o: { opened: number; total: number }) => `${o.opened} / ${o.total}`;
+    const of = (done: number, total: number) => `${done} / ${total}`;
+    const time = (seconds: number): JourneyRow => ({ Icon: Clock, label: 'Time spent', value: shortDuration(seconds) });
+
+    // Each panel lists only what the courses actually hold: resource kinds that
+    // have files, and grading rows only when some exercise is set to Graded.
+    const iDo: JourneyRow[] = [
+        ...RESOURCE_ROWS
+            .filter(({ kind }) => learn.byKind[kind].total > 0)
+            .map(({ kind, Icon, label }) => ({ Icon, label, value: of(learn.byKind[kind].opened, learn.byKind[kind].total) })),
+        ...(learn.mcqDocs > 0 ? [{ Icon: CircleCheck, label: 'Checkpoints', value: of(learn.mcqCompleted, learn.mcqDocs) }] : []),
+        time(m.time.contentSeconds),
+    ];
+    const weDo: JourneyRow[] = [
+        { Icon: ClipboardList, label: 'Assigned', value: String(practice.assigned) },
+        { Icon: Send, label: 'Submitted', value: String(practice.submitted) },
+        ...(practice.gradable > 0
+            ? [
+                { Icon: BadgeCheck, label: 'Graded', value: String(practice.graded) },
+                { Icon: Hourglass, label: 'Awaiting review', value: String(practice.pendingReview) },
+            ]
+            : [{ Icon: CircleDashed, label: 'Not started', value: String(practice.notStarted) }]),
+        time(m.time.weDoSeconds),
+    ];
+    const youDo: JourneyRow[] = [
+        { Icon: FileCheck, label: 'Assessments', value: of(assess.submitted, assess.assigned) },
+        ...(assess.gradable > 0
+            ? [
+                { Icon: CircleCheck, label: 'Graded', value: String(assess.graded) },
+                { Icon: Star, label: 'Average score', value: assess.scorePct != null ? `${assess.scorePct}%` : '—' },
+            ]
+            : []),
+        { Icon: CircleDashed, label: 'Not started', value: String(assess.notStarted) },
+        time(m.time.youDoSeconds),
+    ];
+
     return (
         <section className={`${CARD} px-4 py-3 [grid-area:journey]`}>
             <div className="mb-2 flex items-center justify-between gap-2.5">
@@ -388,36 +434,18 @@ const JourneyCard = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void 
             <div className="@container">
                 <div className="grid gap-2 @min-[560px]:grid-cols-[minmax(0,1fr)_22px_minmax(0,1fr)_22px_minmax(0,1fr)]">
                     <JourneyPanel
-                        k="ido" title="I DO" name="Learning Resources" pct={learn.completionPct}
-                        rows={[
-                            { Icon: Layers, label: 'Resources', value: of({ opened: k.doc.opened + k.other.opened, total: k.doc.total + k.other.total }) },
-                            { Icon: CirclePlay, label: 'Videos', value: of(k.video) },
-                            { Icon: FileText, label: 'PDFs', value: of(k.pdf) },
-                            { Icon: Presentation, label: 'Slides', value: of(k.ppt) },
-                            { Icon: Clock, label: 'Time spent', value: shortDuration(m.time.contentSeconds) },
-                        ]}
+                        k="ido" title="I DO" name="Learning Resources" pct={learn.completionPct} rows={iDo}
+                        empty={learn.total === 0 ? 'No learning resources in your courses yet.' : undefined}
                     />
                     <JourneyArrow />
                     <JourneyPanel
-                        k="wedo" title="WE DO" name="Assignments" pct={practice.completionPct}
-                        rows={[
-                            { Icon: ClipboardList, label: 'Assigned', value: String(practice.assigned) },
-                            { Icon: Send, label: 'Submitted', value: String(practice.submitted) },
-                            { Icon: BadgeCheck, label: 'Graded', value: String(practice.graded) },
-                            { Icon: Hourglass, label: 'Awaiting review', value: String(practice.pendingReview) },
-                            { Icon: Clock, label: 'Time spent', value: shortDuration(m.time.weDoSeconds) },
-                        ]}
+                        k="wedo" title="WE DO" name="Assignments" pct={practice.completionPct} rows={weDo}
+                        empty={practice.assigned === 0 ? 'No assignments in your courses yet.' : undefined}
                     />
                     <JourneyArrow />
                     <JourneyPanel
-                        k="youdo" title="YOU DO" name="Assessments" pct={assess.completionPct}
-                        rows={[
-                            { Icon: FileCheck, label: 'Assessments', value: `${assess.submitted} / ${assess.assigned}` },
-                            { Icon: CircleCheck, label: 'Graded', value: String(assess.graded) },
-                            { Icon: Star, label: 'Average score', value: assess.scorePct != null ? `${assess.scorePct}%` : '—' },
-                            { Icon: CircleDashed, label: 'Not started', value: String(assess.notStarted) },
-                            { Icon: Clock, label: 'Time spent', value: shortDuration(m.time.youDoSeconds) },
-                        ]}
+                        k="youdo" title="YOU DO" name="Assessments" pct={assess.completionPct} rows={youDo}
+                        empty={assess.assigned === 0 ? 'No assessments in your courses yet.' : undefined}
                     />
                 </div>
             </div>

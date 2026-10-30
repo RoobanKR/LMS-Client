@@ -183,6 +183,7 @@ const answerExercises = (bucket: any): any[] => {
 
 export interface StageStats {
     assigned: number;          // exercises configured in the content
+    gradable: number;          // of those, set to Graded (isGraded !== false)
     started: number;           // exercises the student worked on (or submitted)
     submitted: number;         // exercises with a final Submit Exercise
     graded: number;            // exercises carrying at least one evaluated question
@@ -201,7 +202,7 @@ export interface StageStats {
 }
 
 const emptyStage = (): StageStats => ({
-    assigned: 0, started: 0, submitted: 0, graded: 0, pendingReview: 0, notStarted: 0,
+    assigned: 0, gradable: 0, started: 0, submitted: 0, graded: 0, pendingReview: 0, notStarted: 0,
     questionsTotal: 0, questionsAttempted: 0, questionsSolved: 0,
     scoreObtained: 0, scoreMax: 0, scorePct: null, onTimePct: null, lateCount: 0,
     hasContent: false, completionPct: 0,
@@ -213,11 +214,17 @@ const buildStage = (contentExercises: any[], studentExercises: any[]): StageStat
     s.assigned = contentExercises.length;
     s.questionsTotal = contentExercises.reduce((n, ex) => n + (ex?.questions?.length || 0), 0);
 
+    // Non-graded exercises (Exercise Settings > Grading) never get a score, so
+    // they stay out of Graded, Awaiting review and the score totals.
+    const ungraded = new Set(contentExercises.filter((ex) => ex?.isGraded === false).map((ex) => idStr(ex?._id)));
+    s.gradable = contentExercises.length - ungraded.size;
+
     // An exercise can carry more than one answer row (re-keyed sub-categories),
     // so exercise counts go through sets keyed by exerciseId.
     const started = new Set<string>();
     const submitted = new Set<string>();
     const graded = new Set<string>();
+    const awaiting = new Set<string>();
     const late = new Set<string>();
 
     studentExercises.forEach((ex: any, i: number) => {
@@ -230,11 +237,13 @@ const buildStage = (contentExercises: any[], studentExercises: any[]): StageStat
         started.add(key);
         if (final) submitted.add(key);
         if (final && ex?.lateSubmission === true) late.add(key);
-        if (qs.some(isEvaluated)) graded.add(key);
+        const gradable = !ungraded.has(key);
+        if (gradable && qs.some(isEvaluated)) graded.add(key);
+        else if (gradable && final) awaiting.add(key);
 
         s.questionsAttempted += worked.length;
         s.questionsSolved += qs.filter(isSolved).length;
-        qs.forEach((q: any) => {
+        if (gradable) qs.forEach((q: any) => {
             const max = Number(q?.totalScore) || 0;
             if (max > 0) { s.scoreMax += max; s.scoreObtained += Number(q?.score) || 0; }
         });
@@ -247,9 +256,10 @@ const buildStage = (contentExercises: any[], studentExercises: any[]): StageStat
     // The student can hold answers for exercises the content walk missed
     // (renamed sub-categories, moved nodes) — never report more done than exists.
     s.assigned = Math.max(s.assigned, s.started);
+    s.gradable = Math.max(s.gradable, graded.size + awaiting.size);
     s.questionsTotal = Math.max(s.questionsTotal, s.questionsAttempted);
     s.notStarted = Math.max(0, s.assigned - s.started);
-    s.pendingReview = Math.max(0, s.submitted - s.graded);
+    s.pendingReview = [...awaiting].filter((k) => !graded.has(k)).length;
     s.scorePct = s.scoreMax > 0 ? Math.round((s.scoreObtained / s.scoreMax) * 100) : null;
     s.onTimePct = s.submitted > 0 ? Math.round(((s.submitted - s.lateCount) / s.submitted) * 100) : null;
     s.hasContent = s.assigned > 0 || s.questionsTotal > 0;
@@ -979,7 +989,7 @@ export const buildDashboard = (
             learn.byKind[k].opened += c.learn.byKind[k].opened;
         });
         ([['practice', practice, c.practice], ['assess', assess, c.assess]] as const).forEach(([, acc, src]) => {
-            acc.assigned += src.assigned; acc.started += src.started; acc.submitted += src.submitted;
+            acc.assigned += src.assigned; acc.gradable += src.gradable; acc.started += src.started; acc.submitted += src.submitted;
             acc.graded += src.graded; acc.notStarted += src.notStarted; acc.pendingReview += src.pendingReview;
             acc.questionsTotal += src.questionsTotal; acc.questionsAttempted += src.questionsAttempted;
             acc.questionsSolved += src.questionsSolved;
