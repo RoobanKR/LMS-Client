@@ -113,6 +113,24 @@ const scrollToDeadlines = () =>
 /** Work the student can still act on: not submitted, open, and not past the late window. */
 const isLive = (d: DeadlineItem) => !d.attempted && d.state !== 'opens' && (d.state !== 'overdue' || d.inGrace);
 
+/**
+ * One split of the pending work, shared by the header sentence and the Pending
+ * tasks card so the two always add up to the same total.
+ */
+const splitPending = (live: DeadlineItem[]) => {
+    const days = (d: DeadlineItem) => calendarDaysUntil(d.date);
+    const overdue = live.filter((d) => d.state === 'overdue').length;
+    const today = live.filter((d) => d.state !== 'overdue' && days(d) <= 0).length;
+    const week = live.filter((d) => d.state !== 'overdue' && days(d) >= 1 && days(d) <= 7).length;
+    return { total: live.length, overdue, today, week, later: live.length - overdue - today - week };
+};
+
+/** "a", "a and b", "a, b and c". */
+const joinWords = (parts: React.ReactNode[]) =>
+    parts.map((p, i) => (
+        <React.Fragment key={i}>{i === 0 ? '' : i === parts.length - 1 ? ' and ' : ', '}{p}</React.Fragment>
+    ));
+
 const dueInfo = (d: DeadlineItem): { tone: Tone; short: string; long: string } => {
     if (d.state === 'opens') return { tone: 'info', short: `Opens ${shortDate(d.date)}`, long: `Opens ${shortDate(d.date)} · ${clock(d.date)}` };
     if (d.state === 'overdue') return { tone: 'danger', short: 'Overdue', long: 'Overdue · late submission open' };
@@ -218,35 +236,32 @@ const CardHead = ({ title, sub, aside }: { title: string; sub?: string; aside?: 
 
 const Header = ({ m, live }: { m: DashboardModel; live: DeadlineItem[] }) => {
     const n = m.courses.length;
-    const overdue = live.filter((d) => d.state === 'overdue').length;
-    const week = live.filter((d) => d.state !== 'overdue' && calendarDaysUntil(d.date) <= 7).length;
+    const p = splitPending(live);
+    const enrolled = <>You&apos;re enrolled in <b className="font-semibold text-heading">{plural(n, 'course')}</b>.</>;
 
     let line: React.ReactNode;
     if (!n) {
         line = <>You&apos;re not enrolled in a course yet — your courses will appear here once you&apos;re added.</>;
+    } else if (!p.total) {
+        line = <>{enrolled} Nothing is due right now — you&apos;re all caught up.</>;
     } else {
+        // Same total as the Pending tasks card, broken down by when it's due.
         const parts: React.ReactNode[] = [];
-        if (overdue) parts.push(
+        if (p.overdue) parts.push(
             <button
-                key="overdue"
                 type="button"
                 onClick={scrollToDeadlines}
                 className="font-semibold text-danger-700 underline decoration-1 underline-offset-[3px]"
             >
-                {plural(overdue, 'task')} {overdue === 1 ? 'is' : 'are'} overdue
+                {p.overdue} overdue
             </button>,
         );
-        if (week) parts.push(
-            <span key="week">
-                <b className="font-semibold text-heading">{overdue ? `${week} more` : plural(week, 'task')} {week === 1 ? 'is' : 'are'} due</b> in the next 7 days
-            </span>,
-        );
+        if (p.today) parts.push(<>{p.today} due today</>);
+        if (p.week) parts.push(<>{p.week} due in the next 7 days</>);
+        if (p.later) parts.push(<>{p.later} due later</>);
         line = (
             <>
-                You&apos;re enrolled in <b className="font-semibold text-heading">{plural(n, 'course')}</b>.{' '}
-                {parts.length
-                    ? <>{parts[0]}{parts[1] ? <> and {parts[1]}</> : null}.</>
-                    : <>Nothing is due right now — you&apos;re all caught up.</>}
+                {enrolled} You have <b className="font-semibold text-heading">{plural(p.total, 'pending task')}</b> — {joinWords(parts)}.
             </>
         );
     }
@@ -295,8 +310,14 @@ const StatCard = ({
 
 const StatCards = ({ m, views, live, onGrades }: { m: DashboardModel; views: CourseView[]; live: DeadlineItem[]; onGrades: () => void }) => {
     const inProgress = views.filter((v) => v.status === 'in-progress').length;
-    const overdue = live.filter((d) => d.state === 'overdue').length;
-    const today = live.filter((d) => d.state === 'due-today').length;
+    const p = splitPending(live);
+    // The two most urgent buckets — the header spells out the full split.
+    const pendingCaption = [
+        p.overdue ? <span className="font-semibold text-danger-700">{p.overdue} overdue</span> : null,
+        p.today ? <span className="font-semibold text-brand-700">{p.today} due today</span> : null,
+        p.week ? `${p.week} in next 7 days` : null,
+        p.later ? `${p.later} later` : null,
+    ].filter(Boolean).slice(0, 2);
     const att = m.attendance;
     const graded = m.totals.practice.graded + m.totals.assess.graded;
     const icon = 'h-[15px] w-[15px] sm:h-[18px] sm:w-[18px]';
@@ -310,15 +331,11 @@ const StatCards = ({ m, views, live, onGrades }: { m: DashboardModel; views: Cou
             />
             <StatCard
                 label="Pending tasks" icon={<ClipboardList className={icon} />} iconClass="bg-info-50 text-info-700"
-                value={live.length} onClick={scrollToDeadlines}
+                value={p.total} onClick={scrollToDeadlines}
                 caption={
-                    overdue || today ? (
-                        <>
-                            {overdue > 0 && <span className="font-semibold text-danger-700">{overdue} overdue</span>}
-                            {overdue > 0 && today > 0 && ' · '}
-                            {today > 0 && <span className="font-semibold text-brand-700">{today} due today</span>}
-                        </>
-                    ) : live.length ? 'None due today' : 'All caught up'
+                    p.total
+                        ? pendingCaption.map((c, i) => <React.Fragment key={i}>{i ? ' · ' : ''}{c}</React.Fragment>)
+                        : 'All caught up'
                 }
             />
             <StatCard
