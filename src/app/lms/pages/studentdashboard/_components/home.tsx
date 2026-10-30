@@ -22,7 +22,7 @@ import {
     Check, CircleCheck, CircleDashed, CirclePlay, ClipboardList, Clock, FileCheck, FileText, Flame,
     Hourglass, Layers, ListTodo, Presentation, Send, SignalMedium, Star, TriangleAlert, Trophy,
 } from 'lucide-react';
-import { calendarDaysUntil, dueLabel, durationParts, shortDuration, timeAgo } from '../_lib/metrics';
+import { calendarDaysUntil, dueLabel, shortDuration, timeAgo } from '../_lib/metrics';
 import type { CourseModel, DashboardModel, DeadlineItem } from '../_lib/metrics';
 
 /* ── tokens ──────────────────────────────────────────────────────────────── */
@@ -218,17 +218,10 @@ const StatCards = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void })
     const live = m.deadlines.filter(isLive);
     const missed = m.deadlines.filter(isMissed).length;
     const weekDue = live.filter((d) => d.state !== 'overdue' && calendarDaysUntil(d.date) <= 7).length;
-    const study = durationParts(m.time.totalSeconds);
     const att = m.attendance;
     return (
         <div className="@container [grid-area:stats]">
-            <div className="grid grid-cols-2 gap-2 @min-[440px]:grid-cols-3 @min-[680px]:grid-cols-6">
-                <StatCard
-                    label="Active Courses"
-                    value={String(m.activeCourses)}
-                    sub={`${m.inProgress} in progress`}
-                    aside={<StatIcon Icon={BookOpen} tint="bg-[#f1edff] text-[#6c4cf1]" />}
-                />
+            <div className="grid grid-cols-2 gap-2 @min-[560px]:grid-cols-4">
                 <StatCard
                     label="Overall Progress"
                     value={String(m.overallProgress)}
@@ -251,14 +244,6 @@ const StatCards = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void })
                     sub={m.scorePct != null ? `${m.scorePct}% average` : 'Nothing graded'}
                     aside={<StatIcon Icon={ChartNoAxesColumn} tint="bg-[#fff6e3] text-[#e08a00]" />}
                     onClick={onGrades}
-                />
-                <StatCard
-                    label="Study Hours"
-                    value={m.time.tracked ? study.value : '—'}
-                    unit={m.time.tracked ? study.unit : undefined}
-                    none={!m.time.tracked}
-                    sub={m.time.tracked ? `${shortDuration(m.time.exerciseSeconds)} on exercises` : 'Not tracked yet'}
-                    aside={<StatIcon Icon={Clock} tint="bg-[#edf2ff] text-[#3a6cf4]" />}
                 />
                 <StatCard
                     label="Pending Tasks"
