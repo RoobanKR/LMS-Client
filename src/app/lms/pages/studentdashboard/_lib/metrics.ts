@@ -184,7 +184,7 @@ const answerExercises = (bucket: any): any[] => {
 export interface StageStats {
     assigned: number;          // exercises configured in the content
     gradable: number;          // of those, set to Graded (isGraded !== false)
-    started: number;           // exercises the student worked on (or submitted)
+    started: number;           // exercises the student has begun (Start pressed) or submitted
     submitted: number;         // exercises with a final Submit Exercise
     graded: number;            // exercises carrying at least one evaluated question
     pendingReview: number;     // submitted but not yet graded
@@ -217,6 +217,7 @@ const buildStage = (contentExercises: any[], studentExercises: any[]): StageStat
     // Non-graded exercises (Exercise Settings > Grading) never get a score, so
     // they stay out of Graded, Awaiting review and the score totals.
     const ungraded = new Set(contentExercises.filter((ex) => ex?.isGraded === false).map((ex) => idStr(ex?._id)));
+    const inContent = new Set(contentExercises.map((ex) => idStr(ex?._id)));
     s.gradable = contentExercises.length - ungraded.size;
 
     // An exercise can carry more than one answer row (re-keyed sub-categories),
@@ -232,7 +233,11 @@ const buildStage = (contentExercises: any[], studentExercises: any[]): StageStat
         const qs = ex?.questions || [];
         const worked = qs.filter(isProgressed);
         const final = isFinalSubmitted(ex);
-        if (!final && worked.length === 0) return;   // opened, nothing done
+        // Pressing Start writes the answer row, so for an exercise in the course
+        // the row alone means "in progress" — the course page's rule
+        // (assignmentState attemptExists → In progress). A row for an exercise
+        // the content walk didn't find still needs real work to count.
+        if (!final && worked.length === 0 && !inContent.has(key)) return;
 
         started.add(key);
         if (final) submitted.add(key);

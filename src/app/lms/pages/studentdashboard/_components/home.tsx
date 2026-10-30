@@ -19,11 +19,11 @@
 import React from 'react';
 import {
     ArrowRight, BadgeCheck, BookOpen, BookOpenCheck, CalendarCheck, CalendarDays, ChartNoAxesColumn,
-    Check, CircleCheck, CircleDashed, CirclePlay, ClipboardList, Clock, FileCheck, FileText, Flame,
+    Check, CircleCheck, CircleDashed, CirclePlay, ClipboardList, Clock, FileText, Flame,
     Hourglass, Layers, ListTodo, Presentation, Send, SignalMedium, Star, TriangleAlert, Trophy,
 } from 'lucide-react';
 import { calendarDaysUntil, dueLabel, shortDuration, timeAgo } from '../_lib/metrics';
-import type { CourseModel, DashboardModel, DeadlineItem, ResourceKind } from '../_lib/metrics';
+import type { CourseModel, DashboardModel, DeadlineItem, ResourceKind, StageStats } from '../_lib/metrics';
 
 /* ── tokens ──────────────────────────────────────────────────────────────── */
 
@@ -348,7 +348,7 @@ const JourneyPanel = ({ k, title, name, pct, rows, empty }: {
             {empty ? (
                 <p className={`text-xs ${MUTED}`}>{empty}</p>
             ) : (
-                <ul className="flex flex-col gap-2">
+                <ul className="flex flex-col gap-1.5">
                     {rows.map(({ Icon, label, value }) => (
                         <li key={label} className="flex items-center gap-[9px] text-xs text-[#394061]">
                             <Icon size={15} style={{ color: t.c }} />
@@ -390,26 +390,31 @@ const JourneyCard = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void 
         ...(learn.mcqDocs > 0 ? [{ Icon: CircleCheck, label: 'Checkpoints', value: of(learn.mcqCompleted, learn.mcqDocs) }] : []),
         time(m.time.contentSeconds),
     ];
+    // Submitted / In progress / Not started split the stage's exercises the way
+    // the course page labels them; In progress only appears when there is some.
+    const progress = (st: StageStats): JourneyRow[] => [
+        { Icon: Send, label: 'Submitted', value: of(st.submitted, st.assigned) },
+        ...(st.started > st.submitted ? [{ Icon: Hourglass, label: 'In progress', value: String(st.started - st.submitted) }] : []),
+        { Icon: CircleDashed, label: 'Not started', value: String(st.notStarted) },
+    ];
     const weDo: JourneyRow[] = [
-        { Icon: ClipboardList, label: 'Assigned', value: String(practice.assigned) },
-        { Icon: Send, label: 'Submitted', value: String(practice.submitted) },
+        ...progress(practice),
         ...(practice.gradable > 0
             ? [
                 { Icon: BadgeCheck, label: 'Graded', value: String(practice.graded) },
-                { Icon: Hourglass, label: 'Awaiting review', value: String(practice.pendingReview) },
+                { Icon: ClipboardList, label: 'Awaiting review', value: String(practice.pendingReview) },
             ]
-            : [{ Icon: CircleDashed, label: 'Not started', value: String(practice.notStarted) }]),
+            : []),
         time(m.time.weDoSeconds),
     ];
     const youDo: JourneyRow[] = [
-        { Icon: FileCheck, label: 'Assessments', value: of(assess.submitted, assess.assigned) },
+        ...progress(assess),
         ...(assess.gradable > 0
             ? [
                 { Icon: CircleCheck, label: 'Graded', value: String(assess.graded) },
                 { Icon: Star, label: 'Average score', value: assess.scorePct != null ? `${assess.scorePct}%` : '—' },
             ]
             : []),
-        { Icon: CircleDashed, label: 'Not started', value: String(assess.notStarted) },
         time(m.time.youDoSeconds),
     ];
 
