@@ -32,9 +32,9 @@ import type { DashboardModel, CourseModel, DeadlineItem } from '../_lib/metrics'
 /* ── tokens ──────────────────────────────────────────────────────────────── */
 
 const STAGES = [
-    { key: 'learn', label: 'I Do', noun: 'resources', color: '#F97316' },
-    { key: 'practice', label: 'We Do', noun: 'assignments', color: '#7C6FF7' },
-    { key: 'assess', label: 'You Do', noun: 'assessments', color: '#0EA5A0' },
+    { key: 'learn', label: 'I Do', noun: 'resources opened', color: '#F97316' },
+    { key: 'practice', label: 'We Do', noun: 'assignments submitted', color: '#7C6FF7' },
+    { key: 'assess', label: 'You Do', noun: 'assessments submitted', color: '#0EA5A0' },
 ] as const;
 type StageKey = (typeof STAGES)[number]['key'];
 
@@ -99,10 +99,11 @@ const weekday = (key: string) => {
     return new Date(y, mo - 1, d).toLocaleDateString('en-GB', { weekday: 'short' });
 };
 
+/** We Do / You Do count only final submissions — the same "Submitted" the course view shows. */
 const stageNums = (c: Pick<CourseModel, 'learn' | 'practice' | 'assess'>, key: StageKey) => {
     if (key === 'learn') return { done: c.learn.opened, total: c.learn.total, pct: c.learn.completionPct };
     const s = c[key];
-    return { done: s.started, total: s.assigned, pct: s.completionPct };
+    return { done: s.submitted, total: s.assigned, pct: s.completionPct };
 };
 
 const scrollToDeadlines = () =>

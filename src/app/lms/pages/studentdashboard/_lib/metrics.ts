@@ -142,10 +142,28 @@ const collectFiles = (container: any, out: any[]) => {
 
 /* ── answer scanning ─────────────────────────────────────────────────────── */
 
-const ATTEMPTED = new Set(['attempted', 'submitted', 'evaluated', 'solved']);
+/**
+ * A question the student actually worked on. Opening an exercise already writes
+ * a row per question with status 'attempted' and a default submittedAt, so
+ * neither means anything on its own — same rule as the course view's
+ * isMeaningfulQuestion (coursesdetailedview/components/assignmentState.ts).
+ */
+const isProgressed = (q: any) => {
+    const st = String(q?.status || '').toLowerCase();
+    if (st === 'solved' || st === 'submitted' || st === 'evaluated') return true;
+    if (q?.codeAnswer && String(q.codeAnswer).trim() !== '') return true;
+    if (Array.isArray(q?.files) && q.files.length > 0) return true;
+    if (Array.isArray(q?.othersFiles) && q.othersFiles.length > 0) return true;
+    return q?.notionPages != null;
+};
 
-const isAttempted = (q: any) =>
-    ATTEMPTED.has(String(q?.status || '').toLowerCase()) || !!q?.submittedAt;
+/**
+ * The student pressed the final Submit Exercise — the rule behind the course
+ * view's "Submitted" chip (assignmentState isComplete). Answering every
+ * question without that final submit is still "in progress".
+ */
+export const isFinalSubmitted = (ex: any) =>
+    ex?.status === 'completed' || Number(ex?.testSubmissions) >= 1 || !!ex?.lastTestSubmittedAt;
 
 const isEvaluated = (q: any) => String(q?.status || '').toLowerCase() === 'evaluated';
 
@@ -165,8 +183,8 @@ const answerExercises = (bucket: any): any[] => {
 
 export interface StageStats {
     assigned: number;          // exercises configured in the content
-    started: number;           // exercises with at least one attempted question
-    submitted: number;         // exercises the student pushed a submission for
+    started: number;           // exercises the student worked on (or submitted)
+    submitted: number;         // exercises with a final Submit Exercise
     graded: number;            // exercises carrying at least one evaluated question
     pendingReview: number;     // submitted but not yet graded
     notStarted: number;
@@ -179,7 +197,7 @@ export interface StageStats {
     onTimePct: number | null;
     lateCount: number;
     hasContent: boolean;
-    completionPct: number;
+    completionPct: number;     // submitted / assigned
 }
 
 const emptyStage = (): StageStats => ({
@@ -195,35 +213,47 @@ const buildStage = (contentExercises: any[], studentExercises: any[]): StageStat
     s.assigned = contentExercises.length;
     s.questionsTotal = contentExercises.reduce((n, ex) => n + (ex?.questions?.length || 0), 0);
 
-    studentExercises.forEach((ex: any) => {
+    // An exercise can carry more than one answer row (re-keyed sub-categories),
+    // so exercise counts go through sets keyed by exerciseId.
+    const started = new Set<string>();
+    const submitted = new Set<string>();
+    const graded = new Set<string>();
+    const late = new Set<string>();
+
+    studentExercises.forEach((ex: any, i: number) => {
+        const key = idStr(ex?.exerciseId) || `row-${i}`;
         const qs = ex?.questions || [];
-        const attempted = qs.filter(isAttempted);
-        if (attempted.length === 0) return;
+        const worked = qs.filter(isProgressed);
+        const final = isFinalSubmitted(ex);
+        if (!final && worked.length === 0) return;   // opened, nothing done
 
-        s.started++;
-        if (ex?.status === 'completed' || attempted.length === qs.length || ex?.lastTestSubmittedAt) s.submitted++;
-        if (qs.some(isEvaluated)) s.graded++;
-        if (ex?.lateSubmission === true) s.lateCount++;
+        started.add(key);
+        if (final) submitted.add(key);
+        if (final && ex?.lateSubmission === true) late.add(key);
+        if (qs.some(isEvaluated)) graded.add(key);
 
-        s.questionsAttempted += attempted.length;
+        s.questionsAttempted += worked.length;
         s.questionsSolved += qs.filter(isSolved).length;
         qs.forEach((q: any) => {
             const max = Number(q?.totalScore) || 0;
             if (max > 0) { s.scoreMax += max; s.scoreObtained += Number(q?.score) || 0; }
         });
     });
+    s.started = started.size;
+    s.submitted = submitted.size;
+    s.graded = graded.size;
+    s.lateCount = late.size;
 
     // The student can hold answers for exercises the content walk missed
     // (renamed sub-categories, moved nodes) — never report more done than exists.
     s.assigned = Math.max(s.assigned, s.started);
     s.questionsTotal = Math.max(s.questionsTotal, s.questionsAttempted);
-    s.submitted = Math.min(s.submitted, s.started);
     s.notStarted = Math.max(0, s.assigned - s.started);
     s.pendingReview = Math.max(0, s.submitted - s.graded);
     s.scorePct = s.scoreMax > 0 ? Math.round((s.scoreObtained / s.scoreMax) * 100) : null;
     s.onTimePct = s.submitted > 0 ? Math.round(((s.submitted - s.lateCount) / s.submitted) * 100) : null;
     s.hasContent = s.assigned > 0 || s.questionsTotal > 0;
-    s.completionPct = s.assigned > 0 ? pct(s.started, s.assigned) : 0;
+    s.completionPct = s.assigned > 0 ? pct(s.submitted, s.assigned) : 0;
     return s;
 };
 
@@ -322,7 +352,7 @@ const buildCourse = (content: any, raw: any): CourseModel => {
         list.forEach((ex: any) => { learn.contentMinutes += Number(ex?.exerciseInformation?.totalDuration) || 0; });
     });
     const submittedRatio = (practice.assigned + assess.assigned) > 0
-        ? (practice.started + assess.started) / (practice.assigned + assess.assigned) : 0;
+        ? (practice.submitted + assess.submitted) / (practice.assigned + assess.assigned) : 0;
     learn.completedMinutes += submittedRatio * (contentWe.concat(contentYou)
         .reduce((n, ex: any) => n + (Number(ex?.exerciseInformation?.totalDuration) || 0), 0));
 
@@ -378,8 +408,7 @@ const buildDeadlines = (contentCourses: any[], rawCourses: any[]): DeadlineItem[
     rawCourses.forEach((uc: any) => {
         (['We_Do', 'You_Do'] as const).forEach((b) => {
             answerExercises(uc?.answers?.[b]).forEach((ex: any) => {
-                const done = ex?.status === 'completed' || Number(ex?.testSubmissions) >= 1 || !!ex?.lastTestSubmittedAt;
-                const id = idStr(ex?.exerciseId); if (id && done) submitted.add(id);
+                const id = idStr(ex?.exerciseId); if (id && isFinalSubmitted(ex)) submitted.add(id);
             });
         });
     });
@@ -557,7 +586,9 @@ const collectSubmissions = (rawCourses: any[], nameById: Record<string, string>)
         (['We_Do', 'You_Do'] as const).forEach((bucket) => {
             answerExercises(uc?.answers?.[bucket]).forEach((ex: any) => {
                 (ex?.questions || []).forEach((q: any) => {
-                    if (!q?.submittedAt) return;
+                    // submittedAt defaults to the moment the exercise was opened —
+                    // only questions with real work count as activity.
+                    if (!q?.submittedAt || !isProgressed(q)) return;
                     const at = new Date(q.submittedAt);
                     if (isNaN(at.getTime())) return;
                     out.push({
@@ -959,7 +990,7 @@ export const buildDashboard = (
     learn.hasContent = learn.total > 0;
     [practice, assess].forEach((s) => {
         s.hasContent = s.assigned > 0 || s.questionsTotal > 0;
-        s.completionPct = s.assigned > 0 ? pct(s.started, s.assigned) : 0;
+        s.completionPct = s.assigned > 0 ? pct(s.submitted, s.assigned) : 0;
         s.scorePct = s.scoreMax > 0 ? Math.round((s.scoreObtained / s.scoreMax) * 100) : null;
         s.onTimePct = s.submitted > 0 ? Math.round(((s.submitted - s.lateCount) / s.submitted) * 100) : null;
     });

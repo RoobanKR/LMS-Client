@@ -513,8 +513,8 @@ export default function ProfilePage() {
       ...courses.map((c) => [
         c.name, c.code || "", courseStatus(c), Math.round(c.progress),
         c.learn.hasContent ? `${c.learn.opened}/${c.learn.total}` : "",
-        c.practice.hasContent ? `${c.practice.started}/${c.practice.assigned}` : "",
-        c.assess.hasContent ? `${c.assess.started}/${c.assess.assigned}` : "",
+        c.practice.hasContent ? `${c.practice.submitted}/${c.practice.assigned}` : "",
+        c.assess.hasContent ? `${c.assess.submitted}/${c.assess.assigned}` : "",
         c.scorePct ?? "", c.lastAccessed ? fmtDate(c.lastAccessed) : "Never",
       ]),
     ]

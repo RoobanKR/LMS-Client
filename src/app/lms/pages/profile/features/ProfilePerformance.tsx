@@ -92,8 +92,8 @@ function CourseRow({ course, onOpen }: { course: CourseModel; onOpen: (c: Course
   const status = courseStatus(course)
   const stages = [
     { label: "I Do", on: course.learn.hasContent, pct: course.learn.completionPct, detail: `${course.learn.opened}/${course.learn.total}` },
-    { label: "We Do", on: course.practice.hasContent, pct: course.practice.completionPct, detail: `${course.practice.started}/${course.practice.assigned}` },
-    { label: "You Do", on: course.assess.hasContent, pct: course.assess.completionPct, detail: `${course.assess.started}/${course.assess.assigned}` },
+    { label: "We Do", on: course.practice.hasContent, pct: course.practice.completionPct, detail: `${course.practice.submitted}/${course.practice.assigned}` },
+    { label: "You Do", on: course.assess.hasContent, pct: course.assess.completionPct, detail: `${course.assess.submitted}/${course.assess.assigned}` },
   ].filter((s) => s.on)
 
   return (
