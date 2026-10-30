@@ -103,10 +103,10 @@ const Banner = ({ m }: { m: DashboardModel }) => {
     const who = [s.department || s.degree, s.rollNumber && `Roll ${s.rollNumber}`].filter(Boolean) as string[];
     return (
         <section
-            className="relative isolate min-h-[180px] overflow-hidden rounded-[14px] px-6 py-[13px] [grid-area:hero]"
-            style={{ background: 'linear-gradient(100deg,#ffeadb 0%,#ffe0c9 35%,#fed6bb 62%,#fdcdc4 82%,#c9a8f8 100%)' }}
+            className="relative isolate min-h-[200px] overflow-hidden rounded-[18px] px-6 py-[17px] [grid-area:hero]"
+            style={{ background: 'radial-gradient(ellipse at 86% 7%,rgba(255,255,255,.58),transparent 24%),radial-gradient(ellipse at 84% 100%,rgba(126,82,255,.20),transparent 38%),linear-gradient(105deg,#fff1e6 0%,#ffe0cc 45%,#eed9fc 75%,#c6b5ff 100%)' }}
         >
-            <div className="relative z-10 max-w-[56%] @max-[719px]:max-w-none">
+            <div className="relative z-10 max-w-[55%] @max-[719px]:max-w-none">
                 <p className={`text-[15px] font-medium ${INK}`}>Welcome back,</p>
                 <h1 className="text-[26px] font-extrabold leading-[1.15] tracking-[-0.01em] text-[#161a3a] @min-[1100px]:text-[28px]">
                     {s.fullName} <span className="text-[24px]">👋</span>
@@ -130,10 +130,10 @@ const Banner = ({ m }: { m: DashboardModel }) => {
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-                src="/assets/student-dashboard/welcome-hero.webp"
+                src="/assets/student-dashboard/welcome-hero-v2.webp"
                 alt=""
                 aria-hidden
-                className="pointer-events-none absolute bottom-0 right-0 h-full w-auto max-w-none [mask-image:linear-gradient(90deg,transparent_0,#000_14%)] @max-[719px]:opacity-30"
+                className="pointer-events-none absolute bottom-0 right-3 h-[94%] w-auto max-w-none @max-[719px]:opacity-25"
             />
         </section>
     );

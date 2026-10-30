@@ -36,7 +36,7 @@ const DashboardSkeleton = () => (
     <div className="@container">
         <div className="grid gap-3 @min-[1000px]:grid-cols-[minmax(0,2.36fr)_minmax(0,1fr)]">
             <div className="flex flex-col gap-3">
-                <Bone className="h-[180px]" />
+                <Bone className="h-[200px]" />
                 <div className="grid grid-cols-3 gap-2 @min-[680px]:grid-cols-6">
                     {Array.from({ length: 6 }).map((_, i) => <Bone key={i} className="h-[88px] rounded-[14px]" />)}
                 </div>
