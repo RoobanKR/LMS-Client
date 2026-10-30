@@ -33,24 +33,21 @@ const Bone = ({ className = '' }: { className?: string }) => (
 );
 
 const DashboardSkeleton = () => (
-    <div className="mx-auto flex max-w-[1320px] flex-col gap-[22px] md:gap-7">
-        <div className="space-y-2">
-            <Bone className="h-3 w-40 rounded-md" />
-            <Bone className="h-7 w-64 rounded-lg" />
-            <Bone className="h-4 w-full max-w-[460px] rounded-md" />
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => <Bone key={i} className="h-[130px] sm:h-[150px]" />)}
-        </div>
-        <div className="space-y-4">
-            <Bone className="h-6 w-40 rounded-md" />
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(300px,100%),1fr))] gap-4">
-                {Array.from({ length: 3 }).map((_, i) => <Bone key={i} className="h-[320px]" />)}
+    <div className="@container">
+        <div className="grid gap-3 @min-[1000px]:grid-cols-[minmax(0,2.36fr)_minmax(0,1fr)]">
+            <div className="flex flex-col gap-3">
+                <Bone className="h-[180px]" />
+                <div className="grid grid-cols-3 gap-2 @min-[680px]:grid-cols-6">
+                    {Array.from({ length: 6 }).map((_, i) => <Bone key={i} className="h-[88px] rounded-[14px]" />)}
+                </div>
+                <Bone className="h-[270px]" />
+                <Bone className="h-[140px]" />
             </div>
-        </div>
-        <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(0,1fr)_360px]">
-            <Bone className="h-[360px]" />
-            <Bone className="h-[360px]" />
+            <div className="flex flex-col gap-3">
+                <Bone className="h-[180px]" />
+                <Bone className="h-[170px]" />
+                <Bone className="h-[340px]" />
+            </div>
         </div>
     </div>
 );
@@ -102,6 +99,7 @@ export default function StudentDashboardPage() {
     );
 
     const goCourse = useCallback((id: string) => router.push(`/lms/pages/courses/coursesdetailedview/${id}`), [router]);
+    const goCourses = useCallback(() => router.push('/lms/pages/courses'), [router]);
     // The learner's OWN calendar, not the admin holiday editor at
     // /lms/pages/calendar — that one needs the `calendar` module and answered
     // every student with Access Restricted.
@@ -135,7 +133,7 @@ export default function StudentDashboardPage() {
 
     return (
         <StudentLayout>
-            <StudentHome m={model} onCourse={goCourse} onCalendar={goCalendar} onGrades={goGrades} />
+            <StudentHome m={model} onCourse={goCourse} onCourses={goCourses} onCalendar={goCalendar} onGrades={goGrades} />
         </StudentLayout>
     );
 }
