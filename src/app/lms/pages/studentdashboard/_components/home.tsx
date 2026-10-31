@@ -403,10 +403,7 @@ const JourneyCard = ({ m, onCourse, onCourses, onGrades }: {
             <div className="mb-2.5 flex items-center justify-between gap-2.5">
                 <div className="flex min-w-0 items-center gap-2.5">
                     <Send size={22} className="shrink-0 text-[#3a6cf4]" />
-                    <div className="min-w-0">
-                        <p className={`text-sm font-semibold ${INK}`}>Learning Journey</p>
-                        <p className={`text-[11px] ${MUTED}`}>Your progress in each course: Learn → Practice → Assess</p>
-                    </div>
+                    <p className={`text-sm font-semibold ${INK}`}>Learning Journey</p>
                 </div>
                 <button
                     type="button"
