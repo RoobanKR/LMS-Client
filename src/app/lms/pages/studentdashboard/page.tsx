@@ -41,7 +41,6 @@ const DashboardSkeleton = () => (
                     {Array.from({ length: 4 }).map((_, i) => <Bone key={i} className="h-[88px] rounded-[14px]" />)}
                 </div>
                 <Bone className="h-[440px]" />
-                <Bone className="h-[140px]" />
             </div>
             <div className="flex flex-col gap-3">
                 <Bone className="h-[180px]" />

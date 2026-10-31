@@ -9,19 +9,18 @@
 //
 // Desktop: a banner + Streak row, then two independent columns that end level
 // with each other —
-//   left:  stat cards · Learning Journey (I Do / We Do / You Do) · Course Progress
+//   left:  stat cards · Learning Journey (a card per course: I Do / We Do / You Do)
 //   right: Today's Focus · Upcoming Schedule
-// Course Progress and Upcoming Schedule take any spare screen height, so a
-// tall screen shows the whole dashboard without scrolling. Narrower panels
-// fall back to two columns, then one.
+// Learning Journey and Upcoming Schedule take any spare screen height so the
+// two columns end level. Narrower panels fall back to two columns, then one.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React from 'react';
 import {
-    ArrowRight, BookOpen, BookOpenCheck, CalendarCheck, CalendarDays, ChartNoAxesColumn, Check, Clock,
-    Flame, ListTodo, Send, SignalMedium, TriangleAlert, Trophy,
+    ArrowRight, BookOpen, CalendarCheck, CalendarDays, ChartNoAxesColumn, Check, Clock,
+    Flame, ListTodo, Send, TriangleAlert, Trophy,
 } from 'lucide-react';
-import { calendarDaysUntil, dueLabel, timeAgo } from '../_lib/metrics';
+import { calendarDaysUntil, dueLabel } from '../_lib/metrics';
 import type { CourseModel, DashboardModel, DeadlineItem, SubSection } from '../_lib/metrics';
 
 /* ── tokens ──────────────────────────────────────────────────────────────── */
@@ -400,7 +399,7 @@ const JourneyCard = ({ m, onCourse, onCourses, onGrades }: {
         .sort((a, b) => (b.lastAccessed?.getTime() ?? 0) - (a.lastAccessed?.getTime() ?? 0))
         .slice(0, 4);
     return (
-        <section className={`${CARD} px-4 py-3 [grid-area:journey]`}>
+        <section className={`${CARD} px-4 py-3 [grid-area:journey] @min-[1000px]:flex-1`}>
             <div className="mb-2.5 flex items-center justify-between gap-2.5">
                 <div className="flex min-w-0 items-center gap-2.5">
                     <Send size={22} className="shrink-0 text-[#3a6cf4]" />
@@ -502,89 +501,6 @@ const ScheduleCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse
     );
 };
 
-/* ── course progress ─────────────────────────────────────────────────────── */
-
-const CourseRow = ({ c, onCourse }: { c: CourseModel; onCourse: (id: string) => void }) => (
-    <tr>
-        <td className="px-2 py-3">
-            <div className="flex items-center gap-2.5">
-                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-[#8b6cf8] to-[#6c4cf1] text-xs font-bold text-white @max-[419px]:h-[30px] @max-[419px]:w-[30px]">
-                    {initials(c.name)}
-                </span>
-                <div className="min-w-0">
-                    <b className={`block max-w-[220px] truncate text-[13px] font-semibold ${INK} @max-[519px]:max-w-[150px] @max-[419px]:max-w-[110px]`} title={c.name}>{c.name}</b>
-                    {c.code && <small className={`block text-[11px] ${MUTED}`}>{c.code}</small>}
-                </div>
-            </div>
-        </td>
-        <td className="px-2 py-3 @max-[419px]:hidden">
-            {c.category
-                ? <span className="inline-flex h-[19px] items-center rounded-[5px] border border-[#cbd8ff] bg-[#f3f6ff] px-[7px] text-[10px] font-semibold uppercase text-[#2f5ee8]">{c.category}</span>
-                : <span className={MUTED}>—</span>}
-        </td>
-        <td className="px-2 py-3 @max-[719px]:hidden">
-            {c.level
-                ? <span className="inline-flex items-center gap-[5px] text-xs text-[#394061]"><SignalMedium size={14} className="text-[#3a6cf4]" />{c.level}</span>
-                : <span className={MUTED}>—</span>}
-        </td>
-        <td className="px-2 py-3">
-            <div className={`flex items-center gap-2 text-xs font-semibold ${INK}`}>
-                {/* Shrinks before anything spills out of the card; phones show the number only. */}
-                <span className="block h-[7px] min-w-12 max-w-40 flex-1 overflow-hidden rounded-full bg-[#edf0f6] @max-[419px]:hidden">
-                    <span className="block h-full rounded-full bg-gradient-to-r from-[#14b8a6] to-[#1fb866]" style={{ width: `${c.progress}%` }} />
-                </span>
-                {c.progress}%
-            </div>
-        </td>
-        <td className="px-2 py-3 text-xs text-[#394061] @max-[519px]:hidden">{c.lastAccessed ? timeAgo(c.lastAccessed) : 'Not opened'}</td>
-        <td className="px-2 py-3 text-right">
-            <button
-                type="button"
-                onClick={() => onCourse(c.id)}
-                className="h-8 rounded-[9px] bg-gradient-to-r from-[#fb8a3c] to-[#f97316] px-[18px] text-xs font-semibold text-white shadow-[0_4px_10px_-4px_rgb(249_115_22/.6)] transition-opacity hover:opacity-90 @max-[419px]:px-3"
-            >
-                {c.hasActivity ? 'Resume' : 'Start'}
-            </button>
-        </td>
-    </tr>
-);
-
-const CourseProgressCard = ({ m, onCourse, onCourses }: { m: DashboardModel; onCourse: (id: string) => void; onCourses: () => void }) => {
-    const th = `px-2 py-[7px] text-left text-[11px] font-medium ${MUTED} bg-[#f7f8fb]`;
-    return (
-        <section className={`${CARD} flex flex-col px-4 py-3 [grid-area:course] @min-[1000px]:flex-1`}>
-            <div className="mb-2 flex items-center justify-between gap-2.5">
-                <p className={`flex items-center gap-2 text-sm font-semibold ${INK}`}>
-                    <IconSquare Icon={BookOpenCheck} from="#34cf80" to="#1fb866" />Course Progress
-                </p>
-                <ViewLink label="View All" onClick={onCourses} />
-            </div>
-            {m.courses.length ? (
-                // Rows keep their own height at the top of the card; more courses make the card grow.
-                <div className="@container">
-                    <table className="w-full border-collapse whitespace-nowrap">
-                        <thead>
-                            <tr>
-                                <th className={`${th} rounded-l-lg`}>Course</th>
-                                <th className={`${th} @max-[419px]:hidden`}>Track</th>
-                                <th className={`${th} @max-[719px]:hidden`}>Level</th>
-                                <th className={th}>Progress</th>
-                                <th className={`${th} @max-[519px]:hidden`}>Last Opened</th>
-                                <th className={`${th} rounded-r-lg text-right`}>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {m.courses.map((c) => <CourseRow key={c.id} c={c} onCourse={onCourse} />)}
-                        </tbody>
-                    </table>
-                </div>
-            ) : (
-                <p className={`py-6 text-center text-xs ${MUTED}`}>You&apos;re not enrolled in any course yet.</p>
-            )}
-        </section>
-    );
-};
-
 /* ── page body ───────────────────────────────────────────────────────────── */
 
 export const StudentHome = ({
@@ -604,8 +520,8 @@ export const StudentHome = ({
         <div
             className={[
                 'grid gap-3',
-                "[grid-template-areas:'hero'_'stats'_'streak'_'focus'_'journey'_'sched'_'course']",
-                "@min-[720px]:grid-cols-2 @min-[720px]:[grid-template-areas:'hero_hero'_'stats_stats'_'streak_focus'_'journey_journey'_'course_course'_'sched_sched']",
+                "[grid-template-areas:'hero'_'stats'_'streak'_'focus'_'journey'_'sched']",
+                "@min-[720px]:grid-cols-2 @min-[720px]:[grid-template-areas:'hero_hero'_'stats_stats'_'streak_focus'_'journey_journey'_'sched_sched']",
                 // Desktop: banner + Streak, then two columns that fill the panel's height.
                 "@min-[1000px]:min-h-[calc(100dvh-78px)] @min-[1000px]:grid-cols-[minmax(0,2.36fr)_minmax(0,1fr)] @min-[1000px]:grid-rows-[auto_1fr] @min-[1000px]:[grid-template-areas:'hero_streak'_'left_right']",
             ].join(' ')}
@@ -616,7 +532,6 @@ export const StudentHome = ({
             <div className="contents [grid-area:left] @min-[1000px]:flex @min-[1000px]:min-w-0 @min-[1000px]:flex-col @min-[1000px]:gap-3">
                 <StatCards m={m} onGrades={onGrades} />
                 <JourneyCard m={m} onCourse={onCourse} onCourses={onCourses} onGrades={onGrades} />
-                <CourseProgressCard m={m} onCourse={onCourse} onCourses={onCourses} />
             </div>
             <div className="contents [grid-area:right] @min-[1000px]:flex @min-[1000px]:min-w-0 @min-[1000px]:flex-col @min-[1000px]:gap-3">
                 <FocusCard m={m} onCourse={onCourse} onCalendar={onCalendar} />
