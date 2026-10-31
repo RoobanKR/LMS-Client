@@ -296,6 +296,37 @@ const emptyLearn = (): LearnStats => ({
     contentMinutes: 0, completedMinutes: 0,
 });
 
+/* ── per-course sub-sections ─────────────────────────────────────────────── */
+
+/** One sub-section of a stage as the course names it, e.g. We Do → Practice. */
+export interface SubSection { key: string; name: string; done: number; total: number }
+
+const sectionKey = (s: string) => String(s).trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+/**
+ * Tally a stage's items into its sub-sections, named and ordered the way the
+ * course configures them (course.I_Do / We_Do / You_Do). A key the config
+ * doesn't list keeps a prettified form of itself and sorts after the rest.
+ */
+const tallySections = (items: { key: string; done: boolean }[], configured: any): SubSection[] => {
+    const names: string[] = Array.isArray(configured) ? configured.filter((n: any) => typeof n === 'string') : [];
+    const order = names.map(sectionKey);
+    const map = new Map<string, SubSection>();
+    items.forEach(({ key, done }) => {
+        const k = sectionKey(key);
+        let sec = map.get(k);
+        if (!sec) {
+            const name = names.find((n) => sectionKey(n) === k) || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+            sec = { key: k, name, done: 0, total: 0 };
+            map.set(k, sec);
+        }
+        sec.total++;
+        if (done) sec.done++;
+    });
+    const rank = (k: string) => { const i = order.indexOf(k); return i < 0 ? order.length : i; };
+    return [...map.values()].sort((a, b) => rank(a.key) - rank(b.key));
+};
+
 /* ── per-course model ────────────────────────────────────────────────────── */
 
 export interface CourseModel {
@@ -309,6 +340,8 @@ export interface CourseModel {
     learn: LearnStats;
     practice: StageStats;   // We Do
     assess: StageStats;     // You Do
+    /** Each stage split into the course's own sub-sections (Learning Journey). */
+    sections: { learn: SubSection[]; practice: SubSection[]; assess: SubSection[] };
     progress: number;       // blended across the stages that have content
     scorePct: number | null;
     hasActivity: boolean;
@@ -322,14 +355,21 @@ const buildCourse = (content: any, raw: any): CourseModel => {
     /* I Do — resources and checkpoint documents */
     const learn = emptyLearn();
     const iDoAnswers = answers.I_Do || {};
+    const learnItems: { key: string; done: boolean }[] = [];
     nodes.forEach(({ node, kind }) => {
         const files: any[] = [];
-        Object.values(node?.pedagogy?.I_Do || {}).forEach((element: any) => collectFiles(element, files));
+        const fileSection: string[] = [];
+        Object.entries(node?.pedagogy?.I_Do || {}).forEach(([key, element]: [string, any]) => {
+            const before = files.length;
+            collectFiles(element, files);
+            for (let i = before; i < files.length; i++) fileSection.push(key);
+        });
 
-        files.forEach((f: any) => {
+        files.forEach((f: any, i: number) => {
             const k = resourceKind(f);
             const fid = idStr(f?._id);
             const seen = openedIds.has(fid) || !!(iDoAnswers as any)[fid];
+            learnItems.push({ key: fileSection[i], done: seen });
             learn.total++;
             learn.byKind[k].total++;
             if (seen) { learn.opened++; learn.byKind[k].opened++; }
@@ -362,6 +402,16 @@ const buildCourse = (content: any, raw: any): CourseModel => {
     const practice = buildStage(contentWe, answerExercises(answers.We_Do));
     const assess = buildStage(contentYou, answerExercises(answers.You_Do));
 
+    const finalIds = (bucket: any) =>
+        new Set(answerExercises(bucket).filter(isFinalSubmitted).map((ex: any) => idStr(ex?.exerciseId)));
+    const weDone = finalIds(answers.We_Do);
+    const youDone = finalIds(answers.You_Do);
+    const sections = {
+        learn: tallySections(learnItems, content?.I_Do),
+        practice: tallySections(contentWe.map((ex: any) => ({ key: ex.subcategory, done: weDone.has(idStr(ex?._id)) })), content?.We_Do),
+        assess: tallySections(contentYou.map((ex: any) => ({ key: ex.subcategory, done: youDone.has(idStr(ex?._id)) })), content?.You_Do),
+    };
+
     // Minutes actually spent inside submitted exercises, as configured.
     [contentWe, contentYou].forEach((list) => {
         list.forEach((ex: any) => { learn.contentMinutes += Number(ex?.exerciseInformation?.totalDuration) || 0; });
@@ -389,7 +439,7 @@ const buildCourse = (content: any, raw: any): CourseModel => {
         category: content?.category || content?.serviceType || '',
         image: content?.courseImage || '',
         lastAccessed: raw?.lastAccessed ? new Date(raw.lastAccessed) : null,
-        learn, practice, assess, progress,
+        learn, practice, assess, sections, progress,
         scorePct: scoreMax > 0 ? Math.round((scoreObtained / scoreMax) * 100) : null,
         hasActivity: learn.opened > 0 || practice.started > 0 || assess.started > 0,
     };

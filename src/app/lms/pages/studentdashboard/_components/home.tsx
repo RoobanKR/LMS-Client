@@ -18,12 +18,11 @@
 
 import React from 'react';
 import {
-    ArrowRight, BadgeCheck, BookOpen, BookOpenCheck, CalendarCheck, CalendarDays, ChartNoAxesColumn,
-    Check, CircleCheck, CirclePlay, Clock, FileText, Flame,
-    Hourglass, Layers, ListTodo, Presentation, Send, SignalMedium, Star, TriangleAlert, Trophy,
+    ArrowRight, BookOpen, BookOpenCheck, CalendarCheck, CalendarDays, ChartNoAxesColumn, Check, Clock,
+    Flame, ListTodo, Send, SignalMedium, TriangleAlert, Trophy,
 } from 'lucide-react';
-import { calendarDaysUntil, dueLabel, shortDuration, timeAgo } from '../_lib/metrics';
-import type { CourseModel, DashboardModel, DeadlineItem, ResourceKind } from '../_lib/metrics';
+import { calendarDaysUntil, dueLabel, timeAgo } from '../_lib/metrics';
+import type { CourseModel, DashboardModel, DeadlineItem, SubSection } from '../_lib/metrics';
 
 /* ── tokens ──────────────────────────────────────────────────────────────── */
 
@@ -31,11 +30,11 @@ const CARD = 'min-w-0 rounded-[14px] border border-hairline bg-surface shadow-[0
 const INK = 'text-[#141933]';
 const MUTED = 'text-[#767d98]';
 
-/** Learning Journey panel colours (I Do blue · We Do green · You Do red). */
+/** Learning Journey stage colours (I Do blue · We Do green · You Do red). */
 const JOURNEY = {
-    ido: { c: '#3a6cf4', bg: '#f2f6ff', border: '#dfe8ff', track: '#dfe7fb' },
-    wedo: { c: '#1fb866', bg: '#effbf4', border: '#d3f2e0', track: '#d6f1e2' },
-    youdo: { c: '#ef4444', bg: '#fff4f4', border: '#fde0e0', track: '#fbdcdc' },
+    ido: { c: '#3a6cf4', bg: '#edf2ff', track: '#e3eafc' },
+    wedo: { c: '#1fb866', bg: '#e9f8f0', track: '#dcf3e6' },
+    youdo: { c: '#ef4444', bg: '#fff0f0', track: '#fde2e2' },
 } as const;
 
 const TAG = {
@@ -322,97 +321,92 @@ const FocusCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse: (
 
 /* ── learning journey ────────────────────────────────────────────────────── */
 
-type JourneyRow = { Icon: React.ElementType; label: string; value: string };
+const share = (done: number, total: number) => (total > 0 ? Math.round((done / total) * 100) : 0);
 
-const JourneyPanel = ({ k, title, name, pct, rows, empty }: {
-    k: keyof typeof JOURNEY; title: string; name: string; pct: number; rows: JourneyRow[]; empty?: string;
+const JOURNEY_STAGES = [
+    { k: 'ido', tag: 'I DO', unit: 'resources opened', empty: 'No learning resources in this course' },
+    { k: 'wedo', tag: 'WE DO', unit: 'exercises submitted', empty: 'No We Do exercises in this course' },
+    { k: 'youdo', tag: 'YOU DO', unit: 'exercises submitted', empty: 'No You Do exercises in this course' },
+] as const;
+
+/** One stage of one course: its % and a row per sub-section the course has. */
+const JourneyStage = ({ stage, pct, sections }: {
+    stage: (typeof JOURNEY_STAGES)[number]; pct: number; sections: SubSection[];
 }) => {
-    const t = JOURNEY[k];
+    const t = JOURNEY[stage.k];
     return (
-        <div className="flex flex-col rounded-xl border p-3.5" style={{ background: t.bg, borderColor: t.border }}>
-            <div className="mb-3 flex items-center gap-3">
-                <Ring pct={pct} color={t.c} track={t.track} size={52} width={6}>
-                    <span className="text-xs font-bold" style={{ color: t.c }}>{pct}%</span>
-                </Ring>
-                <div>
-                    <p className="text-sm font-bold tracking-[0.02em]" style={{ color: t.c }}>{title}</p>
-                    <p className={`text-[12.5px] font-semibold ${INK}`}>{name}</p>
-                </div>
+        <div>
+            <div className="mb-[5px] flex items-center gap-2">
+                <span className="rounded-[5px] px-[7px] py-0.5 text-[10px] font-bold tracking-[0.03em]" style={{ background: t.bg, color: t.c }}>{stage.tag}</span>
+                {sections.length > 0 && <span className={`text-[11px] ${MUTED} @max-[330px]:hidden`}>{stage.unit}</span>}
+                <span className="ml-auto text-xs font-bold" style={{ color: sections.length ? t.c : '#a2a8bd' }}>{sections.length ? `${pct}%` : '—'}</span>
             </div>
-            {empty ? (
-                <p className={`text-xs ${MUTED}`}>{empty}</p>
-            ) : (
-                <ul className="flex flex-col gap-1.5">
-                    {rows.map(({ Icon, label, value }) => (
-                        <li key={label} className="flex items-center gap-[9px] text-xs text-[#394061]">
-                            <Icon size={15} style={{ color: t.c }} />
-                            {label}
-                            <b className={`ml-auto font-semibold ${INK}`}>{value}</b>
-                        </li>
-                    ))}
-                </ul>
-            )}
+            <div className="ml-1 flex flex-col gap-[5px] border-l-2 pl-2.5" style={{ borderColor: t.track }}>
+                {sections.length ? sections.map((sec) => {
+                    const p = share(sec.done, sec.total);
+                    return (
+                        <div key={sec.key} className="grid grid-cols-[minmax(0,1fr)_72px_52px] items-center gap-2.5 text-[11.5px] @max-[330px]:grid-cols-[minmax(0,1fr)_48px_44px] @max-[330px]:gap-2">
+                            <span className="truncate text-[#394061]" title={sec.name}>{sec.name}</span>
+                            <span className="h-1.5 overflow-hidden rounded-full" style={{ background: t.track }}>
+                                <i className="block h-full rounded-full" style={{ width: `${p ? Math.max(p, 4) : 0}%`, background: t.c }} />
+                            </span>
+                            <span className={`whitespace-nowrap text-right ${INK}`}>
+                                <b className="font-semibold">{sec.done}</b><span className="text-[#a2a8bd]"> / </span>{sec.total}
+                            </span>
+                        </div>
+                    );
+                }) : <p className="text-[11px] italic text-[#a2a8bd]">{stage.empty}</p>}
+            </div>
         </div>
     );
 };
 
-const JourneyArrow = () => (
-    <span className="hidden h-[22px] w-[22px] place-self-center place-items-center rounded-full border border-[#e2e5ee] bg-white text-[#a2a8bd] @min-[560px]:grid">
-        <ArrowRight size={13} />
-    </span>
-);
+const JourneyCourse = ({ c, onCourse }: { c: CourseModel; onCourse: (id: string) => void }) => {
+    const stagePct = { ido: c.learn.completionPct, wedo: c.practice.completionPct, youdo: c.assess.completionPct };
+    const stageSections = { ido: c.sections.learn, wedo: c.sections.practice, youdo: c.sections.assess };
+    return (
+        <article className="@container min-w-0 rounded-xl border border-[#eceef4] bg-[#fcfcfe] px-[13px] pb-3 pt-[11px]">
+            <button
+                type="button"
+                onClick={() => onCourse(c.id)}
+                className="mb-2.5 flex w-full items-center gap-2.5 border-b border-[#eceef4] pb-2.5 text-left transition-opacity hover:opacity-80"
+            >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[#8b6cf8] to-[#6c4cf1] text-[11px] font-bold text-white">
+                    {initials(c.name)}
+                </span>
+                <span className="min-w-0 flex-1">
+                    <b className={`block truncate text-[12.5px] font-semibold ${INK}`} title={c.name}>{c.name}</b>
+                    {c.code && <span className={`block text-[10.5px] ${MUTED}`}>{c.code}</span>}
+                </span>
+                <span className="shrink-0 text-right">
+                    <b className={`block text-[17px] font-bold leading-[1.1] ${INK}`}>{c.progress}%</b>
+                    <span className={`text-[10px] ${MUTED}`}>overall</span>
+                </span>
+            </button>
+            <div className="flex flex-col gap-2.5">
+                {JOURNEY_STAGES.map((stage) => (
+                    <JourneyStage key={stage.k} stage={stage} pct={stagePct[stage.k]} sections={stageSections[stage.k]} />
+                ))}
+            </div>
+        </article>
+    );
+};
 
-const RESOURCE_ROWS: { kind: ResourceKind; Icon: React.ElementType; label: string }[] = [
-    { kind: 'video', Icon: CirclePlay, label: 'Videos' },
-    { kind: 'pdf', Icon: FileText, label: 'PDFs' },
-    { kind: 'ppt', Icon: Presentation, label: 'Slides' },
-    { kind: 'doc', Icon: BookOpen, label: 'Documents' },
-    { kind: 'other', Icon: Layers, label: 'Other resources' },
-];
-
-const JourneyCard = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void }) => {
-    const { learn, practice, assess } = m.totals;
-    const of = (done: number, total: number) => `${done} / ${total}`;
-    const time = (seconds: number): JourneyRow => ({ Icon: Clock, label: 'Time spent', value: shortDuration(seconds) });
-
-    // Each panel lists only what the courses actually hold: resource kinds that
-    // have files, and grading rows only when some exercise is set to Graded.
-    const iDo: JourneyRow[] = [
-        ...RESOURCE_ROWS
-            .filter(({ kind }) => learn.byKind[kind].total > 0)
-            .map(({ kind, Icon, label }) => ({ Icon, label, value: of(learn.byKind[kind].opened, learn.byKind[kind].total) })),
-        ...(learn.mcqDocs > 0 ? [{ Icon: CircleCheck, label: 'Checkpoints', value: of(learn.mcqCompleted, learn.mcqDocs) }] : []),
-        time(m.time.contentSeconds),
-    ];
-    const weDo: JourneyRow[] = [
-        { Icon: Send, label: 'Submitted', value: of(practice.submitted, practice.assigned) },
-        ...(practice.gradable > 0
-            ? [
-                { Icon: BadgeCheck, label: 'Graded', value: String(practice.graded) },
-                { Icon: Hourglass, label: 'Awaiting review', value: String(practice.pendingReview) },
-            ]
-            : []),
-        time(m.time.weDoSeconds),
-    ];
-    const youDo: JourneyRow[] = [
-        { Icon: Send, label: 'Submitted', value: of(assess.submitted, assess.assigned) },
-        ...(assess.gradable > 0
-            ? [
-                { Icon: CircleCheck, label: 'Graded', value: String(assess.graded) },
-                { Icon: Star, label: 'Average score', value: assess.scorePct != null ? `${assess.scorePct}%` : '—' },
-            ]
-            : []),
-        time(m.time.youDoSeconds),
-    ];
-
+const JourneyCard = ({ m, onCourse, onCourses, onGrades }: {
+    m: DashboardModel; onCourse: (id: string) => void; onCourses: () => void; onGrades: () => void;
+}) => {
+    // One card per course, 2 x 2 at most: most recently opened first.
+    const shown = [...m.courses]
+        .sort((a, b) => (b.lastAccessed?.getTime() ?? 0) - (a.lastAccessed?.getTime() ?? 0))
+        .slice(0, 4);
     return (
         <section className={`${CARD} px-4 py-3 [grid-area:journey]`}>
-            <div className="mb-2 flex items-center justify-between gap-2.5">
+            <div className="mb-2.5 flex items-center justify-between gap-2.5">
                 <div className="flex min-w-0 items-center gap-2.5">
                     <Send size={22} className="shrink-0 text-[#3a6cf4]" />
                     <div className="min-w-0">
                         <p className={`text-sm font-semibold ${INK}`}>Learning Journey</p>
-                        <p className={`truncate text-[11px] ${MUTED}`}>Learn → Practice → Assess, pooled across your courses</p>
+                        <p className={`text-[11px] ${MUTED}`}>Your progress in each course: Learn → Practice → Assess</p>
                     </div>
                 </div>
                 <button
@@ -423,24 +417,21 @@ const JourneyCard = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void 
                     View Details
                 </button>
             </div>
-            <div className="@container">
-                <div className="grid gap-2 @min-[560px]:grid-cols-[minmax(0,1fr)_22px_minmax(0,1fr)_22px_minmax(0,1fr)]">
-                    <JourneyPanel
-                        k="ido" title="I DO" name="Learning Resources" pct={learn.completionPct} rows={iDo}
-                        empty={learn.total === 0 ? 'No learning resources in your courses yet.' : undefined}
-                    />
-                    <JourneyArrow />
-                    <JourneyPanel
-                        k="wedo" title="WE DO" name="Assignments" pct={practice.completionPct} rows={weDo}
-                        empty={practice.assigned === 0 ? 'No assignments in your courses yet.' : undefined}
-                    />
-                    <JourneyArrow />
-                    <JourneyPanel
-                        k="youdo" title="YOU DO" name="Assessments" pct={assess.completionPct} rows={youDo}
-                        empty={assess.assigned === 0 ? 'No assessments in your courses yet.' : undefined}
-                    />
+            {shown.length ? (
+                <div className="@container">
+                    <div className={`grid gap-2.5 ${shown.length > 1 ? '@min-[560px]:grid-cols-2' : ''}`}>
+                        {shown.map((c) => <JourneyCourse key={c.id} c={c} onCourse={onCourse} />)}
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <p className={`text-xs ${MUTED}`}>You&apos;re not enrolled in any course yet.</p>
+            )}
+            {m.courses.length > shown.length && (
+                <p className={`mt-2.5 text-center text-[11.5px] ${MUTED}`}>
+                    Showing {shown.length} of {m.courses.length} courses ·{' '}
+                    <button type="button" onClick={onCourses} className="font-semibold text-[#3a6cf4] hover:underline">View all courses →</button>
+                </p>
+            )}
         </section>
     );
 };
@@ -624,7 +615,7 @@ export const StudentHome = ({
             {/* Below 1000px these columns dissolve and each card takes its own grid area. */}
             <div className="contents [grid-area:left] @min-[1000px]:flex @min-[1000px]:min-w-0 @min-[1000px]:flex-col @min-[1000px]:gap-3">
                 <StatCards m={m} onGrades={onGrades} />
-                <JourneyCard m={m} onGrades={onGrades} />
+                <JourneyCard m={m} onCourse={onCourse} onCourses={onCourses} onGrades={onGrades} />
                 <CourseProgressCard m={m} onCourse={onCourse} onCourses={onCourses} />
             </div>
             <div className="contents [grid-area:right] @min-[1000px]:flex @min-[1000px]:min-w-0 @min-[1000px]:flex-col @min-[1000px]:gap-3">
