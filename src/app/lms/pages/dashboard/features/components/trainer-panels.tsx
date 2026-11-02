@@ -121,7 +121,7 @@ export function TrainerHeader({
             aria-label="Filter by course"
             className="h-9 max-w-56 rounded-control border border-hairline-strong bg-surface px-2.5 text-sm text-body shadow-xs outline-none transition-colors duration-fast hover:border-line-hover focus:border-brand-500"
           >
-            <option value="all">All my courses</option>
+            <option value="all">All courses</option>
             {courseOptions.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.label}
