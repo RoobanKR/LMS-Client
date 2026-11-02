@@ -189,20 +189,18 @@ const StreakCard = ({ m }: { m: DashboardModel }) => {
 
 /* ── stat cards ──────────────────────────────────────────────────────────── */
 
-const StatCard = ({ label, value, unit, none, sub, subRed, aside, onClick }: {
-    label: string; value: string; unit?: string; none?: boolean; sub: string; subRed?: boolean;
-    aside: React.ReactNode; onClick?: () => void;
+const StatCard = ({ label, value, unit, none, aside, onClick }: {
+    label: string; value: string; unit?: string; none?: boolean; aside: React.ReactNode; onClick?: () => void;
 }) => {
     const body = (
         <>
             <p className="text-[11px] font-semibold leading-[1.3] text-[#394061] @min-[820px]:text-xs">{label}</p>
-            <div className="mb-1 mt-[5px] flex items-center justify-between gap-1.5">
+            <div className="mt-[5px] flex items-center justify-between gap-1.5">
                 <span className={`whitespace-nowrap text-[22px] font-bold leading-[1.1] ${none ? 'text-[#a2a8bd]' : INK}`}>
                     {value}{unit && <small className="ml-0.5 text-[13px] font-semibold text-[#394061]">{unit}</small>}
                 </span>
                 {aside}
             </div>
-            <p className={`text-[11px] leading-[1.3] ${subRed ? 'font-semibold text-[#dc2626]' : MUTED}`}>{sub}</p>
         </>
     );
     const cls = `${CARD} flex flex-col px-2.5 py-2.5 text-left @min-[820px]:px-3`;
@@ -219,8 +217,6 @@ const StatIcon = ({ Icon, tint }: { Icon: React.ElementType; tint: string }) => 
 
 const StatCards = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void }) => {
     const live = m.deadlines.filter(isLive);
-    const missed = m.deadlines.filter(isMissed).length;
-    const weekDue = live.filter((d) => d.state !== 'overdue' && calendarDaysUntil(d.date) <= 7).length;
     const att = m.attendance;
     return (
         <div className="@container [grid-area:stats]">
@@ -229,7 +225,6 @@ const StatCards = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void })
                     label="Overall Progress"
                     value={String(m.overallProgress)}
                     unit="%"
-                    sub={`${m.solvedThisMonth} solved · 30d`}
                     aside={<Ring pct={m.overallProgress} color="#1fb866" track="#dcf3e6" size={32} width={5} />}
                 />
                 <StatCard
@@ -237,22 +232,18 @@ const StatCards = ({ m, onGrades }: { m: DashboardModel; onGrades: () => void })
                     value={att.pct != null ? String(att.pct) : '—'}
                     unit={att.pct != null ? '%' : undefined}
                     none={att.pct == null}
-                    sub={att.hasData ? `${att.present} of ${plural(att.totalDays, 'day')}` : 'Not marked yet'}
                     aside={<StatIcon Icon={CalendarCheck} tint="bg-[#fff3e8] text-[#f97316]" />}
                 />
                 <StatCard
                     label="Current Grade"
                     value={m.grade.letter}
                     none={m.scorePct == null}
-                    sub={m.scorePct != null ? `${m.scorePct}% average` : 'Nothing graded'}
                     aside={<StatIcon Icon={ChartNoAxesColumn} tint="bg-[#fff6e3] text-[#e08a00]" />}
                     onClick={onGrades}
                 />
                 <StatCard
                     label="Pending Tasks"
                     value={String(live.length)}
-                    sub={missed > 0 ? `${missed} missed` : live.length ? `${weekDue} due this week` : 'All caught up'}
-                    subRed={missed > 0}
                     aside={<StatIcon Icon={ListTodo} tint="bg-[#fff0f0] text-[#ef4444]" />}
                 />
             </div>
