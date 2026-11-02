@@ -89,7 +89,6 @@ function useFirstName(): string {
 
 export function TrainerHeader({
   scope,
-  subline,
   filtered,
   onReset,
   course,
@@ -97,7 +96,6 @@ export function TrainerHeader({
   onCourse,
 }: {
   scope: string;
-  subline: string;
   filtered: boolean;
   onReset: () => void;
   course: string;
@@ -109,20 +107,10 @@ export function TrainerHeader({
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h1 className="truncate text-2xl font-semibold tracking-[-0.02em] text-heading sm:text-3xl">
+        <p className="text-sm font-medium text-[#4e5874]">Welcome back{first ? `, ${first}` : ""}</p>
+        <h1 className="mt-0.5 truncate text-[28px] font-extrabold tracking-[-0.035em] text-[#141a38] sm:text-[32px]">
           {scope}
         </h1>
-        <p className="mt-1 text-sm text-subtle">
-          {first && (
-            <>
-              <span className="text-body">Welcome back, {first}</span>
-              <span aria-hidden className="mx-1.5 text-faint">
-                ·
-              </span>
-            </>
-          )}
-          {subline}
-        </p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2 self-start">

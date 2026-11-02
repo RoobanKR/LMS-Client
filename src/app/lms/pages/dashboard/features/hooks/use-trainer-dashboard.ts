@@ -74,6 +74,12 @@ export interface BatchToday {
   mine: boolean;
 }
 
+type RosterEntry = { user?: { _id?: string; email?: string } };
+type RosterBatch = { _id?: string; users?: RosterEntry[] };
+type RosterCourse = { _id?: string; batchAndParticipants?: RosterBatch[] };
+type AttendanceBatch = { id?: string; _id?: string; mine?: boolean };
+type AttendanceCourse = { _id?: string; batches?: AttendanceBatch[] };
+
 export interface UseTrainerDashboard {
   loading: boolean;
   error: string;
@@ -90,6 +96,8 @@ export interface UseTrainerDashboard {
   youDoCategories: WorkCategory[];
   coursePerf: CoursePerfRow[];
   batchesToday: BatchToday[];
+  /** The trainer's assigned resource batch for each course. */
+  batchIdByCourse: Record<string, string>;
   courseOptions: TrainerCourseOpt[];
   /** Active permission keys — panels use these to hide dead destinations. */
   permissionKeys: Set<string>;
@@ -169,6 +177,52 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
     return { courseIds: ids, scoped: true };
   }, [roster.data, attendance.data, me]);
 
+  const batchIdByCourse = useMemo(() => {
+    const result: Record<string, string> = {};
+    const myId = me?._id ? String(me._id) : "";
+    const myEmail = String(me?.email || "").toLowerCase();
+    ((roster.data ?? []) as RosterCourse[]).forEach((course) => {
+      (Array.isArray(course.batchAndParticipants) ? course.batchAndParticipants : []).forEach((batch) => {
+        const assigned = (Array.isArray(batch.users) ? batch.users : []).some((entry) => {
+          const user = entry?.user;
+          return user && ((myId && String(user._id) === myId) || (myEmail && String(user.email || "").toLowerCase() === myEmail));
+        });
+        const batchId = String(batch._id || "");
+        if (assigned && batchId && !result[String(course._id)]) result[String(course._id)] = batchId;
+      });
+    });
+    ((attendance.data ?? []) as AttendanceCourse[]).forEach((course) => {
+      const ownBatch = (Array.isArray(course.batches) ? course.batches : []).find((batch) => batch.mine && (batch.id || batch._id));
+      if (ownBatch && !result[String(course._id)]) result[String(course._id)] = String(ownBatch.id || ownBatch._id);
+    });
+    return result;
+  }, [roster.data, attendance.data, me]);
+
+  // When a course has several batches, keep follow-up and progress numbers
+  // limited to the students in the batches assigned to this trainer.
+  const ownStudentIdsByCourse = useMemo(() => {
+    const result = new Map<string, Set<string>>();
+    const myId = me?._id ? String(me._id) : "";
+    const myEmail = String(me?.email || "").toLowerCase();
+    ((roster.data ?? []) as RosterCourse[]).forEach((course) => {
+      (Array.isArray(course.batchAndParticipants) ? course.batchAndParticipants : []).forEach((batch) => {
+        const users = Array.isArray(batch.users) ? batch.users : [];
+        const assigned = users.some((entry) => {
+          const user = entry?.user;
+          return user && ((myId && String(user._id) === myId) || (myEmail && String(user.email || "").toLowerCase() === myEmail));
+        });
+        if (!assigned) return;
+        const courseId = String(course._id);
+        const ids = result.get(courseId) || new Set<string>();
+        users.forEach((entry) => {
+          if (entry?.user?._id) ids.add(String(entry.user._id));
+        });
+        result.set(courseId, ids);
+      });
+    });
+    return result;
+  }, [roster.data, me]);
+
   const clientOf = useMemo(() => {
     const m = new Map<string, string>();
     (roster.data ?? []).forEach((c: any) => m.set(String(c._id), c.clientName || "Unassigned"));
@@ -182,8 +236,9 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
 
   const learners = useMemo(
     () => (analytics.data?.students ?? []).filter((student) =>
-      courseIds?.has(student.courseId) && (course === "all" || course === student.courseId)),
-    [analytics.data, courseIds, course],
+      courseIds?.has(student.courseId) && (course === "all" || course === student.courseId)
+      && (!ownStudentIdsByCourse.has(student.courseId) || ownStudentIdsByCourse.get(student.courseId)?.has(student.id || ""))),
+    [analytics.data, courseIds, course, ownStudentIdsByCourse],
   );
   const weDoWork = useMemo(() => combineWork(learners.map((student) => student.weDoWork)), [learners]);
   const youDoWork = useMemo(() => combineWork(learners.map((student) => student.youDoWork)), [learners]);
@@ -266,7 +321,7 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
   const coursePerf = useMemo<CoursePerfRow[]>(() => {
     if (!analytics.data) return [];
     const rows = analytics.data.rows.filter((r) => inScope(r.id));
-    const studs = analytics.data.students.filter((s) => inScope(s.courseId));
+    const studs = learners;
 
     const scoreAgg = new Map<string, { s: number; n: number }>();
     const riskAgg = new Map<string, number>();
@@ -292,7 +347,7 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
     (attendance.data ?? []).forEach((c: any) => {
       const id = String(c._id);
       if (!inScope(id)) return;
-      const due = batchesDueToday(c, today);
+      const due = batchesDueToday(c, today).filter((batch) => batch.mine);
       if (!due.length) return;
       attMap.set(id, { marked: due.filter((b) => b.marked).length, total: due.length });
     });
@@ -300,23 +355,26 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
     return rows
       .map((r) => {
         const sc = scoreAgg.get(r.id);
+        const ownStudents = studs.filter((student) => student.courseId === r.id);
+        const batchScoped = ownStudentIdsByCourse.has(r.id);
+        const studentCount = batchScoped ? ownStudents.length : r.students;
         return {
           id: r.id,
           name: r.name,
           code: r.code,
-          students: r.students,
+          students: studentCount,
           started: r.started,
-          avg: r.students > 0 ? r.avg : null,
+          avg: batchScoped ? (studentCount ? Math.round(ownStudents.reduce((sum, student) => sum + student.overall, 0) / studentCount) : null) : r.students > 0 ? r.avg : null,
           score: sc && sc.n ? Math.round(sc.s / sc.n) : null,
-          weDoWork: combineWork(studs.filter((student) => student.courseId === r.id).map((student) => student.weDoWork)),
-          youDoWork: combineWork(studs.filter((student) => student.courseId === r.id).map((student) => student.youDoWork)),
+          weDoWork: combineWork(ownStudents.map((student) => student.weDoWork)),
+          youDoWork: combineWork(ownStudents.map((student) => student.youDoWork)),
           risk: riskAgg.get(r.id) || 0,
           attendance: attMap.get(r.id) || null,
           sparks: (sparkAgg.get(r.id) || []).slice().sort((a, b) => a - b),
         };
       })
       .sort((a, b) => b.students - a.students);
-  }, [analytics.data, attendance.data, inScope, today]);
+  }, [analytics.data, attendance.data, inScope, today, learners, ownStudentIdsByCourse]);
 
   /* ── today's batches (attendance overview, pending first) ──────────────── */
   // Only batches whose attendance is due today — a course outside its
@@ -327,7 +385,7 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
     (attendance.data ?? []).forEach((c: any) => {
       const id = String(c._id);
       if (!inScope(id)) return;
-      batchesDueToday(c, today).forEach((b, i) => {
+      batchesDueToday(c, today).filter((batch) => batch.mine).forEach((b, i) => {
         out.push({
           key: `${id}-${b.id || i}`,
           batchName: b.name,
@@ -376,6 +434,7 @@ export function useTrainerDashboard(course: string, onReset: () => void): UseTra
     youDoCategories,
     coursePerf,
     batchesToday,
+    batchIdByCourse,
     courseOptions,
     permissionKeys,
   };

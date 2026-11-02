@@ -354,6 +354,10 @@ export default function SessionDetail() {
   }, [aggregate]);
 
   const goBack = useCallback(() => {
+    if (returnTo === "dashboard") {
+      router.push("/lms/pages/dashboard");
+      return;
+    }
     if (returnTo === "manageUsers") {
       const qs = new URLSearchParams();
       if (assessmentId) { qs.set("assessmentId", assessmentId); qs.set("exerciseId", assessmentId); }
