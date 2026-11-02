@@ -99,10 +99,6 @@ export default function StudentDashboardPage() {
 
     const goCourse = useCallback((id: string) => router.push(`/lms/pages/courses/coursesdetailedview/${id}`), [router]);
     const goCourses = useCallback(() => router.push('/lms/pages/courses'), [router]);
-    // The learner's OWN calendar, not the admin holiday editor at
-    // /lms/pages/calendar — that one needs the `calendar` module and answered
-    // every student with Access Restricted.
-    const goCalendar = useCallback(() => router.push('/lms/pages/studentcalendar'), [router]);
     const goGrades = useCallback(() => router.push('/lms/pages/grades'), [router]);
 
     if (loading) {
@@ -132,7 +128,7 @@ export default function StudentDashboardPage() {
 
     return (
         <StudentLayout>
-            <StudentHome m={model} onCourse={goCourse} onCourses={goCourses} onCalendar={goCalendar} onGrades={goGrades} />
+            <StudentHome m={model} onCourse={goCourse} onCourses={goCourses} onGrades={goGrades} />
         </StudentLayout>
     );
 }

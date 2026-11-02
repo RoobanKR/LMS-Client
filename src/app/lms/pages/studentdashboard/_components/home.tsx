@@ -17,7 +17,7 @@
 
 import React from 'react';
 import {
-    ArrowRight, BookOpen, CalendarCheck, CalendarDays, ChartNoAxesColumn, Check, Clock, GraduationCap, IdCard,
+    BookOpen, CalendarCheck, CalendarDays, ChartNoAxesColumn, Check, ChevronDown, Clock, GraduationCap, IdCard,
     Flame, ListTodo, Send, TriangleAlert, Trophy,
 } from 'lucide-react';
 import { calendarDaysUntil, dueLabel } from '../_lib/metrics';
@@ -73,14 +73,16 @@ const Ring = ({ pct, color, track, size, width, children }: {
     </span>
 );
 
-const ViewLink = ({ label, onClick }: { label: string; onClick: () => void }) => (
+/** "View full plan (5)" / "Show less" — reveals the rest of a list in place. */
+const ExpandToggle = ({ open, label, onToggle }: { open: boolean; label: string; onToggle: () => void }) => (
     <button
         type="button"
-        onClick={onClick}
+        aria-expanded={open}
+        onClick={onToggle}
         className="inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#edf2ff] px-2.5 text-[11px] font-semibold text-[#3a6cf4] transition-colors hover:bg-[#e2eaff]"
     >
-        {label}
-        <ArrowRight size={13} />
+        {open ? 'Show less' : label}
+        <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
     </button>
 );
 
@@ -148,7 +150,7 @@ const Banner = ({ m }: { m: DashboardModel }) => {
 
 /* ── streak ──────────────────────────────────────────────────────────────── */
 
-const StreakCard = ({ m, onCalendar }: { m: DashboardModel; onCalendar: () => void }) => {
+const StreakCard = ({ m }: { m: DashboardModel }) => {
     const mo = m.momentum;
     return (
         <section className={`${CARD} px-4 py-3 [grid-area:streak]`} style={{ background: 'linear-gradient(160deg,#fff 55%,#fff6f6)' }}>
@@ -159,15 +161,9 @@ const StreakCard = ({ m, onCalendar }: { m: DashboardModel; onCalendar: () => vo
                     </p>
                     <p className={`ml-[27px] mt-0.5 text-[11.5px] ${MUTED}`}>{mo.activeDays30} active days / 30</p>
                 </div>
-                <button
-                    type="button"
-                    onClick={onCalendar}
-                    title="Open calendar"
-                    aria-label="Open calendar"
-                    className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-[#ffe9ec] text-[#e5484d] transition-colors hover:bg-[#ffdfe4]"
-                >
+                <span aria-hidden className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-[#ffe9ec] text-[#e5484d]">
                     <CalendarDays size={19} />
-                </button>
+                </span>
             </div>
             <p className={`mt-0.5 text-[27px] font-bold leading-[1.1] ${INK}`}>{plural(mo.streak, 'day')}</p>
             <p className={`text-[11.5px] ${MUTED}`}>{plural(mo.weekTotal, 'submission')} this week</p>
@@ -277,8 +273,11 @@ const Dartboard = () => (
     </svg>
 );
 
-const FocusCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse: (id: string) => void; onCalendar: () => void }) => {
-    const items = m.focus.slice(0, 3);
+const FocusCard = ({ m, onCourse }: { m: DashboardModel; onCourse: (id: string) => void }) => {
+    // The full plan is the whole to-do list, shown in place (the student
+    // calendar only holds holidays, so it was the wrong place to send them).
+    const [all, setAll] = React.useState(false);
+    const items = all ? m.focus : m.focus.slice(0, 3);
     // Deadline items carry their course on the deadline itself.
     const courseOf = (id: string, courseId?: string) =>
         courseId || m.deadlines.find((d) => `deadline-${d.id}` === id)?.courseId || '';
@@ -320,9 +319,11 @@ const FocusCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse: (
                 )}
                 <Dartboard />
             </div>
-            <div className="flex justify-end">
-                <ViewLink label="View full plan" onClick={onCalendar} />
-            </div>
+            {m.focus.length > 3 && (
+                <div className="flex justify-end">
+                    <ExpandToggle open={all} label={`View full plan (${m.focus.length})`} onToggle={() => setAll((v) => !v)} />
+                </div>
+            )}
         </section>
     );
 };
@@ -459,9 +460,11 @@ const scheduleLook = (d: DeadlineItem): { box: string; tag: [TagTone, string]; s
     return { box: 'bg-[#ebf1ff] text-[#2f5ee8]', tag: ['blue', d.kind] };
 };
 
-const ScheduleCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse: (id: string) => void; onCalendar: () => void }) => {
+const ScheduleCard = ({ m, onCourse }: { m: DashboardModel; onCourse: (id: string) => void }) => {
     // Submitted work is done — the schedule lists what still needs the student.
-    const rows = m.deadlines.filter((d) => !d.attempted).slice(0, SCHEDULE_ROWS);
+    const [all, setAll] = React.useState(false);
+    const open = m.deadlines.filter((d) => !d.attempted);
+    const rows = all ? open : open.slice(0, SCHEDULE_ROWS);
     const missed = m.deadlines.filter(isMissed).length;
     return (
         <section className={`${CARD} flex flex-col px-4 py-3 [grid-area:sched] @min-[1000px]:flex-1`}>
@@ -469,7 +472,9 @@ const ScheduleCard = ({ m, onCourse, onCalendar }: { m: DashboardModel; onCourse
                 <p className={`flex items-center gap-2 text-sm font-semibold ${INK}`}>
                     <IconSquare Icon={CalendarDays} from="#8b6cf8" to="#6c4cf1" />Upcoming Schedule
                 </p>
-                <ViewLink label="View All" onClick={onCalendar} />
+                {open.length > SCHEDULE_ROWS && (
+                    <ExpandToggle open={all} label={`View all (${open.length})`} onToggle={() => setAll((v) => !v)} />
+                )}
             </div>
             {rows.length ? rows.map((d, i) => {
                 const look = scheduleLook(d);
@@ -513,13 +518,11 @@ export const StudentHome = ({
     m,
     onCourse,
     onCourses,
-    onCalendar,
     onGrades,
 }: {
     m: DashboardModel;
     onCourse: (id: string) => void;
     onCourses: () => void;
-    onCalendar: () => void;
     onGrades: () => void;
 }) => (
     <div className="@container">
@@ -533,15 +536,15 @@ export const StudentHome = ({
             ].join(' ')}
         >
             <Banner m={m} />
-            <StreakCard m={m} onCalendar={onCalendar} />
+            <StreakCard m={m} />
             {/* Below 1000px these columns dissolve and each card takes its own grid area. */}
             <div className="contents [grid-area:left] @min-[1000px]:flex @min-[1000px]:min-w-0 @min-[1000px]:flex-col @min-[1000px]:gap-3">
                 <StatCards m={m} onGrades={onGrades} />
                 <JourneyCard m={m} onCourse={onCourse} onCourses={onCourses} onGrades={onGrades} />
             </div>
             <div className="contents [grid-area:right] @min-[1000px]:flex @min-[1000px]:min-w-0 @min-[1000px]:flex-col @min-[1000px]:gap-3">
-                <FocusCard m={m} onCourse={onCourse} onCalendar={onCalendar} />
-                <ScheduleCard m={m} onCourse={onCourse} onCalendar={onCalendar} />
+                <FocusCard m={m} onCourse={onCourse} />
+                <ScheduleCard m={m} onCourse={onCourse} />
             </div>
         </div>
     </div>
