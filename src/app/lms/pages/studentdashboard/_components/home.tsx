@@ -17,7 +17,7 @@
 
 import React from 'react';
 import {
-    ArrowRight, BookOpen, CalendarCheck, CalendarDays, ChartNoAxesColumn, Check, Clock,
+    ArrowRight, BookOpen, CalendarCheck, CalendarDays, ChartNoAxesColumn, Check, Clock, GraduationCap, IdCard,
     Flame, ListTodo, Send, TriangleAlert, Trophy,
 } from 'lucide-react';
 import { calendarDaysUntil, dueLabel } from '../_lib/metrics';
@@ -101,38 +101,47 @@ const Banner = ({ m }: { m: DashboardModel }) => {
     const who = [s.department || s.degree, s.rollNumber && `Roll ${s.rollNumber}`].filter(Boolean) as string[];
     return (
         <section
-            className="relative isolate min-h-[200px] overflow-hidden rounded-[18px] px-6 py-[17px] [grid-area:hero]"
-            style={{ background: 'radial-gradient(ellipse at 86% 7%,rgba(255,255,255,.58),transparent 24%),radial-gradient(ellipse at 84% 100%,rgba(126,82,255,.20),transparent 38%),linear-gradient(105deg,#fff1e6 0%,#ffe0cc 45%,#eed9fc 75%,#c6b5ff 100%)' }}
+            aria-labelledby="student-welcome-title"
+            className="relative isolate min-h-[220px] overflow-hidden rounded-[22px] border border-white/80 px-5 py-5 shadow-[0_8px_24px_rgb(55_40_90/.08)] [grid-area:hero] @min-[720px]:min-h-[236px] @min-[1000px]:min-h-[244px] @min-[1000px]:px-6"
+            style={{ background: 'radial-gradient(ellipse at 89% 12%,rgba(196,181,253,.40),transparent 32%),radial-gradient(ellipse at 93% 105%,rgba(255,211,181,.52),transparent 37%),linear-gradient(112deg,#fffdf9 0%,#fff8f1 53%,#f7f3ff 100%)' }}
         >
-            <div className="relative z-10 max-w-[55%] @max-[719px]:max-w-none">
-                <p className={`text-[15px] font-medium ${INK}`}>Welcome back,</p>
-                <h1 className="text-[26px] font-extrabold leading-[1.15] tracking-[-0.01em] text-[#161a3a] @min-[1100px]:text-[28px]">
-                    {s.fullName} <span className="text-[24px]">👋</span>
-                </h1>
-                {who.length > 0 && (
-                    <p className="mt-1 flex items-center gap-3 text-[12.5px] font-medium text-[#394061]">
-                        {who.map((w, i) => (
-                            <React.Fragment key={w}>
-                                {i > 0 && <i className="h-[13px] w-px bg-[#c9b9ad]" />}
-                                <span>{w}</span>
-                            </React.Fragment>
-                        ))}
-                    </p>
-                )}
-                <p className={`mt-2 text-[13px] font-bold leading-[1.35] ${INK} @min-[1100px]:text-[14px]`}>
-                    &ldquo;The best investment you can make<br />is in yourself.&rdquo;
-                </p>
-                <p className="mt-[5px] text-xs text-[#394061]">
-                    Keep going, {s.firstName} — small daily<br />progress compounds.
-                </p>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 hidden w-[42%] @min-[480px]:block">
+                <div className="absolute bottom-[8%] right-[7%] h-[82%] w-[86%] rounded-full bg-[#d9ccff]/45 blur-2xl" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                    src="/assets/student-dashboard/welcome-hero-v3.webp"
+                    alt=""
+                    className="absolute bottom-0 right-0 h-full w-full max-w-none object-contain object-right-bottom"
+                />
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-                src="/assets/student-dashboard/welcome-hero-v2.webp"
-                alt=""
-                aria-hidden
-                className="pointer-events-none absolute bottom-0 right-3 h-[94%] w-auto max-w-none @max-[719px]:opacity-25"
-            />
+
+            <div className="relative z-10 max-w-full @min-[480px]:max-w-[61%] @min-[720px]:max-w-[59%] @min-[1000px]:max-w-[60%]">
+                <p className="text-[14px] font-semibold tracking-[0.01em] text-[#39415f]">Welcome back,</p>
+                <div className="mt-0.5 flex min-w-0 items-start gap-2">
+                    <h1 id="student-welcome-title" className="min-w-0 break-words text-[24px] font-extrabold leading-[1.12] tracking-[-0.035em] text-[#111832] @min-[720px]:text-[28px] @min-[1000px]:text-[30px]">
+                        {s.fullName}
+                    </h1>
+                    <span aria-hidden="true" className="shrink-0 pt-0.5 text-[22px] leading-none">👋</span>
+                </div>
+                {who.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {who.map((w, i) => (
+                            <span key={w} className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-[#e6e0f4] bg-white/85 px-3 py-1 text-[12px] font-semibold leading-tight text-[#303957] shadow-[0_1px_2px_rgb(34_37_75/.05)]">
+                                {w.startsWith('Roll ') ? <IdCard aria-hidden="true" size={14} className="shrink-0 text-[#6652c6]" /> : <GraduationCap aria-hidden="true" size={15} className="shrink-0 text-[#6652c6]" />}
+                                <span className="break-words">{w}</span>
+                            </span>
+                        ))}
+                    </div>
+                )}
+                <div className="mt-3 max-w-[440px]">
+                    <p className="border-l-[3px] border-[#7962d8] pl-3 text-[14px] font-bold leading-[1.35] text-[#202744] @min-[720px]:text-[15px]">
+                        &ldquo;The best investment you can make is in yourself.&rdquo;
+                    </p>
+                    <p className="mt-1.5 pl-3 text-[13px] leading-[1.45] text-[#46506f]">
+                        Keep going, {s.firstName || s.fullName.split(/\s+/)[0]} — small daily progress compounds.
+                    </p>
+                </div>
+            </div>
         </section>
     );
 };
