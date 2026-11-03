@@ -1,19 +1,21 @@
 // Attendance ▸ Excel.
 //
 // The workbook the team already keeps by hand ("<Client>-<Degree>-Attendance
-// Summary"), so a download can be sent on without editing:
+// Summary"), column for column, so a download can be sent on without editing:
 //   · Attendance — a title band ("<client> - <degree> - <batches>",
 //     "Attendance_Tracker", "Date : 07-Sep-2026 Till 21-Oct-2026"), a Module
-//     row carrying the course, then S.NO · Reg No · Student Name · Phase ·
+//     row carrying the course, then S.NO · Student Name · Specialization ·
 //     Batch & Trainers · Email · Contact Number and one column per working day
-//     (P / A / H — an absence in bold on red, a half-day on yellow). Two
-//     columns on, the Attendance Summary Report: No of Working Days, Present,
-//     Absent and Percentage as live formulas, so a corrected cell recounts.
-//     Under the students, each day's Status count (Present / Absent / Half Day
-//     / Total) and the date it was generated.
-//   · Leave Reason — every absence by date, with the reason given.
+//     (P / A / H — an absence in bold on red). Two columns on, the Attendance
+//     Summary Report: No of Working Days, Present, Absent and Percentage as
+//     live formulas, so a corrected cell recounts. Under the students, each
+//     day's Status count (Present / Absent / OD / Half Day / Late Entry /
+//     Total) and the date it was generated.
+//   · Leave Reason — every absence by date: Date · Name · Department · Batch
+//     (and the reason, when one was given).
 //   · Total Count — students and trainers per batch.
-// Phase and Batch & Trainers merge down their students, like the sample.
+// Batch & Trainers merges down its students, like the sample. Specialization /
+// Department is the student's department, shown when the course has any.
 
 import { saveAs } from "file-saver";
 import { phaseOrdinal } from "@/lib/phaseGroups";
@@ -21,7 +23,7 @@ import { phaseOrdinal } from "@/lib/phaseGroups";
 export type WorkbookStatus = "P" | "A" | "H";
 
 /** The roster shapes both callers hold (the report's and the modal's). */
-type RosterStudent = {
+export type RosterStudent = {
     _id: string;
     firstName: string;
     lastName: string;
@@ -29,11 +31,12 @@ type RosterStudent = {
     userId?: string;
     regNo?: string;
     phone?: string;
+    department?: string;
 };
 type RosterBatch = { id: string; name: string; phase?: string; trainers?: string[]; students: RosterStudent[] };
 
-type Batch = { id: string; name: string; phase: string; trainers: string[] };
-type Line = { s: RosterStudent; name: string; batch: Batch };
+export type SheetBatch = { id: string; name: string; phase: string; trainers: string[] };
+export type SheetLine = { s: RosterStudent; name: string; batch: SheetBatch };
 
 export interface AttendanceWorkbookSource {
     courseName: string;
@@ -60,7 +63,9 @@ const FILL_COURSE = "FFD7FC7E";
 const FILL_HEAD = "FFC0EBF0";
 const FILL_SUMMARY = "FF0070C0";
 const FILL_ABSENT = "FFFF0000";
+const FILL_OD = "FF92D050";
 const FILL_HALF = "FFFFFF00";
+const FILL_LATE = "FFD7FC7E";
 const FILL_STATUS_DATE = "FF9BC2E6";
 const FILL_TOTAL = "FFE39696";
 const THIN = { style: "thin" as const, color: { argb: "FF000000" } };
@@ -83,19 +88,21 @@ const colName = (n: number) => {
 };
 const fileSafe = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() || "Attendance";
 
+/** "Batch I" — with its phase when the course runs in phases ("Batch I - Phase III"). */
+export const batchCaption = (b: SheetBatch) => (b.phase ? `${b.name} - ${b.phase}` : b.name);
+
 /** The students in sheet order — phase, then batch, then name — each placed
- *  in the first of their (picked) batches. */
-function linesOf(src: AttendanceWorkbookSource): Line[] {
-    const groups = src.batchIds?.length
-        ? src.batchGroups.filter((g) => src.batchIds!.includes(g.id))
-        : src.batchGroups;
-    const placed = new Map<string, Batch>();
+ *  in the first of their (picked) batches. Shared with the on-screen list so
+ *  the page and the download read the same. */
+export function orderedLines(batchGroups: RosterBatch[], students: RosterStudent[], batchIds?: string[]): SheetLine[] {
+    const groups = batchIds?.length ? batchGroups.filter((g) => batchIds.includes(g.id)) : batchGroups;
+    const placed = new Map<string, SheetBatch>();
     for (const g of groups) {
-        const batch: Batch = { id: g.id, name: g.name, phase: (g.phase || "").trim(), trainers: g.trainers || [] };
+        const batch: SheetBatch = { id: g.id, name: g.name, phase: (g.phase || "").trim(), trainers: g.trainers || [] };
         for (const s of g.students) if (!placed.has(s._id)) placed.set(s._id, batch);
     }
-    const none: Batch = { id: "", name: "No batch", phase: "", trainers: [] };
-    const lines = src.students.map((s) => ({ s, name: nameOf(s), batch: placed.get(s._id) || none }));
+    const none: SheetBatch = { id: "", name: "No batch", phase: "", trainers: [] };
+    const lines = students.map((s) => ({ s, name: nameOf(s), batch: placed.get(s._id) || none }));
     lines.sort((a, b) =>
         phaseOrdinal(a.batch.phase) - phaseOrdinal(b.batch.phase) ||
         a.batch.phase.localeCompare(b.batch.phase) ||
@@ -107,7 +114,7 @@ function linesOf(src: AttendanceWorkbookSource): Line[] {
 }
 
 /** [start, length] of each run of equal keys. */
-function runs<T>(items: T[], key: (item: T) => string): [number, number][] {
+export function runs<T>(items: T[], key: (item: T) => string): [number, number][] {
     const out: [number, number][] = [];
     for (let i = 0; i < items.length;) {
         let j = i;
@@ -121,10 +128,10 @@ function runs<T>(items: T[], key: (item: T) => string): [number, number][] {
 export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource): Promise<void> {
     const ExcelJS = (await import("exceljs")).default;
 
-    const lines = linesOf(src);
+    const lines = orderedLines(src.batchGroups, src.students, src.batchIds);
     const days = src.days;
     const dayKeys = days.map(dayKeyOf);
-    const showPhase = src.batchGroups.some((g) => (g.phase || "").trim());
+    const showDept = lines.some((l) => (l.s.department || "").trim());
 
     // studentId → dayKey → mark
     const marks = new Map<string, Map<string, { status: WorkbookStatus; reason: string }>>();
@@ -150,13 +157,13 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
     wb.created = new Date();
 
     // ── Sheet 1 · Attendance ─────────────────────────────────────────────
-    const infoHeads = ["S.NO", "Reg No", "Student Name", ...(showPhase ? ["Phase"] : []), "Batch & Trainers", "Email", "Contact Number"];
+    const infoHeads = ["S.NO", "Student Name", ...(showDept ? ["Specialization"] : []), "Batch & Trainers", "Email", "Contact Number"];
     const nInfo = infoHeads.length;
     const col = {
-        sno: 1, reg: 2, name: 3,
-        phase: showPhase ? 4 : 0,
-        batch: showPhase ? 5 : 4,
-        email: showPhase ? 6 : 5,
+        sno: 1, name: 2,
+        dept: showDept ? 3 : 0,
+        batch: showDept ? 4 : 3,
+        email: showDept ? 5 : 4,
         phone: nInfo,
     };
     const firstDay = nInfo + 1;
@@ -223,18 +230,16 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
     const dayRange = (r: number) => `${colName(firstDay)}${r}:${colName(lastDay)}${r}`;
     lines.forEach((l, i) => {
         const r = FIRST_ROW + i;
-        const row = ws.getRow(r);
-        row.height = 17.1;
+        ws.getRow(r).height = 17.1;
         const put = (c: number, value: import("exceljs").CellValue, opts: Parameters<typeof style>[1] = {}) => {
             const cell = ws.getCell(r, c);
             cell.value = value;
             style(cell, opts);
         };
         put(col.sno, i + 1);
-        put(col.reg, l.s.regNo || l.s.userId || "");
         put(col.name, l.name, { h: "left", wrap: true });
-        if (col.phase) put(col.phase, l.batch.phase || "—", { bold: true, wrap: true });
-        put(col.batch, l.batch.trainers.length ? `${l.batch.name}\n${l.batch.trainers.join(" & ")}` : l.batch.name, { bold: true, wrap: true });
+        if (col.dept) put(col.dept, (l.s.department || "").trim(), { bold: true, wrap: true });
+        put(col.batch, l.batch.trainers.length ? `${batchCaption(l.batch)}\n${l.batch.trainers.join(" & ")}` : batchCaption(l.batch), { bold: true, wrap: true });
         put(col.email, l.s.email || "", { h: "left", wrap: true });
         const phone = (l.s.phone || "").replace(/\s+/g, "");
         put(col.phone, /^\d{6,15}$/.test(phone) ? Number(phone) : phone, { wrap: true, fmt: "0" });
@@ -245,10 +250,7 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
             if (mark === "P") p++;
             else if (mark === "A") a++;
             else if (mark === "H") h++;
-            put(firstDay + k, mark || null, {
-                bold: mark === "A",
-                fill: mark === "A" ? FILL_ABSENT : mark === "H" ? FILL_HALF : undefined,
-            });
+            put(firstDay + k, mark || null, { bold: mark === "A", fill: mark === "A" ? FILL_ABSENT : undefined });
         });
         const wdRef = `${colName(sumCols.wd)}${r}`;
         const prRef = `${colName(sumCols.present)}${r}`;
@@ -267,26 +269,20 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
         }, { bold: true, fmt: "0%" });
     });
 
-    // Phase and Batch & Trainers merge down their students.
+    // Batch & Trainers merges down its students.
     const lastRow = FIRST_ROW + lines.length - 1;
     for (const [start, len] of runs(lines, (l) => l.batch.id || l.batch.name)) {
         merge(FIRST_ROW + start, col.batch, FIRST_ROW + start + len - 1, col.batch);
         // A one-student batch still shows its trainers on a second line.
         if (len === 1 && lines[start].batch.trainers.length) ws.getRow(FIRST_ROW + start).height = 34;
     }
-    if (col.phase) {
-        for (const [start, len] of runs(lines, (l) => l.batch.phase)) {
-            merge(FIRST_ROW + start, col.phase, FIRST_ROW + start + len - 1, col.phase);
-        }
-    }
 
-    // Absences stay red (and half-days yellow) when someone edits a cell.
+    // Absences stay bold on red when someone edits a cell, as in the sample.
     if (lines.length && days.length) {
         ws.addConditionalFormatting({
             ref: `${colName(firstDay)}${FIRST_ROW}:${colName(lastDay)}${lastRow}`,
             rules: [
                 { type: "containsText", operator: "containsText", text: "A", priority: 1, style: { fill: { type: "pattern", pattern: "solid", bgColor: { argb: FILL_ABSENT } }, font: { bold: true } } },
-                { type: "containsText", operator: "containsText", text: "H", priority: 2, style: { fill: { type: "pattern", pattern: "solid", bgColor: { argb: FILL_HALF } } } },
             ],
         });
     }
@@ -295,10 +291,8 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
     if (days.length) {
         const top = (lines.length ? lastRow : FIRST_ROW - 1) + 3;
         const colRange = (c: number) => `${colName(c)}${FIRST_ROW}:${colName(c)}${Math.max(lastRow, FIRST_ROW)}`;
-        const count = (k: number, status: WorkbookStatus) =>
+        const count = (k: number, status: string) =>
             lines.filter((l) => marks.get(l.s._id)?.get(dayKeys[k])?.status === status).length;
-        const unmarked = (k: number) => lines.filter((l) => !marks.get(l.s._id)?.get(dayKeys[k])).length;
-        const anyUnmarked = days.some((_, k) => unmarked(k) > 0);
 
         const label = (r: number, text: string, fill?: string) => {
             const cell = ws.getCell(r, col.phone);
@@ -311,20 +305,21 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
             cell.value = d;
             style(cell, { bold: true, fill: FILL_STATUS_DATE, fmt: "d-mmm-yy" });
         });
-        const rowsOf: { text: string; fill?: string; formula: (c: number) => string; result: (k: number) => number }[] = [
-            { text: "Present", formula: (c) => `COUNTIF(${colRange(c)},"P")`, result: (k) => count(k, "P") },
-            { text: "Absent", fill: FILL_ABSENT, formula: (c) => `COUNTIF(${colRange(c)},"A")`, result: (k) => count(k, "A") },
-            { text: "Half Day", fill: FILL_HALF, formula: (c) => `COUNTIF(${colRange(c)},"H")`, result: (k) => count(k, "H") },
-            ...(anyUnmarked
-                ? [{ text: "Not Marked", formula: (c: number) => `COUNTBLANK(${colRange(c)})`, result: unmarked }]
-                : []),
+        // The sample's rows. The LMS marks P / A / H; OD and Late Entry count
+        // whatever is typed into the sheet afterwards.
+        const rowsOf: { text: string; fill?: string; code: string }[] = [
+            { text: "Present", code: "P" },
+            { text: "Absent", fill: FILL_ABSENT, code: "A" },
+            { text: "OD", fill: FILL_OD, code: "OD" },
+            { text: "Half Day", fill: FILL_HALF, code: "H" },
+            { text: "Late Entry", fill: FILL_LATE, code: "Late Entry" },
         ];
         rowsOf.forEach((spec, i) => {
             const r = top + 1 + i;
             label(r, spec.text, spec.fill);
             days.forEach((_, k) => {
                 const cell = ws.getCell(r, firstDay + k);
-                cell.value = lines.length ? { formula: spec.formula(firstDay + k), result: spec.result(k) } : 0;
+                cell.value = lines.length ? { formula: `COUNTIF(${colRange(firstDay + k)},"${spec.code}")`, result: count(k, spec.code) } : 0;
                 style(cell);
             });
         });
@@ -335,7 +330,7 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
             const cell = ws.getCell(totalRow, c);
             cell.value = {
                 formula: `SUM(${colName(c)}${top + 1}:${colName(c)}${totalRow - 1})`,
-                result: rowsOf.reduce((sum, spec) => sum + (lines.length ? spec.result(k) : 0), 0),
+                result: lines.length ? rowsOf.reduce((sum, spec) => sum + count(k, spec.code), 0) : 0,
             };
             style(cell, { bold: true, size: 11, fill: FILL_TOTAL });
         });
@@ -347,13 +342,12 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
 
     const width = (c: number, w: number) => { ws.getColumn(c).width = w; };
     width(col.sno, 7);
-    width(col.reg, 16);
-    width(col.name, 26);
-    if (col.phase) width(col.phase, 12);
+    width(col.name, 24);
+    if (col.dept) width(col.dept, 14.5);
     width(col.batch, 20);
-    width(col.email, 34);
-    width(col.phone, 18);
-    for (let c = firstDay; c <= lastDay; c++) width(c, 12.5);
+    width(col.email, 40);
+    width(col.phone, 20);
+    for (let c = firstDay; c <= lastDay; c++) width(c, 13);
     width(sumStart - 2, 9);
     width(sumStart - 1, 9);
     width(sumCols.wd, 13);
@@ -362,15 +356,7 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
     width(sumCols.pct, 12.6);
 
     // ── Sheet 2 · Leave Reason ───────────────────────────────────────────
-    const lr = wb.addWorksheet("Leave Reason", { views: [{ state: "frozen", ySplit: 1, showGridLines: false }] });
-    const lrHeads = ["Date", "Name", "Reg No", ...(showPhase ? ["Phase"] : []), "Batch", "Reason"];
-    lrHeads.forEach((h, i) => {
-        const cell = lr.getCell(1, i + 1);
-        cell.value = h;
-        style(cell, { bold: true, fill: FILL_HEAD });
-    });
-    const lrCol = { date: 1, name: 2, reg: 3, phase: showPhase ? 4 : 0, batch: showPhase ? 5 : 4, reason: showPhase ? 6 : 5 };
-    type Leave = { dk: string; l: Line; reason: string };
+    type Leave = { dk: string; l: SheetLine; reason: string };
     const leaves: Leave[] = [];
     for (const dk of dayKeys) {
         for (const l of lines) {
@@ -378,6 +364,15 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
             if (m?.status === "A") leaves.push({ dk, l, reason: m.reason });
         }
     }
+    const showReason = leaves.some((lv) => lv.reason);
+    const lr = wb.addWorksheet("Leave Reason", { views: [{ state: "frozen", ySplit: 1, showGridLines: false }] });
+    const lrHeads = ["Date", "Name", ...(showDept ? ["Department"] : []), "Batch", ...(showReason ? ["Reason"] : [])];
+    lrHeads.forEach((h, i) => {
+        const cell = lr.getCell(1, i + 1);
+        cell.value = h;
+        style(cell, { bold: true, fill: FILL_HEAD });
+    });
+    const lrCol = { date: 1, name: 2, dept: showDept ? 3 : 0, batch: showDept ? 4 : 3, reason: showReason ? (showDept ? 5 : 4) : 0 };
     if (!leaves.length) {
         lr.mergeCells(2, 1, 2, lrHeads.length);
         const cell = lr.getCell(2, 1);
@@ -393,10 +388,9 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
         };
         put(lrCol.date, keyToDate(lv.dk), { fmt: "dd-mmm-yy" });
         put(lrCol.name, lv.l.name, { h: "left" });
-        put(lrCol.reg, lv.l.s.regNo || lv.l.s.userId || "");
-        if (lrCol.phase) put(lrCol.phase, lv.l.batch.phase || "—", { bold: true });
-        put(lrCol.batch, lv.l.batch.name, { bold: true });
-        put(lrCol.reason, lv.reason || "", { h: "left", wrap: true });
+        if (lrCol.dept) put(lrCol.dept, (lv.l.s.department || "").trim(), { bold: true });
+        put(lrCol.batch, batchCaption(lv.l.batch), { bold: true });
+        if (lrCol.reason) put(lrCol.reason, lv.reason || "", { h: "left", wrap: true });
     });
     for (const [start, len] of runs(leaves, (lv) => lv.dk)) {
         if (len > 1) lr.mergeCells(2 + start, lrCol.date, 1 + start + len, lrCol.date);
@@ -405,16 +399,15 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
             if (len2 > 1) lr.mergeCells(2 + start + s2, lrCol.batch, 1 + start + s2 + len2, lrCol.batch);
         }
     }
-    lr.getColumn(lrCol.date).width = 13;
-    lr.getColumn(lrCol.name).width = 26;
-    lr.getColumn(lrCol.reg).width = 16;
-    if (lrCol.phase) lr.getColumn(lrCol.phase).width = 12;
-    lr.getColumn(lrCol.batch).width = 16;
-    lr.getColumn(lrCol.reason).width = 44;
+    lr.getColumn(lrCol.date).width = 12;
+    lr.getColumn(lrCol.name).width = 24;
+    if (lrCol.dept) lr.getColumn(lrCol.dept).width = 13;
+    lr.getColumn(lrCol.batch).width = 22;
+    if (lrCol.reason) lr.getColumn(lrCol.reason).width = 44;
 
     // ── Sheet 3 · Total Count ────────────────────────────────────────────
     const tc = wb.addWorksheet("Total Count", { views: [{ showGridLines: false }] });
-    const tcHeads = ["S.No", ...(showPhase ? ["Phase"] : []), "Batch", "No Of Students", "Trainer/s"];
+    const tcHeads = ["S.No", ...(showDept ? ["Specialisation"] : []), "Batch", "No Of Students", "Trainer/s"];
     tcHeads.forEach((h, i) => {
         const cell = tc.getCell(1, i + 1);
         cell.value = h;
@@ -423,7 +416,8 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
     const batchRuns = runs(lines, (l) => l.batch.id || l.batch.name);
     batchRuns.forEach(([start, len], i) => {
         const b = lines[start].batch;
-        const values: import("exceljs").CellValue[] = [i + 1, ...(showPhase ? [b.phase || "—"] : []), b.name, len, b.trainers.join(" & ")];
+        const depts = [...new Set(lines.slice(start, start + len).map((l) => (l.s.department || "").trim()).filter(Boolean))];
+        const values: import("exceljs").CellValue[] = [i + 1, ...(showDept ? [depts.join(", ")] : []), batchCaption(b), len, b.trainers.join(" & ")];
         values.forEach((v, c) => {
             const cell = tc.getCell(2 + i, c + 1);
             cell.value = v;
@@ -431,14 +425,14 @@ export async function downloadAttendanceWorkbook(src: AttendanceWorkbookSource):
         });
     });
     const tcTotal = 2 + batchRuns.length;
-    const countCol = showPhase ? 4 : 3;
+    const countCol = showDept ? 4 : 3;
     tc.getCell(tcTotal, countCol - 1).value = "Total";
     style(tc.getCell(tcTotal, countCol - 1), { bold: true, fill: FILL_TOTAL });
     tc.getCell(tcTotal, countCol).value = batchRuns.length
         ? { formula: `SUM(${colName(countCol)}2:${colName(countCol)}${tcTotal - 1})`, result: lines.length }
         : 0;
     style(tc.getCell(tcTotal, countCol), { bold: true, fill: FILL_TOTAL });
-    tcHeads.forEach((h, i) => { tc.getColumn(i + 1).width = h === "Trainer/s" ? 36 : h === "S.No" ? 7 : 16; });
+    tcHeads.forEach((h, i) => { tc.getColumn(i + 1).width = h === "Trainer/s" ? 36 : h === "S.No" ? 7 : 18; });
 
     const buf = await wb.xlsx.writeBuffer();
     const range = src.from === src.to ? src.from : `${src.from}_to_${src.to}`;
