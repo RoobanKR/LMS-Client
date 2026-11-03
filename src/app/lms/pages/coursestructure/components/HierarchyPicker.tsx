@@ -388,6 +388,17 @@ function rememberReopenIntent(courseId: string) {
     }
 }
 
+/** Drops the note unread. The page calls it on a load that is NOT a return to a
+ *  client's courses, so a note left behind can't pop the modal later, when a
+ *  client is opened for some other reason. */
+export function discardReopenIntent() {
+    try {
+        sessionStorage.removeItem(REOPEN_KEY)
+    } catch {
+        // Storage disabled: there is nothing to drop.
+    }
+}
+
 /** Reads the note and clears it — it is good for exactly one return. */
 function consumeReopenIntent(): string | null {
     try {
@@ -619,6 +630,10 @@ function MappingSection({
             <CourseActionsMenu
                 status={status}
                 autoOpen={autoOpen}
+                // The signal is good for ONE opening. Left set, any later
+                // re-render that rebuilt this menu (switching the view,
+                // opening another section) would pop the modal again.
+                onAutoOpened={() => setAutoOpenActionsId(null)}
                 onBeforeNavigate={() => rememberReopenIntent(status.id)}
                 breadcrumbs={actionBreadcrumbsFor(course, phaseTree.length > 0, phases)}
                 onView={() => onView(withBatches(course))}
@@ -647,7 +662,12 @@ function MappingSection({
     // tree can work them out from the course alone, but the batch tree cannot —
     // which of its placements is "this row" depends on the node rendering it — so
     // it passes the list in.
-    const CourseRow = ({ course, alsoIn, sections, batches, expandable, open, onToggle, phases }: {
+    //
+    // Called as a plain function, never rendered as a JSX tag: defined in this
+    // render, it would be a new component type on every render, so React would
+    // throw each row away and rebuild it — and the Course Actions menu inside
+    // with it, losing its open state and re-reading its auto-open signal.
+    const courseRow = ({ course, alsoIn, sections, batches, expandable, open, onToggle, phases }: {
         course: CourseGroup
         /** Every phase this course runs in (Placement Training) — named in the actions header. */
         phases?: string[]
@@ -911,7 +931,7 @@ function MappingSection({
                                                     <span className="w-[110px] flex-shrink-0">Status</span>
                                                     <span className="w-[130px] flex-shrink-0 text-right">Action</span>
                                                 </div>
-                                                {sem.courses.map((c) => <CourseRow key={c.key} course={c} sections={rowSections(c)} batches={rowBatches(c)} />)}
+                                                {sem.courses.map((c) => <React.Fragment key={c.key}>{courseRow({ course: c, sections: rowSections(c), batches: rowBatches(c) })}</React.Fragment>)}
                                             </Collapsible>
                                         ))
                                         // A department without sections shows its
@@ -974,15 +994,13 @@ function MappingSection({
                             // screen could be collapsed.
                             <Expandable
                                 key={entry.name}
-                                row={(open, toggle) => (
-                                    <CourseRow
-                                        course={primary}
-                                        phases={entry.phases.map((p) => String(p.phase))}
-                                        expandable
-                                        open={open}
-                                        onToggle={toggle}
-                                    />
-                                )}
+                                row={(open, toggle) => courseRow({
+                                    course: primary,
+                                    phases: entry.phases.map((p) => String(p.phase)),
+                                    expandable: true,
+                                    open,
+                                    onToggle: toggle,
+                                })}
                             >
                                 <div className="ml-4 sm:ml-[32px] border-l border-hairline pl-2.5 sm:pl-4 pb-1">
                                     {entry.phases.map((p, i) => (
@@ -1012,7 +1030,7 @@ function MappingSection({
                     })}
                     {unphasedCourses.map((node, i) => (
                         <React.Fragment key={`no-phase-${i}`}>
-                            <CourseRow course={node.course} batches={node.batches} />
+                            {courseRow({ course: node.course, batches: node.batches })}
                         </React.Fragment>
                     ))}
 
@@ -1032,7 +1050,7 @@ function MappingSection({
                                                 : 'Not tied to a semester'}
                                     </p>
                                 )}
-                                {loose.map((c) => <CourseRow key={c.key} course={c} sections={rowSections(c)} batches={rowBatches(c)} />)}
+                                {loose.map((c) => <React.Fragment key={c.key}>{courseRow({ course: c, sections: rowSections(c), batches: rowBatches(c) })}</React.Fragment>)}
                             </div>
                         )
                     })()}
@@ -1102,6 +1120,15 @@ export default function HierarchyPicker({
     onCourseEnrollment: (courseId: string) => void
     openActionsForCourseId?: string | null
 }) {
+    // "Reopen this course's Course Actions" is good for the FIRST showing of the
+    // sections only. Each section re-reads it whenever it mounts, so left in
+    // place, collapsing a section and opening it again popped the modal anew.
+    const [handoffCourseId, setHandoffCourseId] = useState<string | null>(openActionsForCourseId ?? null)
+    const sectionsShown = !isLoading && mappings.length > 0
+    useEffect(() => {
+        if (handoffCourseId && sectionsShown) setHandoffCourseId(null)
+    }, [handoffCourseId, sectionsShown])
+
     // Only the most RECENT service section starts open (see recentLabel below);
     // the rest start closed so the tree stays quiet until the reader opens the
     // one they care about. null until the user first toggles a section — from
@@ -1360,7 +1387,7 @@ export default function HierarchyPicker({
                                                 onCourseStructure={onCourseStructure}
                                                 onCourseResources={onCourseResources}
                                                 onCourseEnrollment={onCourseEnrollment}
-                                                openActionsForCourseId={openActionsForCourseId}
+                                                openActionsForCourseId={handoffCourseId}
                                             />
                                         )
                                     })}

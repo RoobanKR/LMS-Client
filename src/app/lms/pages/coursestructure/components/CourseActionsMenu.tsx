@@ -167,6 +167,7 @@ export default function CourseActionsMenu({
     items = ALL_ITEMS,
     label = 'Course Actions',
     autoOpen = false,
+    onAutoOpened,
     onBeforeNavigate,
 }: {
     status: CourseMenuStatus
@@ -208,6 +209,9 @@ export default function CourseActionsMenu({
      *  bare hierarchy. Read once, as the initial state — closing then works
      *  normally and re-renders never force it back open. */
     autoOpen?: boolean
+    /** Called once the modal has opened because of `autoOpen`, so the host can
+     *  drop its signal — the opening it asked for has happened. */
+    onAutoOpened?: () => void
 }) {
     const router = useRouter()
     // Grade links respect the section the menu is opened from — CourseActionsMenu
@@ -271,7 +275,12 @@ export default function CourseActionsMenu({
     // LATE — the hierarchy reads its "reopen this" note in an effect — so a
     // flip to true is treated as an instruction to open. It only fires on the
     // transition, so closing the modal afterwards sticks.
-    useEffect(() => { if (autoOpen) setOpen(true) }, [autoOpen])
+    useEffect(() => {
+        if (!autoOpen) return
+        setOpen(true)
+        onAutoOpened?.()
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- fires on the flip only; the callback is recreated every render
+    }, [autoOpen])
 
     useEffect(() => {
         if (!open) return

@@ -25,7 +25,7 @@ import { useServiceMapping, useMappingsByClient, serviceMappingKeys, type Servic
 import { fetchCourseStructuresSummary, fetchEnrolledCourseStructuresSummary } from '@/app/lms/pages/coursestructure/api/createCourseStucture'
 import { useTrainerEnrolledScope } from '@/lib/useTrainerEnrolledScope'
 import MappingList from './components/MappingList'
-import HierarchyPicker from './components/HierarchyPicker'
+import HierarchyPicker, { discardReopenIntent } from './components/HierarchyPicker'
 import CourseSetupPanel from './components/CourseSetupPanel'
 import CoursePreview from './components/CoursePreview'
 import CourseReportPage from './components/CourseReportPage'
@@ -155,6 +155,16 @@ export default function CourseStructurePage() {
     // other pages still link with; this is what Manage writes, and what a
     // reload or a Back from an Actions destination restores the picker from.
     const openClientIdParam = searchParams.get('openClientId')
+
+    // A Course Actions card leaves a "reopen this modal" note before it
+    // navigates away. It only means something on the way BACK, which always
+    // lands on a client's courses (?openClientId / ?openMappingId). Any other
+    // load drops it — otherwise it waited, up to its 15-minute lifetime, and
+    // popped the modal the next time a client's course list was opened.
+    const landedOnClientRef = useRef(Boolean(openClientIdParam || openMappingId))
+    useEffect(() => {
+        if (!landedOnClientRef.current) discardReopenIntent()
+    }, [])
     useEffect(() => {
         if (!openClientIdParam || stage.name !== 'list') return
         if (openedDeepLinkRef.current === openClientIdParam) return
