@@ -9,7 +9,7 @@
  * (SectionCard / Chip / Meter / …) so the two dashboards read as one system.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts";
@@ -27,7 +27,6 @@ import {
   Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getSessionJSON, SESSION_KEYS } from "@/lib/session";
 import type { DashboardModel, Icon, RiskRow, Tone } from "@/features/ld-dashboard/types";
 import {
   band,
@@ -78,15 +77,6 @@ function SmartLink({
 
 /* ── Header — scope line + course filter ─────────────────────────────────── */
 
-function useFirstName(): string {
-  const [name, setName] = useState("");
-  useEffect(() => {
-    const u = getSessionJSON<{ firstName?: string }>(SESSION_KEYS.userData);
-    setName(u?.firstName?.trim() || "");
-  }, []);
-  return name;
-}
-
 export function TrainerHeader({
   scope,
   filtered,
@@ -102,16 +92,11 @@ export function TrainerHeader({
   courseOptions: TrainerCourseOpt[];
   onCourse: (id: string) => void;
 }) {
-  const first = useFirstName();
-
   return (
-    <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-[#4e5874]">Welcome back{first ? `, ${first}` : ""}</p>
-        <h1 className="mt-0.5 truncate text-[28px] font-extrabold tracking-[-0.035em] text-[#141a38] sm:text-[32px]">
-          {scope}
-        </h1>
-      </div>
+    <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <h1 className="min-w-0 truncate text-[20px] font-extrabold tracking-[-0.03em] text-[#141a38] sm:text-[22px]">
+        {scope}
+      </h1>
 
       <div className="flex shrink-0 items-center gap-2 self-start">
         {courseOptions.length > 0 && (

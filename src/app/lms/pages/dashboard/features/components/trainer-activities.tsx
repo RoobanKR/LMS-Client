@@ -193,13 +193,13 @@ export function TrainerActivities({ courses, batchIdByCourse }: { courses: Cours
   const failed = courseQueries.some((query) => query.isError);
 
   return (
-    <section className="rounded-[20px] border border-[#e9eaf1] bg-white p-5 shadow-[0_4px_20px_rgb(24_29_60/.04)]" aria-labelledby="trainer-activities-title">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 id="trainer-activities-title" className="text-[20px] font-bold tracking-[-.02em] text-[#151b39]">Today&apos;s assignments &amp; assessments</h2>
-          <p className="mt-1 text-[13px] text-[#66708b]">See each activity and how far its learners have got.</p>
-        </div>
-        <Link href="/lms/pages/courses" className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#dd5b16] hover:underline">All courses <ArrowRight size={15} /></Link>
+    <section className="min-w-0 rounded-[14px] border border-hairline bg-surface px-4 py-3 shadow-[0_1px_2px_rgb(20_24_60/.04),0_6px_18px_rgb(20_24_60/.05)]" aria-labelledby="trainer-activities-title">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="trainer-activities-title" className="flex items-center gap-2 text-sm font-semibold text-[#141933]">
+          <span className="grid size-[26px] shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#34cf80] to-[#1fb866] text-white"><ClipboardList size={15} /></span>
+          Today&apos;s assignments &amp; assessments
+        </h2>
+        <Link href="/lms/pages/courses" className="inline-flex h-[26px] items-center gap-1.5 rounded-lg bg-[#edf2ff] px-2.5 text-[11px] font-semibold text-[#3a6cf4] hover:bg-[#e2eaff]">All courses <ArrowRight size={13} /></Link>
       </div>
       {loading && !visible.length ? <p className="mt-5 text-sm text-[#66708b]">Loading today&apos;s activities…</p> : null}
       {!loading && !visible.length ? (
