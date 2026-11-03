@@ -537,15 +537,17 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
                             <Icon className={cn(
                               "w-[18px] h-[18px] flex-shrink-0",
                               isActive
-                                ? "text-brand-strong"
+                                ? "text-heading"
                                 : "text-subtle group-hover:text-body"
                             )} />
                             {!isCollapsed && (
                               <span className={cn(
                                 "text-sm truncate whitespace-nowrap",
+                                // Same weights as the student rail: the raised
+                                // white pill already carries "selected".
                                 isActive
-                                  ? "text-brand-strong font-semibold"
-                                  : "text-body font-medium"
+                                  ? "text-heading font-medium"
+                                  : "text-body font-normal"
                               )}>
                                 {item.label}
                               </span>
@@ -567,7 +569,7 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
                               <ChevronDown className={cn(
                                 "w-3.5 h-3.5 transition-transform duration-150",
                                 submenuOpen && "rotate-180",
-                                isActive ? "text-brand-strong" : "text-faint"
+                                isActive ? "text-heading" : "text-faint"
                               )} />
                             </button>
                           )}
@@ -630,14 +632,14 @@ export function StaffSidebar({ isCollapsed: desktopCollapsed, setIsCollapsed, on
                                     <ChildIcon className={cn(
                                       "w-[15px] h-[15px] flex-shrink-0",
                                       childActive
-                                        ? "text-brand-strong"
+                                        ? "text-heading"
                                         : "text-faint group-hover:text-body"
                                     )} />
                                     <span className={cn(
                                       "text-sm truncate whitespace-nowrap",
                                       childActive
-                                        ? "text-brand-strong font-semibold"
-                                        : "text-body font-medium"
+                                        ? "text-heading font-medium"
+                                        : "text-body font-normal"
                                     )}>
                                       {child.label}
                                     </span>
