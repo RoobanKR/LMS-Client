@@ -37,6 +37,7 @@ import { isBlockedEnrollment } from '@/lib/api/courses';
 import DashboardLayout from '../../component/layout';
 import { StaffLayout } from '../../component/stafflayout/staff-layout';
 import { NotificationBell } from '@/app/lms/component/NotificationBell';
+import EnrolledPeopleModal from './components/EnrolledPeopleModal';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PERMISSION_IDS } from '@/app/lms/pages/usermanagement/components/permissions/index';
 
@@ -233,6 +234,7 @@ const CourseCard = React.memo(function CourseCard({
   onStart,
   onPrefetch,
   onViewUsers,
+  onViewEnrolled,
   onFeedback,
   hasPublishedFeedback,
   viewMode,
@@ -248,6 +250,8 @@ const CourseCard = React.memo(function CourseCard({
   onStart: (id: string) => void;
   onPrefetch: (id: string) => void;
   onViewUsers: (id: string) => void;
+  /** Staff: the people-count opens the course's enrolled students and staff. */
+  onViewEnrolled: (id: string, name: string) => void;
   onFeedback?: (courseId: string) => void;
   hasPublishedFeedback?: boolean;
   viewMode: 'grid' | 'list';
@@ -276,6 +280,7 @@ const CourseCard = React.memo(function CourseCard({
   const handleStart = useCallback(() => onStart(course._id), [onStart, course._id]);
   const handleViewUsers = useCallback((e: React.MouseEvent) => { e.stopPropagation(); onViewUsers(course._id); }, [onViewUsers, course._id]);
   const handleFeedback = useCallback((e: React.MouseEvent) => { e.stopPropagation(); if (onFeedback) onFeedback(course._id); }, [onFeedback, course._id]);
+  const handleViewEnrolled = useCallback((e: React.MouseEvent) => { e.stopPropagation(); onViewEnrolled(course._id, course.courseName || 'Course'); }, [onViewEnrolled, course._id, course.courseName]);
 
   const showFeedbackButton = isStudent && hasPublishedFeedback && onFeedback;
 
@@ -322,9 +327,9 @@ const CourseCard = React.memo(function CourseCard({
             </span>
             {/* Staff only — see the note on the grid card. */}
             {!isStudent && (
-              <span className="flex items-center gap-1 text-[11px]" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
+              <button type="button" onClick={handleViewEnrolled} title="View enrolled students and staff" aria-label={`View ${studentCount} enrolled`} className="flex items-center gap-1 rounded text-[11px] underline-offset-2 hover:underline" style={{ color: isDark ? T.dark.textMuted : T.textMuted }}>
                 <Users className="w-3 h-3" style={{ color: isDark ? T.dark.textMuted : T.textMuted }} />{formatCount(studentCount)}
-              </span>
+              </button>
             )}
             {isStudent && started && (
               <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: T.orange }}>
@@ -454,9 +459,9 @@ const CourseCard = React.memo(function CourseCard({
           {/* Staff only. How many classmates are enrolled is a roster figure —
               it tells a learner nothing about their own course. */}
           {!isStudent && (
-            <span className="flex items-center gap-1.5 text-[11.5px] font-medium" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
-              <Users className="w-3.5 h-3.5 flex-shrink-0" style={{ color: isDark ? T.dark.textSub : T.textSub }} />{formatCount(studentCount)}
-            </span>
+            <button type="button" onClick={handleViewEnrolled} title="View enrolled students and staff" aria-label={`View ${studentCount} enrolled`} className="flex items-center gap-1.5 rounded text-[11.5px] font-medium underline-offset-2 hover:underline" style={{ color: isDark ? T.dark.textSub : T.textSub }}>
+              <Users className="w-3.5 h-3.5 flex-shrink-0" style={{ color: isDark ? T.dark.textSub : T.textSub }} />{formatCount(studentCount)} enrolled
+            </button>
           )}
         </div>
 
@@ -706,6 +711,8 @@ export default function CoursesPage() {
   const canStaffViewSchedule = can(PERMISSION_IDS.STAFF_COURSES, 'view_schedule');
 
   // Per-course student progress + lastAccessed, keyed by courseId (from the signed-in user's data)
+  const [enrolledFor, setEnrolledFor] = useState<{ id: string; name: string } | null>(null);
+  const onViewEnrolled = useCallback((id: string, name: string) => setEnrolledFor({ id, name }), []);
   const [progressMap, setProgressMap] = useState<Record<string, { progress: number; lastAccessed?: string | null }>>({});
 
   // ── Real per-course progress ──────────────────────────────────────────────
@@ -1036,6 +1043,7 @@ export default function CoursesPage() {
                   onStart={onStart}
                   onPrefetch={onPrefetch}
                   onViewUsers={onViewUsers}
+                  onViewEnrolled={onViewEnrolled}
                   onFeedback={isStudent ? handleFeedbackClick : undefined}
                   hasPublishedFeedback={publishedFeedbackMap[c._id] || false}
                   viewMode={viewMode}
@@ -1126,6 +1134,10 @@ export default function CoursesPage() {
 
       {/* ── Feature strip ── */}
       {/* {!loading && sorted.length > 0 && <FeatureStrip isDark={isDark} />} */}
+
+      {enrolledFor && (
+        <EnrolledPeopleModal courseId={enrolledFor.id} courseName={enrolledFor.name} onClose={() => setEnrolledFor(null)} />
+      )}
     </div>
   );
 
