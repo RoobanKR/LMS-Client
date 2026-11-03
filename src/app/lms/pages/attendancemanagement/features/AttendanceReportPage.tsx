@@ -3,8 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Attendance Report — the course's Report tab, laid out like Service Mapping's
 // report: pick Date / Batch / Students / Status, press Generate Report, and the
-// attendance list appears, laid out like the downloaded workbook (Download
-// Excel sits on it); Preview Report opens the shared Preview & Print sheet.
+// attendance list appears, laid out like the downloaded workbook; Preview
+// Report opens the shared Preview & Print sheet, whose Excel is that workbook.
 // Nothing loads until Generate.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -257,7 +257,6 @@ export default function AttendanceReportPage() {
                     rowStats={rowStats}
                     from={appliedFrom}
                     to={appliedTo}
-                    onDownload={() => downloadReportWorkbook(report)}
                 />
             )}
 

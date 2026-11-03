@@ -3,12 +3,10 @@
 // The generated attendance list — laid out like the downloaded workbook so
 // what is on screen is what goes out: S.No · Student Name · Specialization ·
 // Batch & Trainers (merged down its students) · one column per working day
-// (P / A / H) · Working Days · Present · Absent · Percentage. Download Excel
-// sits on the list itself.
+// (P / A / H) · Working Days · Present · Absent · Percentage. The Excel comes
+// from Preview & Print.
 
-import { useMemo, useState } from "react";
-import { toast } from "react-hot-toast";
-import { FileSpreadsheet, Loader2 } from "lucide-react";
+import { useMemo } from "react";
 import { batchCaption, runs, type SheetLine } from "@/app/lms/pages/attendancemanagement/features/attendanceWorkbook";
 
 type Mark = "P" | "A" | "H";
@@ -34,7 +32,7 @@ const TH = "sticky top-0 z-10 border-b border-r border-hairline bg-[#EAF7F9] px-
 const TD = "border-b border-r border-hairline px-2.5 py-2 align-middle";
 
 export default function AttendanceReportList({
-    lines, days, grid, rowStats, from, to, onDownload,
+    lines, days, grid, rowStats, from, to,
 }: {
     lines: SheetLine[];
     days: Date[];
@@ -42,9 +40,7 @@ export default function AttendanceReportList({
     rowStats: (studentId: string) => RowStats;
     from: string;
     to: string;
-    onDownload: () => Promise<void>;
 }) {
-    const [downloading, setDownloading] = useState(false);
     const dayKeys = useMemo(() => days.map(dayKeyOf), [days]);
     const showDept = lines.some((l) => (l.s.department || "").trim());
     // Batch & Trainers is written once per run of its students.
@@ -53,18 +49,6 @@ export default function AttendanceReportList({
         for (const [start, len] of runs(lines, (l) => l.batch.id || l.batch.name)) span[start] = len;
         return span;
     }, [lines]);
-
-    const download = async () => {
-        setDownloading(true);
-        try {
-            await onDownload();
-        } catch (e) {
-            console.error(e);
-            toast.error("Could not download the attendance sheet");
-        } finally {
-            setDownloading(false);
-        }
-    };
 
     return (
         <div className="overflow-hidden rounded-xl border border-hairline bg-surface shadow-xs">
@@ -76,8 +60,7 @@ export default function AttendanceReportList({
                         {from === to ? dateWords(from) : `${dateWords(from)} – ${dateWords(to)}`}
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 text-2xs text-subtle" aria-label="Legend">
+                <div className="flex flex-wrap items-center gap-2 text-2xs text-subtle" aria-label="Legend">
                         {(["P", "A", "H"] as const).map((m) => (
                             <span key={m} className="inline-flex items-center gap-1">
                                 <span className={`inline-flex size-5 items-center justify-center rounded text-[10.5px] font-semibold ${MARK_STYLE[m]}`}>{m}</span>
@@ -87,16 +70,6 @@ export default function AttendanceReportList({
                         <span className="inline-flex items-center gap-1">
                             <span className="inline-flex size-5 items-center justify-center rounded border border-hairline text-faint">–</span>Not marked
                         </span>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => void download()}
-                        disabled={downloading || lines.length === 0}
-                        className="inline-flex h-9 items-center gap-2 rounded-[10px] bg-[#079455] px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#067647] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {downloading ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4" />}
-                        {downloading ? "Preparing…" : "Download Excel"}
-                    </button>
                 </div>
             </div>
 
