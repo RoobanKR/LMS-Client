@@ -35,6 +35,9 @@ export interface RosterEnrollment {
     email?: string;
     userId?: string;
     employeeId?: string;
+    phone?: string;
+    rollNumber?: string;
+    department?: string;
     role?: string | { renameRole?: string; name?: string; roleValue?: string; originalRole?: string };
   };
   status?: string;

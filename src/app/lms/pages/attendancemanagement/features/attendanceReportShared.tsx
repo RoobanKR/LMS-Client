@@ -75,6 +75,9 @@ export type Student = {
     lastName: string;
     email: string;
     userId?: string;
+    regNo?: string;
+    phone?: string;
+    department?: string;
 };
 
 export type StatusFilter = "all" | "P" | "A" | "H" | "N"; // N = Not Marked
