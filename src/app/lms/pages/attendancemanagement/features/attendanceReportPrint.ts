@@ -1,116 +1,91 @@
 // The Attendance Report's printed sheet, laid out through the Business
 // Reports Preview & Print modal (the one Service Mapping and Course Report
-// use): one row per student — Reg No, Student, Phase, Batch — then their
-// tallies, with Phase and Batch merged down each run of students.
+// use), with the columns of the team's Attendance Summary workbook: S.No ·
+// Student Name · Specialization · Batch & Trainers (merged down its students)
+// · Email · Contact Number · one column per working day (P / A / H) · No of
+// Working Days · No of Days Present · No of Days Absent · Percentage.
 
 import type { FieldRow } from "@/app/lms/pages/businessreports/components/PrintPreviewModal";
 import type { ReportClientBlock } from "@/app/lms/pages/servicemapping/components/serviceReport";
 import { GROUP_SPAN_KEY } from "@/app/lms/pages/businessreports/groupSpans";
-import { phaseOrdinal } from "@/lib/phaseGroups";
 import { parseKey, toDayKey, type Student } from "@/app/lms/pages/attendancemanagement/features/attendanceReportShared";
 import type { useAttendanceReport } from "@/app/lms/pages/attendancemanagement/features/useAttendanceReport";
 import { attendanceApi } from "@/app/lms/pages/attendancemanagement/api/attendanceApi";
-import { downloadAttendanceWorkbook } from "@/app/lms/pages/attendancemanagement/features/attendanceWorkbook";
+import {
+    batchCaption, downloadAttendanceWorkbook, orderedLines, runs,
+} from "@/app/lms/pages/attendancemanagement/features/attendanceWorkbook";
 
 type Report = ReturnType<typeof useAttendanceReport>;
 
-/** Per-day columns start ticked only while they still fit across a page. */
-const DAY_COLUMNS_ON_UP_TO = 7;
-
-const dayLabel = (d: Date) => d.toLocaleString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+// "03-Nov-26", as the workbook's date headers read.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dayLabel = (d: Date) => `${String(d.getUTCDate()).padStart(2, "0")}-${MONTHS[d.getUTCMonth()]}-${String(d.getUTCFullYear()).slice(-2)}`;
 const dateWords = (key: string) =>
     parseKey(key).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 export const studentName = (s: Student) => `${s.firstName || ""} ${s.lastName || ""}`.trim() || s.email || "Student";
+const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 const STATUS_WORDS: Record<string, string> = { P: "Present", A: "Absent", H: "Half-day", N: "Not marked" };
 
-export function attendancePrintFields(days: Date[]): FieldRow[] {
+export function attendancePrintFields(days: Date[], showDept: boolean): FieldRow[] {
     return [
-        { key: "regNo", label: "Register No", scope: "service", column: "Reg No", dataKey: "regNo" },
-        { key: "student", label: "Student Name", required: true, scope: "service", column: "Student", dataKey: "student" },
-        { key: "phase", label: "Phase", scope: "client", column: "Phase", dataKey: "client" },
-        { key: "batch", label: "Batch", scope: "service", column: "Batch", dataKey: "batch", mergeGroup: true },
+        { key: "student", label: "Student Name", required: true, scope: "service", column: "Student Name", dataKey: "student" },
+        ...(showDept ? [{ key: "dept", label: "Specialization", scope: "service" as const, column: "Specialization", dataKey: "dept" }] : []),
+        { key: "batch", label: "Batch & Trainers", scope: "service", column: "Batch & Trainers", dataKey: "batch", mergeGroup: true },
         { key: "email", label: "Email", scope: "service", column: "Email", dataKey: "email" },
+        { key: "phone", label: "Contact Number", scope: "service", column: "Contact Number", dataKey: "phone" },
         ...days.map((d): FieldRow => {
             const k = `day:${toDayKey(d)}`;
             return { key: k, label: `Day: ${dayLabel(d)}`, scope: "service", column: dayLabel(d), dataKey: k };
         }),
-        { key: "workingDays", label: "Working Days", scope: "service", column: "Working Days", dataKey: "workingDays" },
-        { key: "present", label: "Present", scope: "service", column: "Present", dataKey: "present" },
-        { key: "absent", label: "Absent", scope: "service", column: "Absent", dataKey: "absent" },
-        { key: "halfDay", label: "Half-day", scope: "service", column: "Half-day", dataKey: "halfDay" },
-        { key: "notMarked", label: "Not Marked", scope: "service", column: "Not Marked", dataKey: "notMarked" },
-        { key: "attPct", label: "Attendance %", scope: "service", column: "Attendance %", dataKey: "attPct" },
-        { key: "band", label: "Performance Level", scope: "service", column: "Performance Level", dataKey: "band" },
+        { key: "workingDays", label: "No of Working Days", scope: "service", column: "No of Working Days", dataKey: "workingDays" },
+        { key: "present", label: "No of Days Present", scope: "service", column: "No of Days Present", dataKey: "present" },
+        { key: "absent", label: "No of Days Absent", scope: "service", column: "No of Days Absent", dataKey: "absent" },
+        { key: "percentage", label: "Percentage", scope: "service", column: "Percentage", dataKey: "percentage" },
+        { key: "regNo", label: "Register No (extra)", scope: "service", column: "Reg No", dataKey: "regNo" },
     ];
 }
 
-export function attendancePrintDefaults(days: Date[], phased: boolean): Set<string> {
-    const keys = ["regNo", "student", "batch", "workingDays", "present", "absent", "halfDay", "notMarked", "attPct", "band"];
-    if (phased) keys.push("phase");
-    if (days.length <= DAY_COLUMNS_ON_UP_TO) for (const d of days) keys.push(`day:${toDayKey(d)}`);
+/** Every column of the workbook starts ticked — every day included; Reg No
+ *  is offered but off, as the workbook has none. */
+export function attendancePrintDefaults(days: Date[], showDept: boolean): Set<string> {
+    const keys = ["student", "batch", "email", "phone", "workingDays", "present", "absent", "percentage"];
+    if (showDept) keys.push("dept");
+    for (const d of days) keys.push(`day:${toDayKey(d)}`);
     return new Set(keys);
 }
 
-/** The filtered students as phase blocks, ordered phase → batch → name, with
- *  each batch's run of rows marked so the Batch column merges over it. */
-export function attendancePrintBlocks(r: Report, phased: boolean): ReportClientBlock[] {
-    const lines = r.filteredStudents.map((s) => {
-        const place = r.studentPlace.get(s._id);
-        return {
-            s,
-            name: studentName(s),
-            batch: place?.batches.join(", ") || "No batch",
-            phase: phased ? place?.phases[0] || "—" : "",
-        };
-    });
-    lines.sort((a, b) =>
-        phaseOrdinal(a.phase) - phaseOrdinal(b.phase) ||
-        a.phase.localeCompare(b.phase) ||
-        a.batch.localeCompare(b.batch, undefined, { numeric: true }) ||
-        a.name.localeCompare(b.name)
-    );
-
-    const blocks: ReportClientBlock[] = [];
-    let current: ReportClientBlock | null = null;
-    for (const l of lines) {
-        if (!current || current.client !== l.phase) {
-            current = { client: l.phase, business: "", services: [] };
-            blocks.push(current);
-        }
+/** The filtered students in the workbook's order (phase → batch → name) as
+ *  one block, each batch's run of rows marked so Batch & Trainers merges. */
+export function attendancePrintBlocks(r: Report): ReportClientBlock[] {
+    const lines = orderedLines(r.batchGroups, r.filteredStudents, r.appliedBatches);
+    const services = lines.map((l) => {
         const rs = r.rowStats(l.s._id);
         const cells = r.grid.get(l.s._id);
         const row: Record<string, string> = {
-            __batch: l.batch,
-            regNo: l.s.userId || "—",
+            __batch: l.batch.id || l.batch.name,
             student: l.name,
-            batch: l.batch,
-            email: l.s.email || "—",
+            dept: (l.s.department || "").trim(),
+            batch: l.batch.trainers.length ? `${batchCaption(l.batch)} · ${l.batch.trainers.join(" & ")}` : batchCaption(l.batch),
+            email: l.s.email || "",
+            phone: l.s.phone || "",
             workingDays: String(r.workingDays),
-            present: String(rs.p),
-            absent: String(rs.a),
-            halfDay: String(rs.h),
-            notMarked: String(rs.n),
-            attPct: `${rs.attPct.toFixed(1)}%`,
-            band: rs.band.label,
+            present: num(rs.p + rs.h * 0.5),
+            absent: num(rs.a + rs.h * 0.5),
+            percentage: `${Math.round(rs.attPct)}%`,
+            regNo: l.s.regNo || l.s.userId || "",
         };
         for (const d of r.workingDayList) {
             const k = toDayKey(d);
-            row[`day:${k}`] = cells?.get(k) || "–";
+            row[`day:${k}`] = cells?.get(k) || "";
         }
-        current.services.push(row);
+        return row;
+    });
+    for (const [start, len] of runs(services, (row) => row.__batch)) {
+        services[start][GROUP_SPAN_KEY] = String(len);
+        for (let k = start + 1; k < start + len; k++) services[k][GROUP_SPAN_KEY] = "0";
     }
-    for (const block of blocks) {
-        const rows = block.services;
-        for (let i = 0; i < rows.length;) {
-            let j = i;
-            while (j < rows.length && rows[j].__batch === rows[i].__batch) j++;
-            rows[i][GROUP_SPAN_KEY] = String(j - i);
-            for (let k = i + 1; k < j; k++) rows[k][GROUP_SPAN_KEY] = "0";
-            i = j;
-        }
-    }
-    return blocks;
+    return [{ client: "", business: "", services }];
 }
 
 /** Excel — the "Attendance Summary" workbook for the generated report. The

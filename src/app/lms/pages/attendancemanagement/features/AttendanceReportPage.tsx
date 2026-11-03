@@ -62,7 +62,6 @@ export default function AttendanceReportPage() {
     );
 
     // ── Batch options — "Batch I (Phase III)", phases in order ───────────
-    const phased = batchGroups.some((g) => g.phase);
     const batchLabel = (id: string) => {
         const g = batchGroups.find((b) => b.id === id);
         if (!g) return "Batch";
@@ -103,12 +102,14 @@ export default function AttendanceReportPage() {
         nudge.markSeen();
         setPrintOpen(true);
     };
-    const printFields = useMemo(() => attendancePrintFields(workingDayList), [workingDayList]);
-    const printDefaults = useMemo(() => attendancePrintDefaults(workingDayList, phased), [workingDayList, phased]);
+    // Specialization only when the students carry a department, as in the workbook.
+    const showDept = useMemo(() => filteredStudents.some((s) => (s.department || "").trim()), [filteredStudents]);
+    const printFields = useMemo(() => attendancePrintFields(workingDayList, showDept), [workingDayList, showDept]);
+    const printDefaults = useMemo(() => attendancePrintDefaults(workingDayList, showDept), [workingDayList, showDept]);
     const printBlocks = useMemo(
-        () => (printOpen ? attendancePrintBlocks(report, phased) : []),
+        () => (printOpen ? attendancePrintBlocks(report) : []),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [printOpen, filteredStudents, report.grid, workingDays, phased]
+        [printOpen, filteredStudents, report.grid, workingDays, batchGroups, appliedBatches]
     );
     const printMeta = useMemo(() => ({
         title: "Attendance Report",
