@@ -65,6 +65,7 @@ import {
 import {
   startLiveSession, liveStartErrorText, type LiveSession, type LiveLanguage,
 } from "@/app/lms/pages/courses/coursesdetailedview/components/lib/liveCompilerSession"
+import { firstSampleInput } from "@/app/lms/pages/courses/coursesdetailedview/components/lib/sampleInput"
 import { buildTracedProgram, INPUT_LINE } from "@/app/lms/pages/live-intract-compailer/visualizer/runtimes"
 import { TraceStream } from "@/app/lms/pages/live-intract-compailer/visualizer/traceStream"
 import {
@@ -480,6 +481,13 @@ export default function MultiFileCodeEditor({
   // question as solved. Separate loading flag so the Run tests button can
   // spin independently of the Submit button.
   const [isRunningTestCases, setIsRunningTestCases] = useState(false)
+  // Run tests: its place in the queue while every runner is busy.
+  const [testsQueuePos, setTestsQueuePos] = useState<number | null>(null)
+  // Run: optional input sent to the program as soon as it starts (the
+  // Terminal's "Input (optional)" box; empty = type while it runs), and the
+  // run's place in the queue while every runner is busy.
+  const [runInput, setRunInput] = useState("")
+  const [runQueuePos, setRunQueuePos] = useState<number | null>(null)
   const isSubmitGuardRef = useRef(false)
   const isSubmitQuestionGuardRef = useRef(false)
   const isRunTestCasesGuardRef = useRef(false)
@@ -1462,16 +1470,20 @@ export default function MultiFileCodeEditor({
       if (text) log(kind, text)
       setInteractiveActive(false)
       setAwaitingInput(false)
+      setRunQueuePos(null)
       liveSessionRef.current = null
     }
     let announcedQueue = false
     try {
       const session = await startLiveSession(selectedLanguage as LiveLanguage, projectFor(entry), {
         onQueued: (position) => {
-          if (!current() || announcedQueue) return
+          if (!current()) return
+          setRunQueuePos(position) // the Terminal's banner follows the position
+          if (announcedQueue) return
           announcedQueue = true
           log("system", `All ${label} runners are busy — you are #${position} in the queue. It starts by itself.`)
         },
+        onStarted: () => { if (current()) setRunQueuePos(null) },
         onStatus: (phase) => {
           if (!current()) return
           if (phase === "compiling") log("system", "Compiling…")
@@ -1490,10 +1502,18 @@ export default function MultiFileCodeEditor({
       })
       if (!current() || over) { if (!current()) session.stop(); session.dispose(); return }
       liveSessionRef.current = session
+      // Input typed in the box beforehand goes in at once (the service holds
+      // it until the program reads), so the program needn't wait for typing.
+      if (runInput.trim()) {
+        const text = runInput.endsWith("\n") ? runInput : `${runInput}\n`
+        session.send(text)
+        const lines = text.slice(0, -1).split("\n").length
+        log("system", `Sent ${lines} line${lines === 1 ? "" : "s"} from the Input box to your program.`)
+      }
     } catch (e) {
       end("error", liveStartErrorText(e))
     }
-  }, [interactiveActive, vizRunning, ready, selectedLanguage, runInteractive, pickEntryFor, projectFor, log, liveOut, trimLiveTail])
+  }, [interactiveActive, vizRunning, ready, selectedLanguage, runInteractive, pickEntryFor, projectFor, log, liveOut, trimLiveTail, runInput])
 
   // ═════════════════════════════════════════════════════════════════════════════
   // Visualize (Python only) — PythonTutor-style.
@@ -1948,16 +1968,40 @@ export default function MultiFileCodeEditor({
       else if (preview) {
         let previewData = { score: 0, status: 'submitted', evaluationBreakdown: undefined as ReturnType<typeof previewEvaluation> | undefined }
         if (method === 'testcase' && !isLinkQ) {
-          const response = await fetch(`${API}/api/run/judge`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({ language: selectedLanguage,
-              files: submitFiles.map((file) => ({ path: file.path, content: file.content, isEntryPoint: file.isEntryPoint })),
-              testCases: currentQuestion?.testCases || [],
-              functionName: currentQuestion?.solutions?.functionName || null,
-              maxMarks: Number(currentQuestion?.score ?? currentQuestion?.points ?? 10) || 10,
-              version: exerciseLanguageVersion(exData, selectedLanguage),
-            }),
-          })
+          // This click's id: while it waits for a free runner, the button
+          // shows its place in the queue (GET /api/run/judge/position).
+          const queueToken = typeof globalThis.crypto?.randomUUID === 'function'
+            ? globalThis.crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+          let waiting = true
+          void (async () => {
+            while (waiting) {
+              await new Promise((r) => setTimeout(r, 1500))
+              if (!waiting) break
+              try {
+                const q = await fetch(`${API}/api/run/judge/position?language=${encodeURIComponent(selectedLanguage)}&token=${queueToken}`, { headers: authHeaders() })
+                  .then((r) => (r.ok ? r.json() : null))
+                if (waiting) setTestsQueuePos(q && q.position > 0 ? q.position : null)
+              } catch { /* the position is only a hint */ }
+            }
+          })()
+          let response: Response
+          try {
+            response = await fetch(`${API}/api/run/judge`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+              body: JSON.stringify({ language: selectedLanguage,
+                files: submitFiles.map((file) => ({ path: file.path, content: file.content, isEntryPoint: file.isEntryPoint })),
+                testCases: currentQuestion?.testCases || [],
+                functionName: currentQuestion?.solutions?.functionName || null,
+                maxMarks: Number(currentQuestion?.score ?? currentQuestion?.points ?? 10) || 10,
+                version: exerciseLanguageVersion(exData, selectedLanguage),
+                queue_token: queueToken,
+              }),
+            })
+          } finally {
+            waiting = false
+            setTestsQueuePos(null)
+          }
           const judged = await response.json()
           if (!response.ok) throw new Error(judged.error || 'Preview evaluation failed')
           previewData = { score: judged.score, status: judged.status, evaluationBreakdown: previewEvaluation(judged) }
@@ -2573,7 +2617,7 @@ export default function MultiFileCodeEditor({
                   }}
                 >
                   {isRunningTestCases ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-                  Run tests
+                  {isRunningTestCases && testsQueuePos ? `Queued (#${testsQueuePos})` : "Run tests"}
                 </button>
               )}
 
@@ -3064,6 +3108,13 @@ export default function MultiFileCodeEditor({
                     // input as it runs, so there is no stdin box to pre-fill.
                     liveTerminal
                     onStopRun={stopInteractive}
+                    // Optional input for the next Run (compiler-service
+                    // languages; Python runs in the browser) and the run's
+                    // place in the queue.
+                    runInput={runInput}
+                    onRunInputChange={selectedLanguage !== "python" ? setRunInput : undefined}
+                    sampleInput={firstSampleInput(currentQuestion)}
+                    queuePosition={runQueuePos}
                     // Terminal props
                     termLines={termLines}
                     running={interactiveActive}

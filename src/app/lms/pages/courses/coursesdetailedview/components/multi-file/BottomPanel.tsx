@@ -153,6 +153,12 @@ interface BottomPanelProps {
   liveTerminal?: boolean
   /** Live terminal: Ctrl+C stops the running program. */
   onStopRun?: () => void
+  /** Live terminal, optional: input sent to the program as soon as it starts (see RunTerminal). */
+  runInput?: string
+  onRunInputChange?: (v: string) => void
+  sampleInput?: string
+  /** Live terminal: the run's place in the queue while every runner is busy. */
+  queuePosition?: number | null
   // Terminal
   termLines: TermLine[]
   running: boolean
@@ -202,6 +208,7 @@ const TONE: Record<'ok' | 'bad' | 'warn' | 'info', { fg: string; bg: string; bor
 export default function BottomPanel(props: BottomPanelProps) {
   const {
     mode = 'test-result', activeTab, liveTerminal = false, onStopRun,
+    runInput, onRunInputChange, sampleInput, queuePosition,
     onTabChange, testResult, onClose, onToggleMaximize, maximized, heading, closeLabel,
     collapsed = false, onExpand, headerAction,
     termLines, running, stdin, lastRuntime, setStdin, onClearTerm,
@@ -396,6 +403,10 @@ export default function BottomPanel(props: BottomPanelProps) {
               onSubmitInput={onSubmitInput}
               live={liveTerminal}
               onStop={onStopRun}
+              preInput={runInput}
+              onPreInputChange={onRunInputChange}
+              sampleInput={sampleInput}
+              queuePosition={queuePosition}
             />
           ) : (
             <TestResultView

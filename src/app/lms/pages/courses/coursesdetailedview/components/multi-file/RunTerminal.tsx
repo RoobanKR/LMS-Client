@@ -33,6 +33,16 @@ interface RunTerminalProps {
   live?: boolean
   // Live terminal: Ctrl+C stops the running program.
   onStop?: () => void
+  // Live terminal, optional: input typed here before Run is sent to the
+  // program the moment it starts, so it never waits for typing (and frees
+  // its runner at once). Empty = type the input while it runs, as before.
+  // The box shows only when onPreInputChange is given.
+  preInput?: string
+  onPreInputChange?: (v: string) => void
+  // The question's first visible example input, for "Use sample input".
+  sampleInput?: string
+  // Live terminal: the run's place in the queue while every runner is busy.
+  queuePosition?: number | null
 }
 
 // Light-theme terminal — no dark surfaces on the student workspace per the
@@ -56,6 +66,7 @@ export default function RunTerminal(props: RunTerminalProps) {
     lines, running, lastRuntimeMs, onClear,
     stdin, onStdinChange,
     interactive, awaitingInput, inputPrompt, onSubmitInput, live = false, onStop,
+    preInput = "", onPreInputChange, sampleInput = "", queuePosition = null,
   } = props
   const scrollRef = useRef<HTMLDivElement>(null)
   const liveInputRef = useRef<HTMLInputElement>(null)
@@ -131,6 +142,16 @@ export default function RunTerminal(props: RunTerminalProps) {
 
     return (
       <div className="flex flex-col h-full min-h-0" style={{ background: "#F3F6FA", fontFamily: "ui-monospace, SFMono-Regular, monospace" }}>
+        {/* While every runner is busy: where this run is in line. */}
+        {interactive && queuePosition ? (
+          <div
+            role="status"
+            className="flex-shrink-0 px-3 py-1.5 border-b"
+            style={{ borderColor: "#FCD9BD", background: "#FFF7ED", color: "#9A3412", fontFamily: "'Poppins',sans-serif", fontSize: 12, fontWeight: 600 }}
+          >
+            Queued (position {queuePosition}) — your program starts by itself as soon as a runner is free.
+          </div>
+        ) : null}
         <div
           ref={scrollRef}
           onMouseUp={focusTerminal}
@@ -173,6 +194,44 @@ export default function RunTerminal(props: RunTerminalProps) {
             className="pointer-events-none inline-block h-0 w-0 border-0 p-0 opacity-0"
           />
         </div>
+        {/* Optional input for the next Run, sent the moment the program
+            starts. Empty keeps the interactive console. */}
+        {onPreInputChange && (
+          <div className="flex-shrink-0 border-t px-3 py-2" style={{ borderColor: "#D9E1EA", background: "#fff", fontFamily: "'Poppins',sans-serif" }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 4, gap: 8 }}>
+              <label
+                htmlFor="run-terminal-pre-input"
+                style={{ fontSize: 11, fontWeight: 600, color: "#667085", textTransform: "uppercase", letterSpacing: 0.4 }}
+              >
+                Input (optional)
+              </label>
+              {sampleInput && !interactive && preInput !== sampleInput ? (
+                <button
+                  type="button"
+                  onClick={() => onPreInputChange(sampleInput)}
+                  style={{ fontSize: 11, fontWeight: 600, color: "#0F766E", background: "transparent", border: 0, cursor: "pointer", padding: 0 }}
+                >
+                  Use sample input
+                </button>
+              ) : null}
+            </div>
+            <textarea
+              id="run-terminal-pre-input"
+              value={preInput}
+              onChange={(e) => onPreInputChange(e.target.value)}
+              disabled={interactive}
+              rows={2}
+              spellCheck={false}
+              placeholder="Sent to your program as soon as it starts. Leave empty to type input while it runs."
+              className="w-full resize-y rounded outline-none"
+              style={{
+                padding: "6px 8px", border: "1px solid #D9E1EA", background: interactive ? "#EEF2F6" : "#F3F6FA",
+                color: "#172033", fontFamily: "ui-monospace, monospace", fontSize: 12,
+                minHeight: 40, maxHeight: 160, opacity: interactive ? 0.7 : 1,
+              }}
+            />
+          </div>
+        )}
         <style>{"@keyframes rt-blink{0%,49%{background:#172033;color:#F3F6FA}50%,100%{background:transparent;color:inherit}}.rt-cursor{animation:rt-blink 1.06s step-end infinite}.rt-cursor-idle{outline:1px solid #94A3B8;outline-offset:-1px}"}</style>
       </div>
     )
